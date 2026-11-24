@@ -1,0 +1,60 @@
+// Scripted provider for UI development and tests. Makes no network calls.
+//
+// Prompt commands:
+//   "/tool"   -> one tool call that needs approval (Bash "echo hello")
+//   "/slow"   -> streams slowly, so interrupt can be tested
+//   "/fail"   -> the run fails
+// Anything else gets an echo reply, streamed word by word.
+import type { AgentProvider, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
+
+const sleep = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal.aborted) return reject(new Error("aborted"));
+    const t = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => (clearTimeout(t), reject(new Error("aborted"))), { once: true });
+  });
+
+export class FakeProvider implements AgentProvider {
+  readonly id = "fake" as const;
+  private readonly delayMs: number;
+  private turn = 0;
+
+  constructor(delayMs = 5) {
+    this.delayMs = delayMs;
+  }
+
+  async run(req: RunRequest, cb: RunCallbacks): Promise<RunOutcome> {
+    const sessionId = req.sessionId ?? `fake-session-${req.botId}`;
+    cb.emit({ type: "session", sessionId });
+    const turn = ++this.turn;
+    const prompt = req.prompt.trim();
+    try {
+      if (prompt === "/fail") return { status: "failed", sessionId, error: "Scripted failure." };
+
+      if (prompt === "/tool") {
+        const toolUseId = `tool-${turn}`;
+        const input = { command: "echo hello" };
+        cb.emit({ type: "tool_start", toolUseId, tool: "Bash", summary: "Running echo hello" });
+        const decision = await cb.requestApproval({ tool: "Bash", summary: "Running echo hello", input }, req.signal);
+        cb.emit({ type: "tool_end", toolUseId, ok: decision.allow });
+        const reply = decision.allow ? "Done. The command printed hello." : `Okay, I won't run it (${decision.reason}).`;
+        cb.emit({ type: "text", blockId: `msg-${turn}:0`, text: reply });
+        return { status: "finished", sessionId, costUsd: 0 };
+      }
+
+      const reply = `${req.botName} here. You said: ${prompt}`;
+      const blockId = `msg-${turn}:0`;
+      const delay = prompt === "/slow" ? 200 : this.delayMs;
+      const words = reply.split(" ");
+      for (let i = 0; i < words.length; i++) {
+        await sleep(delay, req.signal);
+        cb.emit({ type: "text_delta", blockId, text: (i ? " " : "") + words[i] });
+      }
+      cb.emit({ type: "text", blockId, text: reply });
+      return { status: "finished", sessionId, costUsd: 0 };
+    } catch (err) {
+      if (req.signal.aborted) return { status: "interrupted", sessionId };
+      throw err;
+    }
+  }
+}
