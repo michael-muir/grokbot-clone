@@ -1,0 +1,2440 @@
+{
+ "body": {
+  "tag": "body",
+  "cls": "",
+  "box": [
+   0,
+   0,
+   1040,
+   760
+  ],
+  "font": "400 16px/normal XVF",
+  "color": "rgb(245, 245, 245)"
+ },
+ "varCount": 1104,
+ "vars": {
+  "--cursor-accent": "oklch(0.543 0.175 255.704)",
+  "--cursor-accent-fill": "oklch(0.543 0.175 255.704)",
+  "--cursor-accent-foreground-bright": "oklch(0.543 0.175 255.704)",
+  "--cursor-added": "oklch(0.618 0.152 154.41)",
+  "--cursor-added-foreground-bright": "oklch(0.618 0.152 154.41)",
+  "--cursor-base": "oklch(0.97 0 0)",
+  "--cursor-blue": "oklch(0.543 0.175 255.704)",
+  "--cursor-blue-fill": "oklch(0.543 0.175 255.704)",
+  "--cursor-blue-fill-bright": "oklch(0.624 0.2 255.801)",
+  "--cursor-blue-fill-hover": "oklch(0.623 0.199 255.595)",
+  "--cursor-blue-fill-pressed": "oklch(0.467 0.148 255.378)",
+  "--cursor-blue-foreground": "oklch(0.688 0.167 255.8)",
+  "--cursor-blue-foreground-bright": "oklch(0.543 0.175 255.704)",
+  "--cursor-blue-foreground-hover": "oklch(0.764 0.123 255.379)",
+  "--cursor-brand": "oklch(0.652 0.214 37.99)",
+  "--cursor-brown": "oklch(0.52 0.086 62.136)",
+  "--cursor-brown-fill": "oklch(0.52 0.086 62.136)",
+  "--cursor-brown-fill-bright": "oklch(0.575 0.095 61.776)",
+  "--cursor-brown-fill-hover": "oklch(0.6 0.099 62.418)",
+  "--cursor-brown-fill-pressed": "oklch(0.442 0.074 61.675)",
+  "--cursor-brown-foreground": "oklch(0.727 0.065 61.763)",
+  "--cursor-brown-foreground-bright": "oklch(0.52 0.086 62.136)",
+  "--cursor-brown-foreground-hover": "oklch(0.782 0.042 63.517)",
+  "--cursor-chrome": "oklch(0.182 0 0)",
+  "--cursor-cyan": "oklch(0.61 0.108 180.29)",
+  "--cursor-cyan-fill": "oklch(0.61 0.108 180.29)",
+  "--cursor-cyan-fill-bright": "oklch(0.703 0.124 180.592)",
+  "--cursor-cyan-fill-hover": "oklch(0.689 0.122 180.9)",
+  "--cursor-cyan-fill-pressed": "oklch(0.529 0.094 180.365)",
+  "--cursor-cyan-foreground": "oklch(0.699 0.126 180.722)",
+  "--cursor-cyan-foreground-bright": "oklch(0.61 0.108 180.29)",
+  "--cursor-cyan-foreground-hover": "oklch(0.763 0.106 180.426)",
+  "--cursor-danger": "oklch(0.559 0.199 23.856)",
+  "--cursor-danger-fill": "oklch(0.559 0.199 23.856)",
+  "--cursor-danger-fill-bright": "oklch(0.64 0.237 23.681)",
+  "--cursor-danger-fill-hover": "oklch(0.639 0.226 23.466)",
+  "--cursor-danger-fill-pressed": "oklch(0.479 0.169 23.767)",
+  "--cursor-danger-foreground": "oklch(0.701 0.19 23.689)",
+  "--cursor-danger-foreground-bright": "oklch(0.559 0.199 23.856)",
+  "--cursor-danger-foreground-hover": "oklch(0.771 0.135 23.397)",
+  "--cursor-diff-added-line-background": "oklch(0.719 0.176 154.501 / 0.071)",
+  "--cursor-diff-added-text-background": "oklch(0.719 0.176 154.501 / 0.039)",
+  "--cursor-diff-removed-line-background": "oklch(0.64 0.237 23.681 / 0.071)",
+  "--cursor-diff-removed-text-background": "oklch(0.64 0.237 23.681 / 0.039)",
+  "--cursor-elevated": "oklch(0.239 0 0)",
+  "--cursor-focus": "oklch(0.624 0.2 255.801)",
+  "--cursor-green": "oklch(0.618 0.152 154.41)",
+  "--cursor-green-fill": "oklch(0.618 0.152 154.41)",
+  "--cursor-green-fill-bright": "oklch(0.719 0.176 154.501)",
+  "--cursor-green-fill-hover": "oklch(0.697 0.171 154.442)",
+  "--cursor-green-fill-pressed": "oklch(0.54 0.132 154.484)",
+  "--cursor-green-foreground": "oklch(0.693 0.173 154.476)",
+  "--cursor-green-foreground-bright": "oklch(0.618 0.152 154.41)",
+  "--cursor-green-foreground-hover": "oklch(0.744 0.175 154.553)",
+  "--cursor-magenta": "oklch(0.575 0.21 355.408)",
+  "--cursor-magenta-fill": "oklch(0.575 0.21 355.408)",
+  "--cursor-magenta-fill-bright": "oklch(0.664 0.243 355.702)",
+  "--cursor-magenta-fill-hover": "oklch(0.655 0.239 355.328)",
+  "--cursor-magenta-fill-pressed": "oklch(0.496 0.181 355.696)",
+  "--cursor-magenta-foreground": "oklch(0.701 0.216 355.603)",
+  "--cursor-magenta-foreground-bright": "oklch(0.575 0.21 355.408)",
+  "--cursor-magenta-foreground-hover": "oklch(0.774 0.15 355.716)",
+  "--cursor-modified": "oklch(0.643 0.143 63.835)",
+  "--cursor-modified-foreground-bright": "oklch(0.643 0.143 63.835)",
+  "--cursor-on-primary": "oklch(0.97 0 0)",
+  "--cursor-orange": "oklch(0.594 0.17 43.733)",
+  "--cursor-orange-fill": "oklch(0.594 0.17 43.733)",
+  "--cursor-orange-fill-bright": "oklch(0.688 0.197 43.876)",
+  "--cursor-orange-fill-hover": "oklch(0.678 0.193 43.916)",
+  "--cursor-orange-fill-pressed": "oklch(0.513 0.146 43.892)",
+  "--cursor-orange-foreground": "oklch(0.694 0.203 43.626)",
+  "--cursor-orange-foreground-bright": "oklch(0.594 0.17 43.733)",
+  "--cursor-orange-foreground-hover": "oklch(0.77 0.144 44.275)",
+  "--cursor-pane": "oklch(0.2 0 0)",
+  "--cursor-purple": "oklch(0.532 0.211 294.069)",
+  "--cursor-purple-fill": "oklch(0.532 0.211 294.069)",
+  "--cursor-purple-fill-bright": "oklch(0.611 0.227 294.048)",
+  "--cursor-purple-fill-hover": "oklch(0.606 0.225 293.946)",
+  "--cursor-purple-fill-pressed": "oklch(0.455 0.181 293.866)",
+  "--cursor-purple-foreground": "oklch(0.695 0.179 294.162)",
+  "--cursor-purple-foreground-bright": "oklch(0.532 0.211 294.069)",
+  "--cursor-purple-foreground-hover": "oklch(0.775 0.128 294.461)",
+  "--cursor-red": "oklch(0.559 0.199 23.856)",
+  "--cursor-red-fill": "oklch(0.559 0.199 23.856)",
+  "--cursor-red-fill-bright": "oklch(0.64 0.237 23.681)",
+  "--cursor-red-fill-hover": "oklch(0.639 0.226 23.466)",
+  "--cursor-red-fill-pressed": "oklch(0.479 0.169 23.767)",
+  "--cursor-red-foreground": "oklch(0.701 0.19 23.689)",
+  "--cursor-red-foreground-bright": "oklch(0.559 0.199 23.856)",
+  "--cursor-red-foreground-hover": "oklch(0.771 0.135 23.397)",
+  "--cursor-removed": "oklch(0.559 0.199 23.856)",
+  "--cursor-removed-foreground-bright": "oklch(0.559 0.199 23.856)",
+  "--cursor-sidebar": "oklch(0.164 0 0)",
+  "--cursor-success": "oklch(0.618 0.152 154.41)",
+  "--cursor-success-fill": "oklch(0.618 0.152 154.41)",
+  "--cursor-success-fill-bright": "oklch(0.719 0.176 154.501)",
+  "--cursor-success-fill-hover": "oklch(0.697 0.171 154.442)",
+  "--cursor-success-fill-pressed": "oklch(0.54 0.132 154.484)",
+  "--cursor-success-foreground": "oklch(0.693 0.173 154.476)",
+  "--cursor-success-foreground-bright": "oklch(0.618 0.152 154.41)",
+  "--cursor-success-foreground-hover": "oklch(0.744 0.175 154.553)",
+  "--cursor-terminal-ansi-black": "oklch(0.239 0 0)",
+  "--cursor-terminal-ansi-blue": "oklch(0.688 0.167 255.8)",
+  "--cursor-terminal-ansi-bright-black": "oklch(0.97 0 0 / 0.741)",
+  "--cursor-terminal-ansi-bright-blue": "oklch(0.624 0.2 255.801)",
+  "--cursor-terminal-ansi-bright-cyan": "oklch(0.703 0.124 180.592)",
+  "--cursor-terminal-ansi-bright-green": "oklch(0.719 0.176 154.501)",
+  "--cursor-terminal-ansi-bright-magenta": "oklch(0.664 0.243 355.702)",
+  "--cursor-terminal-ansi-bright-red": "oklch(0.64 0.237 23.681)",
+  "--cursor-terminal-ansi-bright-white": "oklch(1 0 0)",
+  "--cursor-terminal-ansi-bright-yellow": "oklch(0.753 0.167 64.026)",
+  "--cursor-terminal-ansi-cyan": "oklch(0.699 0.126 180.722)",
+  "--cursor-terminal-ansi-green": "oklch(0.693 0.173 154.476)",
+  "--cursor-terminal-ansi-magenta": "oklch(0.701 0.216 355.603)",
+  "--cursor-terminal-ansi-red": "oklch(0.701 0.19 23.689)",
+  "--cursor-terminal-ansi-white": "oklch(0.97 0 0)",
+  "--cursor-terminal-ansi-yellow": "oklch(0.703 0.159 63.996)",
+  "--cursor-untracked": "oklch(0.61 0.108 180.29)",
+  "--cursor-untracked-foreground-bright": "oklch(0.61 0.108 180.29)",
+  "--cursor-warn": "oklch(0.643 0.143 63.835)",
+  "--cursor-warn-fill": "oklch(0.643 0.143 63.835)",
+  "--cursor-warn-fill-bright": "oklch(0.753 0.167 64.026)",
+  "--cursor-warn-fill-hover": "oklch(0.724 0.161 63.771)",
+  "--cursor-warn-fill-pressed": "oklch(0.564 0.125 64.232)",
+  "--cursor-warn-foreground": "oklch(0.703 0.159 63.996)",
+  "--cursor-warn-foreground-bright": "oklch(0.643 0.143 63.835)",
+  "--cursor-warn-foreground-hover": "oklch(0.76 0.172 63.786)",
+  "--cursor-yellow": "oklch(0.643 0.143 63.835)",
+  "--cursor-yellow-fill": "oklch(0.643 0.143 63.835)",
+  "--cursor-yellow-fill-bright": "oklch(0.753 0.167 64.026)",
+  "--cursor-yellow-fill-hover": "oklch(0.724 0.161 63.771)",
+  "--cursor-yellow-fill-pressed": "oklch(0.564 0.125 64.232)",
+  "--cursor-yellow-foreground": "oklch(0.703 0.159 63.996)",
+  "--cursor-yellow-foreground-bright": "oklch(0.643 0.143 63.835)",
+  "--cursor-yellow-foreground-hover": "oklch(0.76 0.172 63.786)",
+  "--cursor-foreground": "#f5f5f52e",
+  "--cursor-text-primary": "#f5f5f5",
+  "--cursor-text-secondary": "#f5f5f5a8",
+  "--cursor-text-tertiary": "#f5f5f58a",
+  "--cursor-text-quaternary": "#f5f5f561",
+  "--cursor-text-invert": "#f5f5f5",
+  "--cursor-text-media": "color-mix(in srgb, oklch(1 0 0) 100%, transparent)",
+  "--cursor-text-active": "#f5f5f5",
+  "--cursor-text-focused": "#f5f5f5",
+  "--cursor-text-on-primary-secondary": "color-mix(in srgb, oklch(0.97 0 0) 74%, transparent)",
+  "--cursor-gray": "color-mix(in srgb, oklch(0.97 0 0) 75%, oklch(0.2 0 0))",
+  "--cursor-gray-fill": "color-mix(in srgb, oklch(0.97 0 0) 65%, oklch(0.2 0 0))",
+  "--cursor-gray-fill-hover": "color-mix(in srgb, oklch(0.97 0 0) 76%, oklch(0.2 0 0))",
+  "--cursor-gray-fill-pressed": "color-mix(in srgb, oklch(0.97 0 0) 54%, oklch(0.2 0 0))",
+  "--cursor-gray-fill-bright": "color-mix(in srgb, oklch(0.97 0 0) 78%, oklch(0.2 0 0))",
+  "--cursor-gray-foreground": "color-mix(in srgb, oklch(0.97 0 0) 75%, oklch(0.2 0 0))",
+  "--cursor-gray-foreground-hover": "color-mix(in srgb, oklch(0.97 0 0) 79%, oklch(0.2 0 0))",
+  "--cursor-gray-foreground-bright": "color-mix(in srgb, oklch(0.97 0 0) 76%, oklch(0.2 0 0))",
+  "--cursor-text-red-primary": "#ff6463",
+  "--cursor-icon-red-primary": "#cf2b35",
+  "--cursor-bg-red-primary": "#cf2b35",
+  "--cursor-stroke-red-primary": "color-mix(in srgb, oklch(0.559 0.199 23.856) 56%, transparent)",
+  "--cursor-text-red-secondary": "color-mix(in srgb, oklch(0.701 0.19 23.689) 78%, transparent)",
+  "--cursor-icon-red-secondary": "color-mix(in srgb, oklch(0.559 0.199 23.856) 70%, transparent)",
+  "--cursor-bg-red-secondary": "#fc2c3e12",
+  "--cursor-stroke-red-secondary": "color-mix(in srgb, oklch(0.559 0.199 23.856) 32%, transparent)",
+  "--cursor-text-red-tertiary": "color-mix(in srgb, oklch(0.701 0.19 23.689) 64%, transparent)",
+  "--cursor-icon-red-tertiary": "color-mix(in srgb, oklch(0.559 0.199 23.856) 56%, transparent)",
+  "--cursor-bg-red-tertiary": "color-mix(in srgb, oklch(0.64 0.237 23.681) 8%, transparent)",
+  "--cursor-stroke-red-tertiary": "color-mix(in srgb, oklch(0.559 0.199 23.856) 20%, transparent)",
+  "--cursor-text-red-quaternary": "color-mix(in srgb, oklch(0.701 0.19 23.689) 40%, transparent)",
+  "--cursor-icon-red-quaternary": "color-mix(in srgb, oklch(0.559 0.199 23.856) 32%, transparent)",
+  "--cursor-bg-red-quaternary": "color-mix(in srgb, oklch(0.64 0.237 23.681) 6%, transparent)",
+  "--cursor-stroke-red-quaternary": "color-mix(in srgb, oklch(0.559 0.199 23.856) 12%, transparent)",
+  "--cursor-bg-red-quinary": "color-mix(in srgb, oklch(0.64 0.237 23.681) 4%, transparent)",
+  "--cursor-text-orange-primary": "#fe6600",
+  "--cursor-icon-orange-primary": "#cd5309",
+  "--cursor-bg-orange-primary": "#cd5309",
+  "--cursor-stroke-orange-primary": "color-mix(in srgb, oklch(0.594 0.17 43.733) 56%, transparent)",
+  "--cursor-text-orange-secondary": "color-mix(in srgb, oklch(0.694 0.203 43.626) 78%, transparent)",
+  "--cursor-icon-orange-secondary": "color-mix(in srgb, oklch(0.594 0.17 43.733) 70%, transparent)",
+  "--cursor-bg-orange-secondary": "#f9670e12",
+  "--cursor-stroke-orange-secondary": "color-mix(in srgb, oklch(0.594 0.17 43.733) 32%, transparent)",
+  "--cursor-text-orange-tertiary": "color-mix(in srgb, oklch(0.694 0.203 43.626) 64%, transparent)",
+  "--cursor-icon-orange-tertiary": "color-mix(in srgb, oklch(0.594 0.17 43.733) 56%, transparent)",
+  "--cursor-bg-orange-tertiary": "color-mix(in srgb, oklch(0.688 0.197 43.876) 8%, transparent)",
+  "--cursor-stroke-orange-tertiary": "color-mix(in srgb, oklch(0.594 0.17 43.733) 20%, transparent)",
+  "--cursor-text-orange-quaternary": "color-mix(in srgb, oklch(0.694 0.203 43.626) 40%, transparent)",
+  "--cursor-icon-orange-quaternary": "color-mix(in srgb, oklch(0.594 0.17 43.733) 32%, transparent)",
+  "--cursor-bg-orange-quaternary": "color-mix(in srgb, oklch(0.688 0.197 43.876) 6%, transparent)",
+  "--cursor-stroke-orange-quaternary": "color-mix(in srgb, oklch(0.594 0.17 43.733) 12%, transparent)",
+  "--cursor-bg-orange-quinary": "color-mix(in srgb, oklch(0.688 0.197 43.876) 4%, transparent)",
+  "--cursor-text-yellow-primary": "#e28600",
+  "--cursor-icon-yellow-primary": "#c8770c",
+  "--cursor-bg-yellow-primary": "#c8770c",
+  "--cursor-stroke-yellow-primary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 56%, transparent)",
+  "--cursor-text-yellow-secondary": "color-mix(in srgb, oklch(0.703 0.159 63.996) 78%, transparent)",
+  "--cursor-icon-yellow-secondary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 70%, transparent)",
+  "--cursor-bg-yellow-secondary": "#f6941212",
+  "--cursor-stroke-yellow-secondary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 32%, transparent)",
+  "--cursor-text-yellow-tertiary": "color-mix(in srgb, oklch(0.703 0.159 63.996) 64%, transparent)",
+  "--cursor-icon-yellow-tertiary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 56%, transparent)",
+  "--cursor-bg-yellow-tertiary": "color-mix(in srgb, oklch(0.753 0.167 64.026) 8%, transparent)",
+  "--cursor-stroke-yellow-tertiary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 20%, transparent)",
+  "--cursor-text-yellow-quaternary": "color-mix(in srgb, oklch(0.703 0.159 63.996) 40%, transparent)",
+  "--cursor-icon-yellow-quaternary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 32%, transparent)",
+  "--cursor-bg-yellow-quaternary": "color-mix(in srgb, oklch(0.753 0.167 64.026) 6%, transparent)",
+  "--cursor-stroke-yellow-quaternary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 12%, transparent)",
+  "--cursor-bg-yellow-quinary": "color-mix(in srgb, oklch(0.753 0.167 64.026) 4%, transparent)",
+  "--cursor-text-green-primary": "#00ba69",
+  "--cursor-icon-green-primary": "#0e9f5a",
+  "--cursor-bg-green-primary": "#0e9f5a",
+  "--cursor-stroke-green-primary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 56%, transparent)",
+  "--cursor-text-green-secondary": "color-mix(in srgb, oklch(0.693 0.173 154.476) 78%, transparent)",
+  "--cursor-icon-green-secondary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 70%, transparent)",
+  "--cursor-bg-green-secondary": "#14c37012",
+  "--cursor-stroke-green-secondary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 32%, transparent)",
+  "--cursor-text-green-tertiary": "color-mix(in srgb, oklch(0.693 0.173 154.476) 64%, transparent)",
+  "--cursor-icon-green-tertiary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 56%, transparent)",
+  "--cursor-bg-green-tertiary": "color-mix(in srgb, oklch(0.719 0.176 154.501) 8%, transparent)",
+  "--cursor-stroke-green-tertiary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 20%, transparent)",
+  "--cursor-text-green-quaternary": "color-mix(in srgb, oklch(0.693 0.173 154.476) 40%, transparent)",
+  "--cursor-icon-green-quaternary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 32%, transparent)",
+  "--cursor-bg-green-quaternary": "color-mix(in srgb, oklch(0.719 0.176 154.501) 6%, transparent)",
+  "--cursor-stroke-green-quaternary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 12%, transparent)",
+  "--cursor-bg-green-quinary": "color-mix(in srgb, oklch(0.719 0.176 154.501) 4%, transparent)",
+  "--cursor-text-cyan-primary": "#00b7a2",
+  "--cursor-icon-cyan-primary": "#0e9886",
+  "--cursor-bg-cyan-primary": "#0e9886",
+  "--cursor-stroke-cyan-primary": "#0e9886",
+  "--cursor-text-cyan-secondary": "color-mix(in srgb, oklch(0.699 0.126 180.722) 78%, transparent)",
+  "--cursor-icon-cyan-secondary": "color-mix(in srgb, oklch(0.61 0.108 180.29) 70%, transparent)",
+  "--cursor-bg-cyan-secondary": "#13b8a312",
+  "--cursor-stroke-cyan-secondary": "color-mix(in srgb, oklch(0.61 0.108 180.29) 32%, transparent)",
+  "--cursor-text-cyan-tertiary": "color-mix(in srgb, oklch(0.699 0.126 180.722) 64%, transparent)",
+  "--cursor-icon-cyan-tertiary": "color-mix(in srgb, oklch(0.61 0.108 180.29) 56%, transparent)",
+  "--cursor-bg-cyan-tertiary": "color-mix(in srgb, oklch(0.703 0.124 180.592) 8%, transparent)",
+  "--cursor-stroke-cyan-tertiary": "color-mix(in srgb, oklch(0.61 0.108 180.29) 20%, transparent)",
+  "--cursor-text-cyan-quaternary": "color-mix(in srgb, oklch(0.699 0.126 180.722) 40%, transparent)",
+  "--cursor-icon-cyan-quaternary": "color-mix(in srgb, oklch(0.61 0.108 180.29) 32%, transparent)",
+  "--cursor-bg-cyan-quaternary": "color-mix(in srgb, oklch(0.703 0.124 180.592) 6%, transparent)",
+  "--cursor-stroke-cyan-quaternary": "color-mix(in srgb, oklch(0.61 0.108 180.29) 12%, transparent)",
+  "--cursor-bg-cyan-quinary": "color-mix(in srgb, oklch(0.703 0.124 180.592) 4%, transparent)",
+  "--cursor-text-blue-primary": "#4d9bff",
+  "--cursor-icon-blue-primary": "#116dd2",
+  "--cursor-bg-blue-primary": "#116dd2",
+  "--cursor-stroke-blue-primary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 56%, transparent)",
+  "--cursor-text-blue-secondary": "color-mix(in srgb, oklch(0.688 0.167 255.8) 78%, transparent)",
+  "--cursor-icon-blue-secondary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 70%, transparent)",
+  "--cursor-bg-blue-secondary": "#1884fc12",
+  "--cursor-stroke-blue-secondary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 32%, transparent)",
+  "--cursor-text-blue-tertiary": "color-mix(in srgb, oklch(0.688 0.167 255.8) 64%, transparent)",
+  "--cursor-icon-blue-tertiary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 56%, transparent)",
+  "--cursor-bg-blue-tertiary": "color-mix(in srgb, oklch(0.624 0.2 255.801) 8%, transparent)",
+  "--cursor-stroke-blue-tertiary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 20%, transparent)",
+  "--cursor-text-blue-quaternary": "color-mix(in srgb, oklch(0.688 0.167 255.8) 40%, transparent)",
+  "--cursor-icon-blue-quaternary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 32%, transparent)",
+  "--cursor-bg-blue-quaternary": "color-mix(in srgb, oklch(0.624 0.2 255.801) 6%, transparent)",
+  "--cursor-stroke-blue-quaternary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 12%, transparent)",
+  "--cursor-bg-blue-quinary": "color-mix(in srgb, oklch(0.624 0.2 255.801) 4%, transparent)",
+  "--cursor-text-magenta-primary": "#ff55a4",
+  "--cursor-icon-magenta-primary": "#cf297e",
+  "--cursor-bg-magenta-primary": "#cf297e",
+  "--cursor-stroke-magenta-primary": "color-mix(in srgb, oklch(0.575 0.21 355.408) 56%, transparent)",
+  "--cursor-text-magenta-secondary": "color-mix(in srgb, oklch(0.701 0.216 355.603) 78%, transparent)",
+  "--cursor-icon-magenta-secondary": "color-mix(in srgb, oklch(0.575 0.21 355.408) 70%, transparent)",
+  "--cursor-bg-magenta-secondary": "#fb349912",
+  "--cursor-stroke-magenta-secondary": "color-mix(in srgb, oklch(0.575 0.21 355.408) 32%, transparent)",
+  "--cursor-text-magenta-tertiary": "color-mix(in srgb, oklch(0.701 0.216 355.603) 64%, transparent)",
+  "--cursor-icon-magenta-tertiary": "color-mix(in srgb, oklch(0.575 0.21 355.408) 56%, transparent)",
+  "--cursor-bg-magenta-tertiary": "color-mix(in srgb, oklch(0.664 0.243 355.702) 8%, transparent)",
+  "--cursor-stroke-magenta-tertiary": "color-mix(in srgb, oklch(0.575 0.21 355.408) 20%, transparent)",
+  "--cursor-text-magenta-quaternary": "color-mix(in srgb, oklch(0.701 0.216 355.603) 40%, transparent)",
+  "--cursor-icon-magenta-quaternary": "color-mix(in srgb, oklch(0.575 0.21 355.408) 32%, transparent)",
+  "--cursor-bg-magenta-quaternary": "color-mix(in srgb, oklch(0.664 0.243 355.702) 6%, transparent)",
+  "--cursor-stroke-magenta-quaternary": "color-mix(in srgb, oklch(0.575 0.21 355.408) 12%, transparent)",
+  "--cursor-bg-magenta-quinary": "color-mix(in srgb, oklch(0.664 0.243 355.702) 4%, transparent)",
+  "--cursor-text-purple-primary": "#a582ff",
+  "--cursor-icon-purple-primary": "#7845d7",
+  "--cursor-bg-purple-primary": "#7845d7",
+  "--cursor-stroke-purple-primary": "color-mix(in srgb, oklch(0.532 0.211 294.069) 56%, transparent)",
+  "--cursor-text-purple-secondary": "color-mix(in srgb, oklch(0.695 0.179 294.162) 78%, transparent)",
+  "--cursor-icon-purple-secondary": "color-mix(in srgb, oklch(0.532 0.211 294.069) 70%, transparent)",
+  "--cursor-bg-purple-secondary": "#905afb12",
+  "--cursor-stroke-purple-secondary": "color-mix(in srgb, oklch(0.532 0.211 294.069) 32%, transparent)",
+  "--cursor-text-purple-tertiary": "color-mix(in srgb, oklch(0.695 0.179 294.162) 64%, transparent)",
+  "--cursor-icon-purple-tertiary": "color-mix(in srgb, oklch(0.532 0.211 294.069) 56%, transparent)",
+  "--cursor-bg-purple-tertiary": "color-mix(in srgb, oklch(0.611 0.227 294.048) 8%, transparent)",
+  "--cursor-stroke-purple-tertiary": "color-mix(in srgb, oklch(0.532 0.211 294.069) 20%, transparent)",
+  "--cursor-text-purple-quaternary": "color-mix(in srgb, oklch(0.695 0.179 294.162) 40%, transparent)",
+  "--cursor-icon-purple-quaternary": "color-mix(in srgb, oklch(0.532 0.211 294.069) 32%, transparent)",
+  "--cursor-bg-purple-quaternary": "color-mix(in srgb, oklch(0.611 0.227 294.048) 6%, transparent)",
+  "--cursor-stroke-purple-quaternary": "color-mix(in srgb, oklch(0.532 0.211 294.069) 12%, transparent)",
+  "--cursor-bg-purple-quinary": "color-mix(in srgb, oklch(0.611 0.227 294.048) 4%, transparent)",
+  "--cursor-text-gray-primary": "color-mix(in srgb, oklch(0.97 0 0) 75%, oklch(0.2 0 0))",
+  "--cursor-icon-gray-primary": "color-mix(in srgb, oklch(0.97 0 0) 76%, oklch(0.2 0 0))",
+  "--cursor-bg-gray-primary": "color-mix(in srgb, oklch(0.97 0 0) 65%, oklch(0.2 0 0))",
+  "--cursor-stroke-gray-primary": "color-mix(in srgb, color-mix(in srgb, oklch(0.97 0 0) 65%, oklch(0.2 0 0)) 56%, transparent)",
+  "--cursor-text-gray-secondary": "color-mix(in srgb, color-mix(in srgb, oklch(0.97 0 0) 75%, oklch(0.2 0 0)) 78%, transparent)",
+  "--cursor-icon-gray-secondary": "color-mix(in srgb, color-mix(in srgb, oklch(0.97 0 0) 76%, oklch(0.2 0 0)) 70%, transparent)",
+  "--cursor-bg-gray-secondary": "color-mix(in srgb, color-mix(in srgb, oklch(0.97 0 0) 78%, oklch(0.2 0 0)) 12%, transparent)",
+  "--cursor-stroke-gray-secondary": "color-mix(in srgb, color-mix(in srgb, oklch(0.97 0 0) 65%, oklch(0.2 0 0)) 32%, transparent)",
+  "--cursor-text-gray-tertiary": "color-mix(in srgb, color-mix(in srgb, oklch(0.97 0 0) 75%, oklch(0.2 0 0)) 64%, transparent)",
+  "--cursor-icon-gray-tertiary": "color-mix(in srgb, color-mix(in srgb, oklch(0.97 0 0) 76%, oklch(0.2 0 0)) 56%, transparent)",
+  "--cursor-bg-gray-tertiary": "color-mix(in srgb, color-mix(in srgb, oklch(0.97 0 0) 78%, oklch(0.2 0 0)) 8%, transparent)",
+  "--cursor-stroke-gray-tertiary": "color-mix(in srgb, color-mix(in srgb, oklch(0.97 0 0) 65%, oklch(0.2 0 0)) 20%, transparent)",
+  "--cursor-text-gray-quaternary": "color-mix(in srgb, color-mix(in srgb, oklch(0.97 0 0) 75%, oklch(0.2 0 0)) 40%, transparent)",
+  "--cursor-icon-gray-quaternary": "color-mix(in srgb, color-mix(in srgb, oklch(0.97 0 0) 76%, oklch(0.2 0 0)) 32%, transparent)",
+  "--cursor-bg-gray-quaternary": "color-mix(in srgb, color-mix(in srgb, oklch(0.97 0 0) 78%, oklch(0.2 0 0)) 6%, transparent)",
+  "--cursor-stroke-gray-quaternary": "color-mix(in srgb, color-mix(in srgb, oklch(0.97 0 0) 65%, oklch(0.2 0 0)) 12%, transparent)",
+  "--cursor-bg-gray-quinary": "color-mix(in srgb, color-mix(in srgb, oklch(0.97 0 0) 78%, oklch(0.2 0 0)) 4%, transparent)",
+  "--cursor-text-accent-secondary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 78%, transparent)",
+  "--cursor-icon-accent-secondary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 70%, transparent)",
+  "--cursor-bg-accent-secondary": "#1884fc12",
+  "--cursor-stroke-accent-secondary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 32%, transparent)",
+  "--cursor-text-accent-tertiary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 64%, transparent)",
+  "--cursor-icon-accent-tertiary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 56%, transparent)",
+  "--cursor-bg-accent-tertiary": "#1884fc12",
+  "--cursor-stroke-accent-tertiary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 20%, transparent)",
+  "--cursor-text-accent-quaternary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 40%, transparent)",
+  "--cursor-icon-accent-quaternary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 32%, transparent)",
+  "--cursor-bg-accent-quaternary": "#1884fc0a",
+  "--cursor-stroke-accent-quaternary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 12%, transparent)",
+  "--cursor-bg-accent-quinary": "color-mix(in srgb, oklch(0.543 0.175 255.704) 4%, transparent)",
+  "--cursor-stroke-accent": "#116dd2",
+  "--cursor-text-danger-primary": "oklch(0.701 0.19 23.689)",
+  "--cursor-icon-danger-primary": "oklch(0.559 0.199 23.856)",
+  "--cursor-stroke-danger-primary": "color-mix(in srgb, oklch(0.559 0.199 23.856) 56%, transparent)",
+  "--cursor-text-danger-secondary": "color-mix(in srgb, oklch(0.701 0.19 23.689) 78%, transparent)",
+  "--cursor-icon-danger-secondary": "color-mix(in srgb, oklch(0.559 0.199 23.856) 70%, transparent)",
+  "--cursor-stroke-danger-secondary": "color-mix(in srgb, oklch(0.559 0.199 23.856) 32%, transparent)",
+  "--cursor-text-danger-tertiary": "color-mix(in srgb, oklch(0.701 0.19 23.689) 64%, transparent)",
+  "--cursor-icon-danger-tertiary": "color-mix(in srgb, oklch(0.559 0.199 23.856) 56%, transparent)",
+  "--cursor-stroke-danger-tertiary": "color-mix(in srgb, oklch(0.559 0.199 23.856) 20%, transparent)",
+  "--cursor-text-danger-quaternary": "color-mix(in srgb, oklch(0.701 0.19 23.689) 40%, transparent)",
+  "--cursor-icon-danger-quaternary": "color-mix(in srgb, oklch(0.559 0.199 23.856) 32%, transparent)",
+  "--cursor-stroke-danger-quaternary": "color-mix(in srgb, oklch(0.559 0.199 23.856) 12%, transparent)",
+  "--cursor-bg-danger-primary": "oklch(0.559 0.199 23.856)",
+  "--cursor-bg-danger-secondary": "color-mix(in srgb, oklch(0.64 0.237 23.681) 20%, transparent)",
+  "--cursor-bg-danger-tertiary": "color-mix(in srgb, oklch(0.64 0.237 23.681) 18%, transparent)",
+  "--cursor-bg-danger-quaternary": "color-mix(in srgb, oklch(0.64 0.237 23.681) 10%, transparent)",
+  "--cursor-bg-danger-quinary": "color-mix(in srgb, oklch(0.64 0.237 23.681) 8%, transparent)",
+  "--cursor-text-success-primary": "oklch(0.693 0.173 154.476)",
+  "--cursor-icon-success-primary": "oklch(0.618 0.152 154.41)",
+  "--cursor-stroke-success-primary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 56%, transparent)",
+  "--cursor-text-success-secondary": "color-mix(in srgb, oklch(0.693 0.173 154.476) 78%, transparent)",
+  "--cursor-icon-success-secondary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 70%, transparent)",
+  "--cursor-stroke-success-secondary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 32%, transparent)",
+  "--cursor-text-success-tertiary": "color-mix(in srgb, oklch(0.693 0.173 154.476) 64%, transparent)",
+  "--cursor-icon-success-tertiary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 56%, transparent)",
+  "--cursor-stroke-success-tertiary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 20%, transparent)",
+  "--cursor-text-success-quaternary": "color-mix(in srgb, oklch(0.693 0.173 154.476) 40%, transparent)",
+  "--cursor-icon-success-quaternary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 32%, transparent)",
+  "--cursor-stroke-success-quaternary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 12%, transparent)",
+  "--cursor-bg-success-primary": "oklch(0.618 0.152 154.41)",
+  "--cursor-bg-success-secondary": "color-mix(in srgb, oklch(0.719 0.176 154.501) 20%, transparent)",
+  "--cursor-bg-success-tertiary": "color-mix(in srgb, oklch(0.719 0.176 154.501) 18%, transparent)",
+  "--cursor-bg-success-quaternary": "color-mix(in srgb, oklch(0.719 0.176 154.501) 10%, transparent)",
+  "--cursor-bg-success-quinary": "color-mix(in srgb, oklch(0.719 0.176 154.501) 8%, transparent)",
+  "--cursor-text-warning-primary": "oklch(0.703 0.159 63.996)",
+  "--cursor-icon-warning-primary": "oklch(0.643 0.143 63.835)",
+  "--cursor-stroke-warning-primary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 56%, transparent)",
+  "--cursor-text-warning-secondary": "color-mix(in srgb, oklch(0.703 0.159 63.996) 78%, transparent)",
+  "--cursor-icon-warning-secondary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 70%, transparent)",
+  "--cursor-stroke-warning-secondary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 32%, transparent)",
+  "--cursor-text-warning-tertiary": "color-mix(in srgb, oklch(0.703 0.159 63.996) 64%, transparent)",
+  "--cursor-icon-warning-tertiary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 56%, transparent)",
+  "--cursor-stroke-warning-tertiary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 20%, transparent)",
+  "--cursor-text-warning-quaternary": "color-mix(in srgb, oklch(0.703 0.159 63.996) 40%, transparent)",
+  "--cursor-icon-warning-quaternary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 32%, transparent)",
+  "--cursor-stroke-warning-quaternary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 12%, transparent)",
+  "--cursor-bg-warning-primary": "oklch(0.643 0.143 63.835)",
+  "--cursor-bg-warning-secondary": "color-mix(in srgb, oklch(0.753 0.167 64.026) 20%, transparent)",
+  "--cursor-bg-warning-tertiary": "color-mix(in srgb, oklch(0.753 0.167 64.026) 18%, transparent)",
+  "--cursor-bg-warning-quaternary": "color-mix(in srgb, oklch(0.753 0.167 64.026) 10%, transparent)",
+  "--cursor-bg-warning-quinary": "color-mix(in srgb, oklch(0.753 0.167 64.026) 8%, transparent)",
+  "--cursor-text-git-added-primary": "#00ba69",
+  "--cursor-icon-git-added-primary": "#0e9f5a",
+  "--cursor-bg-git-added-primary": "oklch(0.618 0.152 154.41)",
+  "--cursor-text-git-added-secondary": "color-mix(in srgb, oklch(0.693 0.173 154.476) 78%, transparent)",
+  "--cursor-icon-git-added-secondary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 70%, transparent)",
+  "--cursor-bg-git-added-secondary": "color-mix(in srgb, oklch(0.719 0.176 154.501) 20%, transparent)",
+  "--cursor-text-git-added-tertiary": "color-mix(in srgb, oklch(0.693 0.173 154.476) 64%, transparent)",
+  "--cursor-icon-git-added-tertiary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 56%, transparent)",
+  "--cursor-bg-git-added-tertiary": "color-mix(in srgb, oklch(0.719 0.176 154.501) 18%, transparent)",
+  "--cursor-text-git-added-quaternary": "color-mix(in srgb, oklch(0.693 0.173 154.476) 40%, transparent)",
+  "--cursor-icon-git-added-quaternary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 32%, transparent)",
+  "--cursor-bg-git-added-quaternary": "color-mix(in srgb, oklch(0.719 0.176 154.501) 10%, transparent)",
+  "--cursor-stroke-git-added": "color-mix(in srgb, oklch(0.618 0.152 154.41) 56%, transparent)",
+  "--cursor-stroke-git-added-secondary": "color-mix(in srgb, oklch(0.618 0.152 154.41) 32%, transparent)",
+  "--cursor-text-git-modified-primary": "oklch(0.703 0.159 63.996)",
+  "--cursor-icon-git-modified-primary": "oklch(0.643 0.143 63.835)",
+  "--cursor-bg-git-modified-primary": "oklch(0.643 0.143 63.835)",
+  "--cursor-text-git-modified-secondary": "color-mix(in srgb, oklch(0.703 0.159 63.996) 78%, transparent)",
+  "--cursor-icon-git-modified-secondary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 70%, transparent)",
+  "--cursor-bg-git-modified-secondary": "color-mix(in srgb, oklch(0.753 0.167 64.026) 20%, transparent)",
+  "--cursor-text-git-modified-tertiary": "color-mix(in srgb, oklch(0.703 0.159 63.996) 64%, transparent)",
+  "--cursor-icon-git-modified-tertiary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 56%, transparent)",
+  "--cursor-bg-git-modified-tertiary": "color-mix(in srgb, oklch(0.753 0.167 64.026) 18%, transparent)",
+  "--cursor-text-git-modified-quaternary": "color-mix(in srgb, oklch(0.703 0.159 63.996) 40%, transparent)",
+  "--cursor-icon-git-modified-quaternary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 32%, transparent)",
+  "--cursor-bg-git-modified-quaternary": "color-mix(in srgb, oklch(0.753 0.167 64.026) 10%, transparent)",
+  "--cursor-stroke-git-modified": "color-mix(in srgb, oklch(0.643 0.143 63.835) 56%, transparent)",
+  "--cursor-stroke-git-modified-secondary": "color-mix(in srgb, oklch(0.643 0.143 63.835) 32%, transparent)",
+  "--cursor-text-git-removed-primary": "#ff6463"
+ },
+ "nodes": [
+  {
+   "tag": "div",
+   "cls": "sand-shell sand-1c6q7ic sand-1x1t2sy sand-qsr98j sand-14mu8d4 sand-1fiktjy sand-",
+   "box": [
+    0,
+    0,
+    1040,
+    760
+   ],
+   "font": "400 16px/normal XVF",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(18, 18, 18)"
+  },
+  {
+   "tag": "aside",
+   "cls": "sand-agents-sidebar sand-1n2onr6 sand-1vjfegm sand-78zum5 sand-dt5ytf sand-xhr3t",
+   "box": [
+    0,
+    0,
+    88,
+    760
+   ],
+   "font": "400 16px/normal XVF",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(14, 14, 14)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-agent-item sand--default-marker sand-jyslct sand-1lugfcp sand-1n2onr6 sand-",
+   "box": [
+    17,
+    56,
+    54,
+    54
+   ],
+   "font": "400 16px/normal XVF",
+   "ls": "0.24px",
+   "color": "rgb(245, 245, 245)",
+   "radius": "12px",
+   "pad": "9px"
+  },
+  {
+   "tag": "svg",
+   "cls": "",
+   "box": [
+    16,
+    55,
+    55,
+    55
+   ],
+   "font": "400 16px/0px XVF",
+   "ls": "0.24px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-agent-item__corner-main sand-10l6tqk sand-3nfvp2 sand-6s0dn4 sand-l56j7k sa",
+   "box": [
+    50,
+    89,
+    12,
+    12
+   ],
+   "font": "400 16px/normal XVF",
+   "ls": "0.24px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(246, 148, 18)",
+   "radius": "9999px",
+   "shadow": "rgba(245, 245, 245, 0.04) 0px 0px 0px 0.5px inset"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-agent-item sand--default-marker sand-jyslct sand-1lugfcp sand-1n2onr6 sand-",
+   "box": [
+    17,
+    137,
+    54,
+    54
+   ],
+   "font": "400 16px/normal XVF",
+   "ls": "0.24px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.08)",
+   "radius": "12px",
+   "pad": "9px"
+  },
+  {
+   "tag": "svg",
+   "cls": "",
+   "box": [
+    16,
+    136,
+    55,
+    55
+   ],
+   "font": "400 16px/0px XVF",
+   "ls": "0.24px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-kit-icon-button sand-1n2onr6 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-2lah0",
+   "box": [
+    30,
+    630,
+    28,
+    28
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgba(245, 245, 245, 0.64)",
+   "radius": "9999px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-kit-icon-button sand-1n2onr6 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-2lah0",
+   "box": [
+    30,
+    664,
+    28,
+    28
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgba(245, 245, 245, 0.64)",
+   "radius": "9999px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-78zum5 sand-6s0dn4 sand-1yrsyyn sand-f159sx sand-10b6aqq sand-mzvs34 sand-c",
+   "box": [
+    17,
+    698,
+    54,
+    54
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(255, 255, 255)",
+   "radius": "10px",
+   "pad": "6px 8px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-kit-base-avatar sand-1n2onr6 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-2lah0",
+   "text": "MM",
+   "box": [
+    26,
+    707,
+    36,
+    36
+   ],
+   "font": "500 14px/14px XVF",
+   "ls": "-0.35px",
+   "color": "rgba(245, 245, 245, 0.66)",
+   "bg": "rgb(31, 31, 31)",
+   "radius": "9999px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-10l6tqk sand-10a8y8t sand-1y0btm7 sand-5fd6op sand-ymw2ht sand-47corl",
+   "box": [
+    26,
+    707,
+    36,
+    36
+   ],
+   "font": "500 14px/14px XVF",
+   "ls": "-0.35px",
+   "color": "rgba(245, 245, 245, 0.66)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "9999px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-chat-header__identity sand-chat-header__computer sand-3nfvp2 sand-6s0dn4 sa",
+   "box": [
+    514,
+    10,
+    96,
+    41
+   ],
+   "font": "400 16px/normal XVF",
+   "ls": "0.24px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(31, 31, 31)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "9999px",
+   "pad": "7.5px 13.5px 7.5px 7.5px",
+   "shadow": "rgba(245, 245, 245, 0) 0px 4px 12px -1px, rgba(245, 245, 245, 0) 0px 2px 4px -2px, rgba(245, 245, 245, 0) 0px 0px 0px 1px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-chat-header__name sand-euugli sand-193iq5w sand-b3r6kr sand-tyxrsu sand-lyi",
+   "text": "Starry",
+   "box": [
+    555,
+    21,
+    41,
+    20
+   ],
+   "font": "500 14px/20px XVF",
+   "ls": "0.14px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-kit-button sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-1jnr06f sand-2lah0s san",
+   "box": [
+    815,
+    13,
+    73,
+    36
+   ],
+   "font": "400 14px/20px XVF",
+   "ls": "0.14px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(31, 31, 31)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "9999px",
+   "pad": "8px 16px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-euugli sand-1tn5z8q sand-c26acl sand-b3r6kr sand-lyipyv sand-68av9p sand-83",
+   "text": "Share",
+   "box": [
+    832,
+    21,
+    39,
+    20
+   ],
+   "font": "400 14px/20px XVF",
+   "ls": "0.14px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "div",
+   "cls": "sand-message sand-1lvvshy sand-1n2onr6 sand-figyqd sand-11ct0s3 sand-1q1yrnu san",
+   "box": [
+    104,
+    -96,
+    560,
+    474
+   ],
+   "font": "400 15px/20px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "radius": "18px",
+   "pad": "7px 12px",
+   "shadow": "rgba(255, 255, 255, 0.03) 0px 0.5px 0px 0px inset, rgba(255, 255, 255, 0.03) 0px -0.5px 0px 0px inset, rgba(245, 245, 245, 0.04) 0px 0px 0px 0.5px inset"
+  },
+  {
+   "tag": "p",
+   "cls": "sand-dj266r sand-at24cr sand-gqtt45 sand-10y958y sand-lmaxj4 sand-126k92a",
+   "text": "Here's how it usually goes:",
+   "box": [
+    116,
+    -13,
+    536,
+    22
+   ],
+   "font": "400 15px/22px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "li",
+   "cls": "sand-dj266r sand-at24cr sand-eaf4i8 sand-xmd500",
+   "text": "Show or tell me once. Describe the steps, or do it while I w",
+   "box": [
+    136,
+    19,
+    516,
+    88
+   ],
+   "font": "400 15px/22px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "strong",
+   "cls": "sand-dj266r sand-at24cr sand-xzm5a7",
+   "text": "Show or tell me once.",
+   "box": [
+    136,
+    21,
+    159,
+    18
+   ],
+   "font": "600 15px/22px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "li",
+   "cls": "sand-at24cr sand-eaf4i8 sand-xmd500 sand-1om1abp",
+   "text": "One skill per client, or one skill with per-client rules. If",
+   "box": [
+    136,
+    111,
+    516,
+    88
+   ],
+   "font": "400 15px/22px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "strong",
+   "cls": "sand-dj266r sand-at24cr sand-xzm5a7",
+   "text": "One skill per client, or one skill with per-client rules.",
+   "box": [
+    136,
+    113,
+    380,
+    18
+   ],
+   "font": "600 15px/22px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "li",
+   "cls": "sand-at24cr sand-eaf4i8 sand-xmd500 sand-1om1abp",
+   "text": "Put it on a schedule. I can set a routine to draft every cli",
+   "box": [
+    136,
+    203,
+    516,
+    66
+   ],
+   "font": "400 15px/22px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "strong",
+   "cls": "sand-dj266r sand-at24cr sand-xzm5a7",
+   "text": "Put it on a schedule.",
+   "box": [
+    136,
+    205,
+    148,
+    18
+   ],
+   "font": "600 15px/22px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "li",
+   "cls": "sand-at24cr sand-eaf4i8 sand-xmd500 sand-1om1abp",
+   "text": "Fix it as we go. Whenever you correct me, I update the skill",
+   "box": [
+    136,
+    273,
+    516,
+    44
+   ],
+   "font": "400 15px/22px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "strong",
+   "cls": "sand-dj266r sand-at24cr sand-xzm5a7",
+   "text": "Fix it as we go.",
+   "box": [
+    136,
+    275,
+    107,
+    18
+   ],
+   "font": "600 15px/22px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "p",
+   "cls": "sand-dj266r sand-at24cr sand-gqtt45 sand-10y958y sand-lmaxj4 sand-126k92a",
+   "text": "Want to start with one client? Tell me how you invoice them ",
+   "box": [
+    116,
+    327,
+    536,
+    44
+   ],
+   "font": "400 15px/22px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "time",
+   "cls": "sand-row-timestamp sand-10l6tqk sand-13vifvy sand-1ey2m1c sand-tijo5x sand-78zum",
+   "text": "3:42 PM",
+   "box": [
+    966,
+    -110,
+    58,
+    490
+   ],
+   "font": "500 12px/12px XVF",
+   "color": "rgba(245, 245, 245, 0.54)",
+   "pad": "0px 0px 0px 10px"
+  },
+  {
+   "tag": "div",
+   "cls": "sand-message sand-1lvvshy sand-1n2onr6 sand-1q8iv8g sand-figyqd sand-11ct0s3 san",
+   "box": [
+    464,
+    394,
+    560,
+    58
+   ],
+   "font": "400 15px/20px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(200, 119, 12)",
+   "radius": "18px",
+   "pad": "7px 12px",
+   "shadow": "rgba(255, 255, 255, 0.03) 0px 0.5px 0px 0px inset, rgba(255, 255, 255, 0.03) 0px -0.5px 0px 0px inset, rgba(245, 245, 245, 0.04) 0px 0px 0px 0.5px inset"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-10l6tqk sand-1i1rx1s sand-jm9jq1 sand-kdpibf sand-1717udv sand-b3r6kr sand-",
+   "text": "You",
+   "box": [
+    475,
+    400,
+    1,
+    1
+   ],
+   "font": "400 15px/20px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "p",
+   "cls": "sand-dj266r sand-at24cr sand-126k92a",
+   "text": "No.  Not yet.   Where is your skills stored?  Can other agen",
+   "box": [
+    476,
+    401,
+    536,
+    44
+   ],
+   "font": "400 15px/22px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "time",
+   "cls": "sand-row-timestamp sand-10l6tqk sand-13vifvy sand-1ey2m1c sand-tijo5x sand-78zum",
+   "text": "3:45 PM",
+   "box": [
+    966,
+    380,
+    58,
+    74
+   ],
+   "font": "500 12px/12px XVF",
+   "color": "rgba(245, 245, 245, 0.54)",
+   "pad": "0px 0px 0px 10px"
+  },
+  {
+   "tag": "div",
+   "cls": "sand-message sand-1lvvshy sand-1n2onr6 sand-figyqd sand-11ct0s3 sand-1q1yrnu san",
+   "box": [
+    104,
+    468,
+    560,
+    178
+   ],
+   "font": "400 15px/20px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "radius": "18px",
+   "pad": "7px 12px",
+   "shadow": "rgba(255, 255, 255, 0.03) 0px 0.5px 0px 0px inset, rgba(255, 255, 255, 0.03) 0px -0.5px 0px 0px inset, rgba(245, 245, 245, 0.04) 0px 0px 0px 0.5px inset"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-10l6tqk sand-1i1rx1s sand-jm9jq1 sand-kdpibf sand-1717udv sand-b3r6kr sand-",
+   "text": "Starry",
+   "box": [
+    115,
+    474,
+    1,
+    1
+   ],
+   "font": "400 15px/20px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "p",
+   "cls": "sand-dj266r sand-at24cr sand-gqtt45 sand-10y958y sand-lmaxj4 sand-126k92a",
+   "text": "Yes, they're shared. Every skill I save goes into one librar",
+   "box": [
+    116,
+    475,
+    536,
+    110
+   ],
+   "font": "400 15px/22px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "code",
+   "cls": "sand-dj266r sand-at24cr sand-mpsg8l sand-1gojbwh sand-12oo3zp sand-1o0liin sand-",
+   "text": "/home/box/agent-data/workflows",
+   "box": [
+    116,
+    544,
+    267,
+    16
+   ],
+   "font": "400 13.95px/22px \"XVF Mono\"",
+   "color": "rgba(245, 245, 245, 0.66)",
+   "bg": "rgba(245, 245, 245, 0.02)",
+   "radius": "4px",
+   "pad": "0px 4px"
+  },
+  {
+   "tag": "code",
+   "cls": "sand-dj266r sand-at24cr sand-mpsg8l sand-1gojbwh sand-12oo3zp sand-1o0liin sand-",
+   "text": "SKILL.md",
+   "box": [
+    188,
+    566,
+    77,
+    16
+   ],
+   "font": "400 13.95px/22px \"XVF Mono\"",
+   "color": "rgba(245, 245, 245, 0.66)",
+   "bg": "rgba(245, 245, 245, 0.02)",
+   "radius": "4px",
+   "pad": "0px 4px"
+  },
+  {
+   "tag": "p",
+   "cls": "sand-dj266r sand-at24cr sand-gqtt45 sand-10y958y sand-lmaxj4 sand-126k92a",
+   "text": "That's also why I keep skills generic and leave out bot-spec",
+   "box": [
+    116,
+    595,
+    536,
+    44
+   ],
+   "font": "400 15px/22px XVF",
+   "ls": "0.15px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "time",
+   "cls": "sand-row-timestamp sand-10l6tqk sand-13vifvy sand-1ey2m1c sand-tijo5x sand-78zum",
+   "text": "3:45 PM",
+   "box": [
+    966,
+    454,
+    58,
+    194
+   ],
+   "font": "500 12px/12px XVF",
+   "color": "rgba(245, 245, 245, 0.54)",
+   "pad": "0px 0px 0px 10px"
+  },
+  {
+   "tag": "div",
+   "cls": "ui-10l6tqk ui-13vifvy ui-tijo5x ui-dd4er5 ui-1o0tod ui-4jlmx6 ui-790ffn ui-1i4c3",
+   "box": [
+    1033,
+    335,
+    6,
+    420
+   ],
+   "font": "400 16px/normal XVF",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.06)",
+   "radius": "9999px"
+  },
+  {
+   "tag": "div",
+   "cls": "sand-kit-message-input-frame sand-9f619 sand-h8yej3 sand-10e981r sand-1y0btm7 sa",
+   "box": [
+    104,
+    700,
+    920,
+    44
+   ],
+   "font": "400 16px/normal XVF",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(31, 31, 31)",
+   "border": "1px rgba(245, 245, 245, 0.1)",
+   "radius": "22px",
+   "shadow": "rgba(0, 0, 0, 0.05) 0px 2px 8px -1px, rgba(0, 0, 0, 0.03) 0px 1px 2px 0px, rgba(228, 228, 228, 0.04) 0px 0px 0px 1px"
+  },
+  {
+   "tag": "button",
+   "cls": "ui-icon-button ui-jyslct ui-3nfvp2 ui-6s0dn4 ui-l56j7k ui-2lah0s ui-9f619 ui-exx",
+   "box": [
+    113,
+    707,
+    28,
+    28
+   ],
+   "font": "400 16px/normal XVF",
+   "ls": "0.24px",
+   "color": "rgba(245, 245, 245, 0.54)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "radius": "9999px",
+   "shadow": "rgba(245, 245, 245, 0.06) 0px 0px 0px 0.5px inset"
+  },
+  {
+   "tag": "button",
+   "cls": "ui-icon-button ui-jyslct ui-3nfvp2 ui-6s0dn4 ui-l56j7k ui-2lah0s ui-9f619 ui-exx",
+   "box": [
+    951,
+    707,
+    28,
+    28
+   ],
+   "font": "400 16px/normal XVF",
+   "ls": "0.24px",
+   "color": "rgba(245, 245, 245, 0.54)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "radius": "9999px",
+   "shadow": "rgba(245, 245, 245, 0.06) 0px 0px 0px 0.5px inset"
+  },
+  {
+   "tag": "button",
+   "cls": "ui-icon-button ui-jyslct ui-3nfvp2 ui-6s0dn4 ui-l56j7k ui-2lah0s ui-9f619 ui-exx",
+   "box": [
+    987,
+    707,
+    28,
+    28
+   ],
+   "font": "400 16px/normal XVF",
+   "ls": "0.24px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(200, 119, 12)",
+   "radius": "9999px"
+  },
+  {
+   "tag": "input",
+   "cls": "sand-prompt-file-input sand-10l6tqk sand-1i1rx1s sand-jm9jq1 sand-b3r6kr sand-eh",
+   "box": [
+    104,
+    742,
+    1,
+    1
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "div",
+   "cls": "sand-10l6tqk sand-1bpupr4 sand-tijo5x sand-1ey2m1c sand-1o0tod sand-1qj4qm9 sand",
+   "box": [
+    88,
+    722,
+    952,
+    38
+   ],
+   "font": "400 16px/normal XVF",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(18, 18, 18)"
+  },
+  {
+   "tag": "div",
+   "cls": "sand-info-pane__inner sand-10l6tqk sand-13vifvy sand-1o0tod sand-78zum5 sand-dt5",
+   "box": [
+    1040,
+    0,
+    320,
+    760
+   ],
+   "font": "400 16px/normal XVF",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(18, 18, 18)"
+  },
+  {
+   "tag": "svg",
+   "cls": "",
+   "box": [
+    -2,
+    -2,
+    12,
+    12
+   ],
+   "font": "400 16px/0px XVF",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "svg",
+   "cls": "",
+   "box": [
+    -2,
+    -2,
+    12,
+    12
+   ],
+   "font": "400 16px/0px XVF",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "div",
+   "cls": "ui-ixxii4 ui-10a8y8t ui-1bqoo3p ui-114a5dy ui-1q7zipb sand-azoy5u sand-1hc1fzr s",
+   "box": [
+    0,
+    0,
+    1040,
+    760
+   ],
+   "font": "400 16px/normal XVF",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(0, 0, 0, 0.698)"
+  },
+  {
+   "tag": "div",
+   "cls": "ui-78zum5 ui-dt5ytf ui-6ikm8r ui-10wlt62 ui-1wd3ewq ui-f1vpex ui-mkeg23 ui-1y0bt",
+   "box": [
+    70,
+    51,
+    900,
+    658
+   ],
+   "font": "400 13px/normal XVF",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(31, 31, 31)",
+   "border": "1px rgba(245, 245, 245, 0.1)",
+   "radius": "14px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-kit-icon-button sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-2lah0s sand-9f619 ",
+   "box": [
+    923,
+    66,
+    32,
+    32
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgba(245, 245, 245, 0.64)",
+   "radius": "9999px"
+  },
+  {
+   "tag": "div",
+   "cls": "sand-9f619 sand-78zum5 sand-dt5ytf sand-1c4vz4f sand-2lah0s sand-1nhvcw1 sand-1n",
+   "box": [
+    71,
+    52,
+    898,
+    48
+   ],
+   "font": "400 13px/normal XVF",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(31, 31, 31)"
+  },
+  {
+   "tag": "div",
+   "cls": "sand-1n2onr6 sand-c8icb0 sand-euugli sand-6ikm8r sand-10wlt62 sand-10e981r sand-",
+   "box": [
+    71,
+    100,
+    898,
+    608
+   ],
+   "font": "400 13px/normal XVF",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(31, 31, 31)"
+  },
+  {
+   "tag": "div",
+   "cls": "sand-1n2onr6 sand-1ja2u2z sand-9f619 sand-78zum5 sand-dt5ytf sand-euugli sand-1u",
+   "box": [
+    71,
+    100,
+    898,
+    608
+   ],
+   "font": "400 13px/normal XVF",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(31, 31, 31)"
+  },
+  {
+   "tag": "h2",
+   "cls": "sand-79ao00 sand-10ux60h sand-k0i524 sand-1ghz6dp sand-pdmqnj sand-tyxrsu sand-1",
+   "text": "Connect Apps",
+   "box": [
+    103,
+    104,
+    834,
+    24
+   ],
+   "font": "500 17px/24px XVF",
+   "ls": "0.17px",
+   "color": "rgb(245, 245, 245)",
+   "pad": "0px 12px 0px 0px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-plugins__installed-preview sand-9f619 sand-78zum5 sand-6s0dn4 sand-qcrz7y s",
+   "box": [
+    764,
+    102,
+    173,
+    28
+   ],
+   "font": "400 12px/16px XVF",
+   "color": "rgba(245, 245, 245, 0.66)",
+   "radius": "8px",
+   "pad": "4px 8px 4px 4px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-9f619 sand-1n2onr6 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-w4jnvo sand-1qx",
+   "box": [
+    768,
+    106,
+    20,
+    20
+   ],
+   "font": "400 12px/16px XVF",
+   "color": "rgba(245, 245, 245, 0.66)",
+   "bg": "rgb(31, 31, 31)",
+   "border": "1px rgb(31, 31, 31)",
+   "radius": "6px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-tool-icon sand-tool-icon--logo sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j",
+   "box": [
+    769,
+    107,
+    18,
+    18
+   ],
+   "font": "400 12px/16px XVF",
+   "color": "rgba(245, 245, 245, 0.66)",
+   "bg": "rgb(255, 255, 255)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "5px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-9f619 sand-1n2onr6 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-w4jnvo sand-1qx",
+   "box": [
+    782,
+    106,
+    20,
+    20
+   ],
+   "font": "400 12px/16px XVF",
+   "color": "rgba(245, 245, 245, 0.66)",
+   "bg": "rgb(31, 31, 31)",
+   "border": "1px rgb(31, 31, 31)",
+   "radius": "6px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-tool-icon sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-1c4vz4f sand-",
+   "box": [
+    783,
+    107,
+    18,
+    18
+   ],
+   "font": "400 12px/16px XVF",
+   "color": "rgb(255, 255, 255)",
+   "bg": "rgb(36, 41, 47)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "5px"
+  },
+  {
+   "tag": "svg",
+   "cls": "",
+   "box": [
+    786,
+    111,
+    11,
+    11
+   ],
+   "font": "400 12px/16px XVF",
+   "color": "rgb(255, 255, 255)"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-9f619 sand-1n2onr6 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-w4jnvo sand-1qx",
+   "box": [
+    796,
+    106,
+    20,
+    20
+   ],
+   "font": "400 12px/16px XVF",
+   "color": "rgba(245, 245, 245, 0.66)",
+   "bg": "rgb(31, 31, 31)",
+   "border": "1px rgb(31, 31, 31)",
+   "radius": "6px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-tool-icon sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-1c4vz4f sand-",
+   "box": [
+    797,
+    107,
+    18,
+    18
+   ],
+   "font": "400 12px/16px XVF",
+   "color": "rgb(255, 255, 255)",
+   "bg": "rgb(36, 41, 47)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "5px"
+  },
+  {
+   "tag": "svg",
+   "cls": "",
+   "box": [
+    800,
+    111,
+    11,
+    11
+   ],
+   "font": "400 12px/16px XVF",
+   "color": "rgb(255, 255, 255)"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-9f619 sand-1n2onr6 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-w4jnvo sand-1qx",
+   "box": [
+    810,
+    106,
+    20,
+    20
+   ],
+   "font": "400 12px/16px XVF",
+   "color": "rgba(245, 245, 245, 0.66)",
+   "bg": "rgb(31, 31, 31)",
+   "border": "1px rgb(31, 31, 31)",
+   "radius": "6px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-tool-icon sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-1c4vz4f sand-",
+   "box": [
+    811,
+    107,
+    18,
+    18
+   ],
+   "font": "400 12px/16px XVF",
+   "color": "rgb(255, 255, 255)",
+   "bg": "rgb(20, 18, 11)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "5px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-9f619 sand-b3r6kr sand-lyipyv sand-uxw1ft",
+   "text": "4 connected",
+   "box": [
+    838,
+    108,
+    71,
+    16
+   ],
+   "font": "400 12px/16px XVF",
+   "color": "rgba(245, 245, 245, 0.66)"
+  },
+  {
+   "tag": "div",
+   "cls": "sand-9f619 sand-78zum5 sand-6s0dn4 sand-17d4w8g sand-10w6t97 sand-euugli sand-ex",
+   "box": [
+    103,
+    146,
+    675,
+    32
+   ],
+   "font": "400 13px/normal XVF",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(31, 31, 31)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "9999px",
+   "pad": "0px 8px 0px 12px"
+  },
+  {
+   "tag": "input",
+   "cls": "sand-fc7y3v sand-1lvvshy sand-ja3w2a sand-9f619 sand-1iyjqo2 sand-s83m0k sand-dl",
+   "box": [
+    136,
+    152,
+    633,
+    20
+   ],
+   "font": "400 14px/20px XVF",
+   "ls": "0.14px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-11wthnw sand-w8bs97 sand-14gdtuo sand-1k57tk5 sand-784prv sand-1t137rt sand",
+   "text": "Bot templates",
+   "box": [
+    786,
+    146,
+    151,
+    32
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(31, 31, 31)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "9999px",
+   "pad": "0px 10px 0px 6px"
+  },
+  {
+   "tag": "svg",
+   "cls": "",
+   "box": [
+    788,
+    148,
+    28,
+    28
+   ],
+   "font": "400 13px/0px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-11wthnw sand-w8bs97 sand-14gdtuo sand-jyslct sand-9f619 sand-3nfvp2 sand-6s",
+   "text": "All",
+   "box": [
+    103,
+    190,
+    35,
+    28
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(18, 18, 18)",
+   "bg": "rgb(245, 245, 245)",
+   "radius": "9999px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-11wthnw sand-w8bs97 sand-14gdtuo sand-jyslct sand-9f619 sand-3nfvp2 sand-6s",
+   "text": "Password Managers",
+   "box": [
+    146,
+    190,
+    144,
+    28
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "radius": "9999px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-11wthnw sand-w8bs97 sand-14gdtuo sand-jyslct sand-9f619 sand-3nfvp2 sand-6s",
+   "text": "Productivity",
+   "box": [
+    298,
+    190,
+    95,
+    28
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "radius": "9999px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-11wthnw sand-w8bs97 sand-14gdtuo sand-jyslct sand-9f619 sand-3nfvp2 sand-6s",
+   "text": "Communication",
+   "box": [
+    401,
+    190,
+    118,
+    28
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "radius": "9999px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-11wthnw sand-w8bs97 sand-14gdtuo sand-jyslct sand-9f619 sand-3nfvp2 sand-6s",
+   "text": "Design",
+   "box": [
+    526,
+    190,
+    63,
+    28
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "radius": "9999px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-11wthnw sand-w8bs97 sand-14gdtuo sand-jyslct sand-9f619 sand-3nfvp2 sand-6s",
+   "text": "Code",
+   "box": [
+    597,
+    190,
+    54,
+    28
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "radius": "9999px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-11wthnw sand-w8bs97 sand-14gdtuo sand-jyslct sand-9f619 sand-3nfvp2 sand-6s",
+   "text": "More",
+   "box": [
+    659,
+    190,
+    70,
+    28
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "radius": "9999px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "h3",
+   "cls": "sand-fc7y3v sand-1lvvshy sand-ja3w2a sand-1ghz6dp sand-1y1aw1k sand-f159sx sand-",
+   "text": "Recommended for you",
+   "box": [
+    91,
+    238,
+    173,
+    34
+   ],
+   "font": "500 14px/20px XVF",
+   "ls": "0.14px",
+   "color": "rgb(245, 245, 245)",
+   "pad": "8px 8px 6px 12px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-plugins__group-action sand-jyslct sand-1lugfcp sand-9f619 sand-1c4vz4f sand",
+   "text": "View all",
+   "box": [
+    885,
+    245,
+    60,
+    20
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgba(245, 245, 245, 0.66)",
+   "radius": "9999px",
+   "pad": "2px 8px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-plugins-row__open sand-9f619 sand-78zum5 sand-6s0dn4 sand-883omv sand-1iyjq",
+   "box": [
+    103,
+    292,
+    292,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "radius": "6px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-tool-icon sand-tool-icon--logo sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j",
+   "box": [
+    103,
+    292,
+    40,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(255, 255, 255)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "11px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-plugins-row__name sand-9f619 sand-b3r6kr sand-11wthnw sand-w8bs97 sand-12oo",
+   "text": "Datadog",
+   "box": [
+    153,
+    303,
+    52,
+    18
+   ],
+   "font": "500 13px/18px XVF",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-button sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-2lah0s sand-17d4",
+   "box": [
+    407,
+    299,
+    97,
+    26
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "border": "1px rgba(0, 0, 0, 0)",
+   "radius": "13px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-1agbcgv sand-crlgei sand-3nfvp2 sand-6s0dn4 sand-1jnr06f sand-uxw1ft",
+   "text": "Connect",
+   "box": [
+    431,
+    304,
+    49,
+    16
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-plugins-row__open sand-9f619 sand-78zum5 sand-6s0dn4 sand-883omv sand-1iyjq",
+   "box": [
+    536,
+    292,
+    292,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "radius": "6px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-tool-icon sand-tool-icon--logo sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j",
+   "box": [
+    536,
+    292,
+    40,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(24, 24, 24)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "11px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-plugins-row__name sand-9f619 sand-b3r6kr sand-11wthnw sand-w8bs97 sand-12oo",
+   "text": "Superpowers",
+   "box": [
+    586,
+    303,
+    81,
+    18
+   ],
+   "font": "500 13px/18px XVF",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-button sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-2lah0s sand-17d4",
+   "box": [
+    840,
+    299,
+    97,
+    26
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "border": "1px rgba(0, 0, 0, 0)",
+   "radius": "13px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-1agbcgv sand-crlgei sand-3nfvp2 sand-6s0dn4 sand-1jnr06f sand-uxw1ft",
+   "text": "Connect",
+   "box": [
+    864,
+    304,
+    49,
+    16
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-plugins-row__open sand-9f619 sand-78zum5 sand-6s0dn4 sand-883omv sand-1iyjq",
+   "box": [
+    103,
+    358,
+    292,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "radius": "6px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-tool-icon sand-tool-icon--logo sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j",
+   "box": [
+    103,
+    358,
+    40,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(255, 255, 255)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "11px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-plugins-row__name sand-9f619 sand-b3r6kr sand-11wthnw sand-w8bs97 sand-12oo",
+   "text": "Vercel",
+   "box": [
+    153,
+    369,
+    39,
+    18
+   ],
+   "font": "500 13px/18px XVF",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-button sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-2lah0s sand-17d4",
+   "box": [
+    407,
+    365,
+    97,
+    26
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "border": "1px rgba(0, 0, 0, 0)",
+   "radius": "13px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-1agbcgv sand-crlgei sand-3nfvp2 sand-6s0dn4 sand-1jnr06f sand-uxw1ft",
+   "text": "Connect",
+   "box": [
+    431,
+    370,
+    49,
+    16
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-plugins-row__open sand-9f619 sand-78zum5 sand-6s0dn4 sand-883omv sand-1iyjq",
+   "box": [
+    536,
+    358,
+    292,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "radius": "6px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-tool-icon sand-tool-icon--logo sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j",
+   "box": [
+    536,
+    358,
+    40,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(255, 255, 255)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "11px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-plugins-row__name sand-9f619 sand-b3r6kr sand-11wthnw sand-w8bs97 sand-12oo",
+   "text": "Cloudflare",
+   "box": [
+    586,
+    369,
+    63,
+    18
+   ],
+   "font": "500 13px/18px XVF",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-button sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-2lah0s sand-17d4",
+   "box": [
+    840,
+    365,
+    97,
+    26
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "border": "1px rgba(0, 0, 0, 0)",
+   "radius": "13px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-1agbcgv sand-crlgei sand-3nfvp2 sand-6s0dn4 sand-1jnr06f sand-uxw1ft",
+   "text": "Connect",
+   "box": [
+    864,
+    370,
+    49,
+    16
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-plugins-row__open sand-9f619 sand-78zum5 sand-6s0dn4 sand-883omv sand-1iyjq",
+   "box": [
+    103,
+    424,
+    292,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "radius": "6px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-tool-icon sand-tool-icon--logo sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j",
+   "box": [
+    103,
+    424,
+    40,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(137, 156, 166)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "11px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-plugins-row__name sand-9f619 sand-b3r6kr sand-11wthnw sand-w8bs97 sand-12oo",
+   "text": "pstack",
+   "box": [
+    153,
+    435,
+    41,
+    18
+   ],
+   "font": "500 13px/18px XVF",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-button sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-2lah0s sand-17d4",
+   "box": [
+    407,
+    431,
+    97,
+    26
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "border": "1px rgba(0, 0, 0, 0)",
+   "radius": "13px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-1agbcgv sand-crlgei sand-3nfvp2 sand-6s0dn4 sand-1jnr06f sand-uxw1ft",
+   "text": "Connect",
+   "box": [
+    431,
+    436,
+    49,
+    16
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-plugins-row__open sand-9f619 sand-78zum5 sand-6s0dn4 sand-883omv sand-1iyjq",
+   "box": [
+    536,
+    424,
+    292,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "radius": "6px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-tool-icon sand-tool-icon--logo sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j",
+   "box": [
+    536,
+    424,
+    40,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(255, 255, 255)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "11px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-plugins-row__name sand-9f619 sand-b3r6kr sand-11wthnw sand-w8bs97 sand-12oo",
+   "text": "Supabase",
+   "box": [
+    586,
+    435,
+    61,
+    18
+   ],
+   "font": "500 13px/18px XVF",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-button sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-2lah0s sand-17d4",
+   "box": [
+    840,
+    431,
+    97,
+    26
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "border": "1px rgba(0, 0, 0, 0)",
+   "radius": "13px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-1agbcgv sand-crlgei sand-3nfvp2 sand-6s0dn4 sand-1jnr06f sand-uxw1ft",
+   "text": "Connect",
+   "box": [
+    864,
+    436,
+    49,
+    16
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "h3",
+   "cls": "sand-fc7y3v sand-1lvvshy sand-ja3w2a sand-1ghz6dp sand-1y1aw1k sand-f159sx sand-",
+   "text": "Password Managers",
+   "box": [
+    91,
+    500,
+    154,
+    34
+   ],
+   "font": "500 14px/20px XVF",
+   "ls": "0.14px",
+   "color": "rgb(245, 245, 245)",
+   "pad": "8px 8px 6px 12px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-plugins-row__open sand-9f619 sand-78zum5 sand-6s0dn4 sand-883omv sand-1iyjq",
+   "box": [
+    103,
+    554,
+    292,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "radius": "6px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-tool-icon sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-1c4vz4f sand-",
+   "box": [
+    103,
+    554,
+    40,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(255, 255, 255)",
+   "bg": "rgb(48, 49, 54)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "11px"
+  },
+  {
+   "tag": "svg",
+   "cls": "",
+   "box": [
+    111,
+    562,
+    24,
+    24
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(255, 255, 255)"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-plugins-row__name sand-9f619 sand-b3r6kr sand-11wthnw sand-w8bs97 sand-12oo",
+   "text": "1Password",
+   "box": [
+    153,
+    565,
+    64,
+    18
+   ],
+   "font": "500 13px/18px XVF",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-button sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-2lah0s sand-17d4",
+   "box": [
+    407,
+    561,
+    97,
+    26
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "border": "1px rgba(0, 0, 0, 0)",
+   "radius": "13px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-1agbcgv sand-crlgei sand-3nfvp2 sand-6s0dn4 sand-1jnr06f sand-uxw1ft",
+   "text": "Connect",
+   "box": [
+    431,
+    566,
+    49,
+    16
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "h3",
+   "cls": "sand-fc7y3v sand-1lvvshy sand-ja3w2a sand-1ghz6dp sand-1y1aw1k sand-f159sx sand-",
+   "text": "Productivity",
+   "box": [
+    91,
+    630,
+    101,
+    34
+   ],
+   "font": "500 14px/20px XVF",
+   "ls": "0.14px",
+   "color": "rgb(245, 245, 245)",
+   "pad": "8px 8px 6px 12px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-plugins__group-action sand-jyslct sand-1lugfcp sand-9f619 sand-1c4vz4f sand",
+   "text": "View all",
+   "box": [
+    885,
+    637,
+    60,
+    20
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgba(245, 245, 245, 0.66)",
+   "radius": "9999px",
+   "pad": "2px 8px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-plugins-row__open sand-9f619 sand-78zum5 sand-6s0dn4 sand-883omv sand-1iyjq",
+   "box": [
+    103,
+    684,
+    292,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "radius": "6px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-tool-icon sand-tool-icon--logo sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j",
+   "box": [
+    103,
+    684,
+    40,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(255, 255, 255)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "11px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-plugins-row__name sand-9f619 sand-b3r6kr sand-11wthnw sand-w8bs97 sand-12oo",
+   "text": "Google Drive",
+   "box": [
+    153,
+    695,
+    80,
+    18
+   ],
+   "font": "500 13px/18px XVF",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-button sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-2lah0s sand-17d4",
+   "box": [
+    407,
+    691,
+    97,
+    26
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "border": "1px rgba(0, 0, 0, 0)",
+   "radius": "13px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-1agbcgv sand-crlgei sand-3nfvp2 sand-6s0dn4 sand-1jnr06f sand-uxw1ft",
+   "text": "Connect",
+   "box": [
+    431,
+    696,
+    49,
+    16
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-plugins-row__open sand-9f619 sand-78zum5 sand-6s0dn4 sand-883omv sand-1iyjq",
+   "box": [
+    536,
+    684,
+    292,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "radius": "6px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-tool-icon sand-tool-icon--logo sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j",
+   "box": [
+    536,
+    684,
+    40,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(255, 255, 255)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "11px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-plugins-row__name sand-9f619 sand-b3r6kr sand-11wthnw sand-w8bs97 sand-12oo",
+   "text": "Google Calendar",
+   "box": [
+    586,
+    695,
+    103,
+    18
+   ],
+   "font": "500 13px/18px XVF",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-button sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-2lah0s sand-17d4",
+   "box": [
+    840,
+    691,
+    97,
+    26
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "border": "1px rgba(0, 0, 0, 0)",
+   "radius": "13px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-1agbcgv sand-crlgei sand-3nfvp2 sand-6s0dn4 sand-1jnr06f sand-uxw1ft",
+   "text": "Connect",
+   "box": [
+    864,
+    696,
+    49,
+    16
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-plugins-row__open sand-9f619 sand-78zum5 sand-6s0dn4 sand-883omv sand-1iyjq",
+   "box": [
+    103,
+    750,
+    292,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "radius": "6px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-tool-icon sand-tool-icon--logo sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j",
+   "box": [
+    103,
+    750,
+    40,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(255, 255, 255)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "11px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-button sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-2lah0s sand-17d4",
+   "box": [
+    407,
+    757,
+    97,
+    26
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "border": "1px rgba(0, 0, 0, 0)",
+   "radius": "13px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-plugins-row__open sand-9f619 sand-78zum5 sand-6s0dn4 sand-883omv sand-1iyjq",
+   "box": [
+    536,
+    750,
+    292,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "radius": "6px"
+  },
+  {
+   "tag": "span",
+   "cls": "sand-tool-icon sand-tool-icon--logo sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j",
+   "box": [
+    536,
+    750,
+    40,
+    40
+   ],
+   "font": "400 13px/18px XVF",
+   "ls": "0.195px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgb(255, 255, 255)",
+   "border": "1px rgba(245, 245, 245, 0.06)",
+   "radius": "11px"
+  },
+  {
+   "tag": "button",
+   "cls": "sand-button sand-9f619 sand-3nfvp2 sand-6s0dn4 sand-l56j7k sand-2lah0s sand-17d4",
+   "box": [
+    840,
+    757,
+    97,
+    26
+   ],
+   "font": "400 12px/16px XVF",
+   "ls": "0.18px",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.04)",
+   "border": "1px rgba(0, 0, 0, 0)",
+   "radius": "13px",
+   "pad": "0px 10px"
+  },
+  {
+   "tag": "div",
+   "cls": "ui-10l6tqk ui-13vifvy ui-tijo5x ui-dd4er5 ui-1o0tod ui-4jlmx6 ui-790ffn ui-1i4c3",
+   "box": [
+    962,
+    107,
+    6,
+    107
+   ],
+   "font": "400 13px/normal XVF",
+   "color": "rgb(245, 245, 245)",
+   "bg": "rgba(245, 245, 245, 0.06)",
+   "radius": "9999px"
+  }
+ ]
+}

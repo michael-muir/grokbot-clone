@@ -1,0 +1,24 @@
+# dependencies and build output
+node_modules/
+dist/
+*.tsbuildinfo
+
+# logs and local debug output
+*.log
+debug.log
+
+# secrets and local config
+.env
+.env.*
+!.env.example
+
+# design pipeline scratch output
+design/source/out/
+design/source/chrome-profile/
+
+# per-bot runtime data (bot computers, transcripts)
+data/
+
+# OS clutter
+.DS_Store
+Thumbs.db

@@ -1,0 +1,7 @@
+[
+ "435,482 [500 15px 245,245,245] Grok Bot on your phone",
+ "403,510 [400 13px 245,245,245,0.54] Scan with your camera to get the app",
+ "436,532 [400 12px 245,245,245,0.54] Works on iPhone and Android",
+ "395,578 [400 13px 245,245,245] Open App Store",
+ "579,578 [400 13px 18,18,18] Done"
+]

@@ -1,0 +1,21 @@
+[
+ "116,75 [400 13px 245,245,245] General",
+ "116,109 [400 13px 245,245,245] Computer",
+ "116,143 [400 13px 245,245,245] Permissions",
+ "116,177 [400 13px 245,245,245] Vault",
+ "116,211 [400 13px 245,245,245] Usage & Billing",
+ "116,245 [400 13px 245,245,245] Updates",
+ "315,84 [500 17px 245,245,245] Permissions",
+ "315,155 [400 13px 245,245,245] Approvals",
+ "315,174 [400 13px 245,245,245,0.66] Grok Bot checks each action against your rules and asks when one needs your OK",
+ "831,174 [400 13px 245,245,245] Auto-review",
+ "315,256 [400 12px 245,245,245,0.66] Always Ask",
+ "315,274 [400 12px 245,245,245,0.54] Stop and ask when an action matches these rules",
+ "878,270 [400 12px 245,245,245] Add Rule",
+ "315,314 [400 12px 245,245,245,0.66] Allow without Asking",
+ "315,332 [400 12px 245,245,245,0.54] Continue automatically when an action matches these rules",
+ "878,328 [400 12px 245,245,245] Add Rule",
+ "315,394 [400 13px 245,245,245] App permissions",
+ "315,412 [400 13px 245,245,245,0.66] Grok Bot follows the approval settings you choose for each app's tools",
+ "843,403 [400 13px 245,245,245] Open apps"
+]

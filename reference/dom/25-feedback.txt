@@ -1,0 +1,9 @@
+[
+ "317,181 [600 14px 245,245,245] Send Feedback",
+ "317,236 [400 14px 245,245,245,0.66] We value all feedback, whether it's a bug, an idea, or a question",
+ "339,424 [400 13px 245,245,245] Include current conversation ID",
+ "339,454 [400 13px 245,245,245] Include additional device diagnostics",
+ "339,474 [400 12px 245,245,245,0.66] Adds processor, memory, display, and app/runtime version details. When telemetry is enable",
+ "533,557 [400 14px 245,245,245] Cancel",
+ "611,557 [400 14px color(srgb0.9607840.9607840.960784/0.3] Send Feedback"
+]

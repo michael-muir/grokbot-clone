@@ -1,0 +1,16 @@
+[
+ "116,75 [400 13px 245,245,245] General",
+ "116,109 [400 13px 245,245,245] Computer",
+ "116,143 [400 13px 245,245,245] Permissions",
+ "116,177 [400 13px 245,245,245] Vault",
+ "116,211 [400 13px 245,245,245] Usage & Billing",
+ "116,245 [400 13px 245,245,245] Updates",
+ "315,84 [500 17px 245,245,245] Updates",
+ "301,136 [400 12px 245,245,245,0.66] Grok Bot Updates",
+ "315,179 [400 13px 245,245,245] Automatic Updates",
+ "315,198 [400 13px 245,245,245,0.66] Automatically update your client while you're away",
+ "315,237 [400 13px 245,245,245] Version",
+ "365,238 [400 13px 245,245,245] 1.2.3",
+ "315,256 [400 13px 245,245,245,0.66] You're up to date",
+ "794,246 [400 13px 245,245,245] Check for Updates"
+]

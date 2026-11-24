@@ -1,0 +1,386 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=block" rel="stylesheet">
+<style>
+:root{--bg:#121212;--sidebar:#0E0E0E;--surface:#1F1F1F;--fill:rgba(245,245,245,.04);--fill2:rgba(245,245,245,.08);--ink:#F5F5F5;--ink2:rgba(245,245,245,.66);--ink3:rgba(245,245,245,.54);--line:rgba(245,245,245,.06);--line2:rgba(245,245,245,.10);--accent:#4D9BFF;--accent2:#116DD2;--toggle:#1C6FD9;--star:#F69412;--userBubble:#C8770C}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#000;font-family:Inter,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+.screen{width:1040px;height:760px;background:var(--bg);position:relative;overflow:hidden;display:flex;margin:0 0 40px}
+.col{display:flex;flex-direction:column}.row{display:flex;align-items:center}
+.t12{font-size:12px;line-height:16px}.t13{font-size:13px;line-height:18px}.t14{font-size:14px;line-height:20px}.t15{font-size:15px;line-height:22px;letter-spacing:.01em}
+.m{font-weight:500}.sb{font-weight:600}.i2{color:var(--ink2)}.i3{color:var(--ink3)}
+.sidebar{width:88px;height:760px;flex-shrink:0;background:var(--sidebar);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:10px 0 8px;gap:10px}
+.iconbtn{width:36px;height:36px;border-radius:9999px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tile{width:54px;height:54px;border-radius:12px;display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0}
+.tile.tsel{background:var(--fill2)}
+.dot{position:absolute;left:35px;top:35px;width:11px;height:11px;border-radius:9999px;border:1.5px solid #161616}
+.sfoot{margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:6px}
+.small{width:28px;height:28px;display:flex;align-items:center;justify-content:center}
+.avatar36{width:36px;height:36px;border-radius:9999px;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500;letter-spacing:-.025em;color:var(--ink2)}
+.main{flex-grow:1;position:relative;display:flex;flex-direction:column;padding:0 16px 16px;min-width:0}
+.header{height:62px;flex-shrink:0;position:relative;display:flex;justify-content:center;padding-top:10px}
+.pill{height:41px;display:flex;align-items:center;gap:8px;padding:7.5px 13.5px 7.5px 7.5px;border-radius:9999px;background:var(--surface);border:1px solid var(--line)}
+.share{position:absolute;top:13px;height:36px;padding:8px 16px;border-radius:9999px;background:var(--surface);border:1px solid var(--line);font-size:14px;line-height:20px}
+.thread{flex-grow:1;display:flex;flex-direction:column;gap:12px;overflow:hidden;min-height:0}
+.bubble{padding:7px 12px;border-radius:18px;background:var(--fill);box-shadow:inset 0 0 0 .5px rgba(245,245,245,.06);font-size:15px;line-height:22px;letter-spacing:.01em}
+.card{border-radius:24px;background:var(--surface);box-shadow:0 0 0 .5px rgba(245,245,245,.1)}
+.composer{height:44px;flex-shrink:0;border-radius:22px;background:var(--surface);border:1px solid var(--line2);display:flex;align-items:center;padding:0 7px;gap:8px}
+.cbtn{width:28px;height:28px;border-radius:9999px;background:var(--fill);box-shadow:inset 0 0 0 .5px rgba(245,245,245,.06);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.menu{position:absolute;padding:4px;border-radius:16px;background:var(--surface);border:1px solid var(--line2);box-shadow:0 8px 24px rgba(0,0,0,.4);display:flex;flex-direction:column}
+.mi{height:34px;padding:0 10px;display:flex;align-items:center;gap:8px;border-radius:10px;font-size:14px;line-height:18px;letter-spacing:.01em}
+.mi.hl{background:var(--fill2)}
+.div{height:11px;display:flex;align-items:center;padding:0 10px}.div i{display:block;height:1px;flex-grow:1;background:var(--line2)}
+.scrim{position:absolute;left:0;top:0;width:1040px;height:760px;background:rgba(0,0,0,.5)}
+.modal{position:absolute;border-radius:14px;background:var(--surface);border:1px solid var(--line2);box-shadow:0 24px 64px rgba(0,0,0,.5);display:flex;flex-direction:column;overflow:hidden}
+.mhead{height:56px;flex-shrink:0;padding:0 11px 0 17px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line2)}
+.mfoot{height:58px;flex-shrink:0;padding:0 13px;display:flex;align-items:center;justify-content:flex-end;gap:8px;border-top:1px solid var(--line2)}
+.btn{height:32px;padding:0 14px;border-radius:9999px;display:flex;align-items:center;font-size:14px;line-height:20px;font-weight:500;flex-shrink:0}
+.btn.ghost{border:1px solid rgba(245,245,245,.14)}.btn.light{background:var(--ink);color:#121212}.btn.dis{background:rgba(245,245,245,.16);color:rgba(245,245,245,.4)}.btn.soft{background:var(--fill);box-shadow:inset 0 0 0 .5px rgba(245,245,245,.04);font-weight:400}
+.close{width:32px;height:32px;display:flex;align-items:center;justify-content:center}
+.panel{width:320px;height:760px;flex-shrink:0;background:var(--bg);border-left:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding-top:12px;position:relative}
+.group{padding:4px;border-radius:12px;background:var(--surface);border:1px solid var(--line);width:288px}
+.sel{height:24px;padding:2px 4px 2px 6px;border-radius:8px;border:1px solid rgba(245,245,245,.04);display:flex;align-items:center;gap:3px;font-size:13px;line-height:18px;letter-spacing:-.006em}
+.kbd{height:20px;min-width:20px;padding:0 5px;border-radius:5px;background:var(--fill2);border:1px solid var(--line);font-size:11px;line-height:18px;color:var(--ink2);display:flex;align-items:center;justify-content:center}
+.toggle{width:32px;height:20px;border-radius:9999px;padding:2px;display:flex;align-items:center;flex-shrink:0}.toggle.on{background:var(--toggle);justify-content:flex-end}.toggle.off{background:rgba(245,245,245,.16)}.toggle i{display:block;width:16px;height:16px;border-radius:9999px;background:#fff}
+.srow{padding:0 14px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+.scard{border-radius:14px;background:var(--surface);padding:8px 0;display:flex;flex-direction:column}
+.slabel{padding-left:14px;font-size:12px;line-height:16px;color:var(--ink2)}
+.ssel{height:26px;padding:0 6px 0 8px;border-radius:8px;border:1px solid rgba(245,245,245,.08);display:flex;align-items:center;gap:4px;font-size:13px;line-height:18px;flex-shrink:0}
+.chip{height:28px;padding:0 10px;border-radius:9999px;background:var(--fill);display:flex;align-items:center;font-size:13px;line-height:18px;letter-spacing:.015em}
+.appicon{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.conn{width:96px;height:26px;border-radius:9999px;background:var(--fill2);display:flex;align-items:center;justify-content:center;font-size:12px;line-height:16px;font-weight:500;flex-shrink:0}
+code{font-family:'JetBrains Mono',monospace;font-size:13.95px;color:var(--ink2);background:rgba(245,245,245,.02);border-radius:4px;padding:0 4px}
+</style></head><body><div id="root"></div>
+<script>
+const I = {
+ x:(s=16,c='rgba(245,245,245,.64)')=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`,
+ plus:(s=18,c='rgba(245,245,245,.64)')=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>`,
+ sidebarT:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(245,245,245,.9)" stroke-width="1.6"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M9 5v14"/></svg>`,
+ apps:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(245,245,245,.64)" stroke-width="1.6" stroke-linecap="round"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/><path d="M16.75 4v6.5M13.5 7.25H20"/></svg>`,
+ mic:(c='rgba(245,245,245,.6)')=>`<svg width="16" height="16" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3" fill="${c}"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+ wave:(c='#121212')=>`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round"><path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4"/></svg>`,
+ up:`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#121212" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg>`,
+ chev:(s=14,c='rgba(245,245,245,.5)')=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>`,
+ down:(s=11,c='rgba(245,245,245,.66)')=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>`,
+ back:`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(245,245,245,.8)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>`,
+ search:(s=14,c='rgba(245,245,245,.6)')=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>`,
+ copy:(s=14,c='rgba(245,245,245,.7)')=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.8"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>`,
+ gear:(s=16,c='rgba(245,245,245,.8)')=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2.5l2 2.6 3.2-.6.8 3.2 3 1.4-1.3 3 1.3 3-3 1.4-.8 3.2-3.2-.6-2 2.6-2-2.6-3.2.6-.8-3.2-3-1.4 1.3-3-1.3-3 3-1.4.8-3.2 3.2.6z" stroke-linejoin="round"/></svg>`,
+ o:(d,s=16,c='rgba(245,245,245,.8)')=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`,
+};
+const P = { // icon path bodies
+ gauge:'<path d="M4.5 16a8 8 0 1 1 15 0"/><path d="M12 14l3.5-4"/>', upc:'<circle cx="12" cy="12" r="9"/><path d="M12 16V8M8.5 11.5L12 8l3.5 3.5"/>',
+ people:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.5a6.5 6.5 0 0 1 3 5.5"/>',
+ phone:'<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/>', book:'<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/>',
+ addp:'<circle cx="10" cy="8" r="4"/><path d="M3 20a7 7 0 0 1 11-5.7M19 14v6M16 17h6"/>', logout:'<path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M9 8l-4 4 4 4M5 12h10"/>',
+ help:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.7M12 17h.01"/>', kbd:'<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/>',
+ mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>', info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+ clip:'<path d="M16.5 6.5l-7.8 7.8a2 2 0 0 0 2.8 2.8l7.8-7.8a4 4 0 0 0-5.7-5.7L5.8 11.4a6 6 0 0 0 8.5 8.5l6.2-6.2"/>',
+ clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>', monitor:'<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+ shield:'<path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/>', vault:'<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><circle cx="12" cy="12" r="3.5"/><path d="M12 8.5V7M12 17v-1.5M8.5 12H7M17 12h-1.5"/>',
+ bars:'<path d="M6 20v-6M12 20V5M18 20v-9"/>', cloud:'<path d="M7 17a4.5 4.5 0 0 1-.5-9A6 6 0 0 1 18 8a4 4 0 0 1-1 8M12 11v9M9 17l3 3 3-3"/>',
+ pin:'<path d="M9 4h6l-1 6 3 3H7l3-3zM12 13v7"/>', folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v4M10 13h4"/>',
+ bell:'<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20h4"/>', win:'<rect x="3" y="7" width="13" height="12" rx="2"/><path d="M8 7V5h13v12h-5"/>',
+ eyeoff:'<path d="M3 3l18 18M10.6 6.1A9.8 9.8 0 0 1 12 6c5 0 9 6 9 6a15 15 0 0 1-3 3.6M6.3 7.6A15 15 0 0 0 3 12s4 6 9 6a9 9 0 0 0 4.1-1"/>',
+ trash:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>', smile:'<circle cx="12" cy="12" r="9"/><path d="M8.5 14a4 4 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/>',
+ reply:'<path d="M10 8L5 12l5 4M5 12h9a5 5 0 0 1 5 5v1"/>', dots:'<path d="M5 12h.01M12 12h.01M19 12h.01"/>', link:'<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+ plug:'<path d="M9 3v5M15 3v5M7 8h10v3a5 5 0 0 1-10 0zM12 16v5"/>', cube:'<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
+ eye:'<path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>', shrink:'<path d="M4 14h6v6M20 10h-6V4M10 14l-7 7M14 10l7-7"/>',
+ pencil:'<path d="M4 20h4L19 9l-4-4L4 16z"/>', play:'<path d="M8 5l11 7-11 7z"/>', refresh:'<path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/>', check:'<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 10"/>',
+ grid:'<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>', ext:'<path d="M7 17L17 7M8 7h9v9"/>',
+};
+const ic=(k,s=16,c)=>I.o(P[k],s,c);
+// mascots
+const grok=(s=36,eye='#121212',fill='#F5F5F5')=>`<svg width="${s}" height="${s}" viewBox="38 38 116 116"><circle cx="96" cy="96" r="57.6" fill="${fill}"/><path d="M97 69 L106 85" stroke="${eye}" stroke-width="13" stroke-linecap="round"/><path d="M122 56 L134 73" stroke="${eye}" stroke-width="10" stroke-linecap="round"/></svg>`;
+const STARP='M20 3.5c2.2 0 3 3.6 5 4.4 2 .8 5.3-1.3 6.7.3 1.4 1.6-.6 4.9.2 6.9.8 2 4.6 2.7 4.6 4.9s-3.6 3-4.4 5c-.8 2 1.3 5.3-.3 6.7-1.6 1.4-4.9-.6-6.9.2-2 .8-2.7 4.6-4.9 4.6s-3-3.6-5-4.4c-2-.8-5.3 1.3-6.7-.3-1.4-1.6.6-4.9-.2-6.9-.8-2-4.6-2.7-4.6-4.9s3.6-3 4.4-5c.8-2-1.3-5.3.3-6.7 1.6-1.4 4.9.6 6.9-.2 2-.8 2.7-4.6 4.9-4.6z';
+const star=(s=40,f='#F69412')=>`<svg width="${s}" height="${s}" viewBox="0 0 40 40"><path d="${STARP}" fill="${f}"/><rect x="14.5" y="15" width="3.6" height="8" rx="1.8" fill="#121212" transform="rotate(-12 16.3 19)"/><rect x="21.5" y="15" width="3.6" height="8" rx="1.8" fill="#121212" transform="rotate(-12 23.3 19)"/></svg>`;
+const eyes=(x1,x2,y,w=4,h=9)=>`<rect x="${x1}" y="${y}" width="${w}" height="${h}" rx="${w/2}" fill="#121212"/><rect x="${x2}" y="${y}" width="${w}" height="${h}" rx="${w/2}" fill="#121212"/>`;
+const SHAPES=[ // 13 bot shapes, 36px box
+ c=>`<circle cx="18" cy="18" r="16" fill="${c}"/>${eyes(12,20,13)}`,
+ c=>`<g fill="${c}"><circle cx="12" cy="13" r="9"/><circle cx="24" cy="11" r="9"/><circle cx="27" cy="22" r="8"/><circle cx="11" cy="23" r="8"/><rect x="10" y="12" width="17" height="13"/></g>${eyes(13,21,13)}`,
+ c=>`<rect x="6" y="6" width="24" height="24" rx="6" fill="${c}" transform="rotate(-20 18 18)"/>${eyes(12,20,13)}`,
+ c=>`<path d="M18 2C20 12 24 16 34 18C24 20 20 24 18 34C16 24 12 20 2 18C12 16 16 12 18 2Z" fill="${c}" stroke="${c}" stroke-width="5" stroke-linejoin="round"/>${eyes(13,20,14)}`,
+ c=>`<g fill="${c}"><circle cx="11" cy="11" r="9"/><circle cx="25" cy="11" r="9"/><circle cx="11" cy="25" r="9"/><circle cx="25" cy="25" r="9"/><rect x="9" y="9" width="18" height="18"/></g>${eyes(12,20,13)}`,
+ c=>`<path d="M5 17C5 9 11 4 19 5C27 6 32 12 30 20C28 28 20 33 12 30C7 28 5 23 5 17Z" fill="${c}" transform="rotate(-25 18 18)"/>${eyes(11,19,12)}`,
+ c=>`<g fill="${c}"><circle cx="18" cy="6" r="5.5"/><circle cx="27" cy="11" r="5.5"/><circle cx="29" cy="21" r="5.5"/><circle cx="22" cy="29" r="5.5"/><circle cx="12" cy="29" r="5.5"/><circle cx="6" cy="20" r="5.5"/><circle cx="8" cy="11" r="5.5"/><circle cx="18" cy="18" r="11"/></g>${eyes(13,20,13)}`,
+ c=>`<path d="M18 2C26 2 31 9 31 18C31 27 26 34 18 34C10 34 5 27 5 18C5 9 10 2 18 2Z" fill="${c}" transform="rotate(-15 18 18)"/>${eyes(11,19,13)}`,
+ c=>`<path d="M3 18C3 10 9 6 18 6C27 6 33 10 33 18C33 26 27 30 18 30C9 30 3 26 3 18Z" fill="${c}" transform="rotate(-10 18 18)"/>${eyes(17,25,11)}`,
+ c=>`<path d="M8 5L31 18L8 31Z" fill="${c}" stroke="${c}" stroke-width="7" stroke-linejoin="round"/>${eyes(12,19,13)}`,
+ c=>`<path d="M18 4L30 12V31H6V12Z" fill="${c}" stroke="${c}" stroke-width="5" stroke-linejoin="round" transform="rotate(-12 18 18)"/>${eyes(12,20,14)}`,
+ c=>`<path d="M18 3L22 12L32 10L26 18L32 26L22 24L18 33L14 24L4 26L10 18L4 10L14 12Z" fill="${c}" stroke="${c}" stroke-width="4" stroke-linejoin="round"/>${eyes(13,20,14)}`,
+ c=>`<path d="M18 3L31 10.5V25.5L18 33L5 25.5V10.5Z" fill="${c}" stroke="${c}" stroke-width="4" stroke-linejoin="round" transform="rotate(10 18 18)"/>${eyes(12,20,13)}`,
+];
+const shape=(i,c,s=36)=>`<svg width="${s}" height="${s}" viewBox="0 0 36 36">${SHAPES[i](c)}</svg>`;
+const COLORS=['#FFFFFF','#A86B3C','#F2364A','#F7731C','#F79E1B','#1BC56E','#14B8A6','#2186F7','#9B5CF6','#EC3C8E','#7A7A7A'];
+
+// ---------- chrome ----------
+function sidebar(v='compact'){
+  if(v==='compact') return `<div class="sidebar" data-n="Sidebar"><div class="iconbtn" data-n="Toggle sidebar">${I.sidebarT}</div>
+   <div class="tile tsel" data-n="Bot tile (selected)">${grok(36)}<div class="dot" style="background:var(--accent)"></div></div>${sfoot()}</div>`;
+  return `<div class="sidebar" data-n="Sidebar" style="padding-top:56px;gap:0">
+   <div class="tile" data-n="Main bot tile">${grok(36)}<div class="dot" style="background:var(--star);width:12px;height:12px"></div></div>
+   <div style="height:27px;display:flex;align-items:center"><div style="width:54px;height:1px;background:var(--line2)"></div></div>
+   <div class="tile tsel" data-n="Bot tile Starry (selected)">${star(40)}</div>${sfoot()}</div>`;
+}
+const sfoot=()=>`<div class="sfoot" data-n="Sidebar footer"><div class="small" data-n="New Bot">${I.plus()}</div><div class="small" data-n="Connect apps">${I.apps}</div><div style="width:54px;height:54px;display:flex;align-items:center;justify-content:center;padding-top:6px" data-n="Account"><div class="avatar36">MM</div></div></div>`;
+function header(bot='grok',w=920){
+  const av=bot==='grok'?grok(26,'#1F1F1F'):star(26); const name=bot==='grok'?'Grok Bot':'Starry';
+  return `<div class="header" data-n="Header"><div class="pill" data-n="Bot pill">${av}<span class="t14 m">${name}</span></div><div class="share" data-n="Share" style="left:${w===920?711:531}px">Share</div></div>`;
+}
+function composer({ph='Message Grok Bot',accent='#F5F5F5',val=null,send=false,voiceOnly=false}={}){
+  const right = voiceOnly?`<div class="cbtn" style="background:var(--ink)">${I.mic('#121212')}</div>`:
+   `<div class="cbtn" data-n="Voice input">${I.mic()}</div><div class="cbtn" data-n="${send?'Send':'Voice chat'}" style="background:${accent};box-shadow:none">${send?I.up:I.wave(accent==='#F5F5F5'?'#121212':'#121212')}</div>`;
+  return `<div class="composer" data-n="Composer"><div class="cbtn" data-n="Composer actions">${I.plus(16,'rgba(245,245,245,.6)')}</div><span class="t15 ${val?'':'i3'}" style="flex-grow:1;line-height:20px">${val||ph}</span>${right}</div>`;
+}
+const bubble=(html,{w=560,r='18px',style=''}={})=>`<div class="bubble" style="width:${w}px;border-radius:${r};flex-shrink:0;${style}">${html}</div>`;
+const li=(html,w=500)=>`<div style="display:flex;gap:9px"><span class="t15 i3">•</span><span class="t15" style="width:${w}px">${html}</span></div>`;
+function grokThread(w=560,top=0){
+  return `<div class="thread" data-n="Thread" style="padding-top:${15-top}px">
+  <div style="display:flex;justify-content:center;padding:6px 0;flex-shrink:0"><span class="t12 i2">Today 3:19 PM</span></div>
+  ${bubble(`Hi Michael! I'm Grok Bot, your new personal assistant. I can help with your work and everyday life, and take things off your plate.`,{w})}
+  <div class="card" data-n="Question card" style="width:${w}px;padding:16px 16px 18px;display:flex;flex-direction:column;gap:20px;flex-shrink:0"><span class="t15 sb i3" style="line-height:18px">What would you like to call me? You can always change this later.</span>
+   <div class="row" style="gap:10px"><div style="width:24px;height:24px;border-radius:8px;background:var(--accent2);display:flex;align-items:center;justify-content:center"><span class="t12 m">C</span></div><span class="t14">Grok Bot</span></div></div>
+  <div class="col" style="gap:4px;align-items:flex-start;flex-shrink:0">
+   ${bubble(`Grok Bot it is! Nice to meet you, Michael.`,{w:'auto',r:'18px 18px 18px 6px'}).replace('width:autopx','')}
+   ${bubble(`<div class="col" style="gap:10px"><span>A little about me:</span><div class="col" style="gap:4px;padding-left:6px">${li("I keep working while you're away, on my own computer.",w-60)}${li('I connect to your apps, like email and calendar, and use them just like you do.',w-60)}</div></div>`,{w,r:'6px 18px 18px 6px'})}
+   ${bubble(`Connect Outlook and I'll find something I can take care of for you right away. Nothing gets sent without your approval. Or tell me what you need help with.`,{w,r:'6px 18px 18px 18px'})}
+  </div>
+  <div class="card" data-n="Connect card" style="width:${w}px;padding:16px 16px 18px;display:flex;flex-direction:column;gap:20px;flex-shrink:0">
+   <div class="row" style="gap:10px"><div style="width:44px;height:44px;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="26" height="26" viewBox="0 0 26 26"><rect x="9" y="4" width="15" height="18" rx="2" fill="#28A8EA"/><rect x="2" y="7" width="13" height="12" rx="2" fill="#0A64AD"/><circle cx="8.5" cy="13" r="3.4" fill="none" stroke="#FFF" stroke-width="1.8"/></svg></div>
+    <div class="col" style="flex-grow:1;min-width:0"><div class="row" style="gap:5px"><span class="t14 m">Outlook</span><svg width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#4D9BFF"/><path d="M8.5 12.2l2.3 2.3 4.7-4.8" fill="none" stroke="#121212" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="t14 i2" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Let Grok Bot use Outlook</span></div>
+    <div class="btn light" style="height:32px;padding:0 12px">Connect a work or school account</div></div>
+   <div style="display:flex;justify-content:flex-end;padding-right:4px"><span class="t12 m i3" style="line-height:18px">Use a personal account (Outlook.com, Hotmail, Live)</span></div></div>
+  </div>`;
+}
+function starryThread(w=560){
+  return `<div class="thread" data-n="Thread" style="justify-content:flex-end;gap:16px;padding-bottom:20px">
+  ${bubble(`<div class="col" style="gap:10px"><div class="col" style="gap:4px;padding-left:6px">${li(`<b class="sb">Put it on a schedule.</b> I can set a routine to draft every client's invoice on the 1st, for example. You review and approve, and nothing goes out without your OK.`,w-60)}${li(`<b class="sb">Fix it as we go.</b> Whenever you correct me, I update the skill so I don't make the same mistake again.`,w-60)}</div><span>Want to start with one client? Tell me how you invoice them now and what tools you use, and I'll write up the first workflow.</span></div>`,{w})}
+  <div style="display:flex;justify-content:flex-end;flex-shrink:0" data-n="User message">${bubble('No. Not yet. Where is your skills stored? Can other agents reference those skills?',{w,style:'background:var(--userBubble)'})}</div>
+  <div data-n="Bot message" style="flex-shrink:0;position:relative">${bubble(`<div class="col" style="gap:10px"><span>Yes, they're shared. Every skill I save goes into one library that all your assistants use, so your other bot (Grok Bot) can run an invoicing skill I wrote, and the other way around. The files sit on my computer at <code>/home/box/agent-data/workflows</code>, with one folder per skill holding a plain-text <code>SKILL.md</code> you can read or edit.</span><span>That's also why I keep skills generic and leave out bot-specific details, so any of your assistants can pick one up and follow it.</span></div>`,{w})}</div>
+  </div>`;
+}
+function chat({bot='grok',side,thread,panel='',overlay='',comp={}}={}){
+  const w=panel?480:560, mw=panel?'width:632px;flex-grow:0;flex-shrink:0':'';
+  const th = thread ?? (bot==='grok'?grokThread(w):starryThread(w));
+  const c = bot==='grok'?composer(comp):composer({ph:'Message Starry',accent:'var(--star)',...comp});
+  return `${sidebar(side ?? (bot==='grok'?'compact':'two'))}<div class="main" data-n="Main" style="${mw}">${header(bot,panel?600:920)}${th}${c}</div>${panel}${overlay}`;
+}
+// ---------- overlays ----------
+const menuItem=(icon,label,extra='',cls='')=>`<div class="mi ${cls}">${icon?ic(icon,16):''}<span style="flex-grow:1">${label}</span>${extra}</div>`;
+const accountMenu=(hl='')=>`<div class="menu" data-n="Account menu" style="left:17px;top:391px;width:228px">
+ ${menuItem('gauge','Premium','<span class="t14 i3">1% used</span>')}${menuItem('upc','Upgrade to Super')}${menuItem('people','Invite teammates')}<div class="div"><i></i></div>
+ ${menuItem('phone','Get Grok Bot for mobile')}${menuItem('book','Support',I.chev(),hl==='support'?'hl':'')}${menuItem(null,'Settings').replace('<span','<span style="display:none"></span>'+I.gear(16)+'<span')}<div class="div"><i></i></div>
+ ${menuItem('addp','Add account')}${menuItem('logout','Log out')}</div>`;
+const supportMenu=`<div class="menu" data-n="Support submenu" style="left:236px;top:543px;width:178px">${menuItem('help','Help Center')}${menuItem('kbd','Keyboard shortcuts')}${menuItem('mail','Send Feedback')}${menuItem('info','About')}</div>`;
+function botPanel(bot='grok',tab='activity',awake=false){
+  const av=bot==='grok'?grok(64):star(70), name=bot==='grok'?'Grok Bot':'Starry';
+  const body = tab==='library'?`<div style="flex-grow:1;display:flex;align-items:flex-start;padding-top:140px"><span class="t14 i2" style="text-align:center;width:240px;line-height:20px">Pages, files, and apps this Bot makes show up here</span></div>`:
+  `<div class="col" style="width:320px;padding:0 16px">
+   <div class="row" style="height:38px;padding:0 6px 0 12px;justify-content:space-between"><span class="t13 i2">Suggested</span><span class="t12 i2">Hide</span></div>
+   <div class="group"><div class="row" style="height:36px;padding:6px 8px;gap:9px">${ic('clock',18)}<span class="t13" style="flex-grow:1">Create a routine</span>${I.chev()}</div></div>
+   <div class="row" style="height:50px;padding:12px 6px 0 12px"><span class="t13 i2">Computer</span></div>
+   <div class="group"><div class="row" style="height:52px;padding:6px 4px 6px 8px"><div class="col" style="flex-grow:1;gap:2px"><span class="t13">Bot's computer</span><span class="t12 i3">${awake?'Awake':'Asleep'}</span></div><div style="width:64px;height:40px;border-radius:8px;background:${awake?'linear-gradient(135deg,#6b4a1e,#3a3a3a)':'#333'};display:flex;align-items:center;justify-content:center">${bot==='grok'?grok(22,'#333','rgba(245,245,245,.35)'):star(22,'rgba(245,245,245,.35)')}</div></div></div>
+   <div class="row" style="height:50px;padding:12px 6px 0 12px"><span class="t13 i2">Voice chat</span></div>
+   <div class="group col"><div class="row" style="height:30px;padding:0 4px 0 8px"><span class="t13" style="flex-grow:1">Voice</span><div class="sel">Liora 1.0x${I.down(12)}</div></div><div class="row" style="height:30px;padding:0 4px 0 8px"><span class="t13" style="flex-grow:1">Language</span><div class="sel">Auto-detect${I.down(12)}</div></div></div></div>`;
+  return `<div class="panel" data-n="Bot panel"><div style="width:320px;height:56px;display:flex;justify-content:center;padding-right:20px;position:relative"><div class="iconbtn" data-n="Close">${I.x(16,'rgba(245,245,245,.9)')}</div><div style="position:absolute;left:179px;top:5px;width:1px;height:18px;background:rgba(245,245,245,.16)"></div></div>
+   <div style="height:80px;display:flex;justify-content:center">${av}</div><span style="font-size:17px;line-height:22px;font-weight:500">${name}</span>
+   <div class="row" style="padding:16px 0 10px;gap:2px"><div style="padding:4px 8px;border-radius:9999px;${tab==='activity'?'background:var(--fill)':''}"><span class="t13 ${tab==='activity'?'':'i2'}">Activity</span></div><div style="padding:4px 8px;border-radius:9999px;${tab==='library'?'background:var(--fill)':''}"><span class="t13 ${tab==='library'?'':'i2'}">Library</span></div></div>${body}</div>`;
+}
+const modalHead=(t)=>`<div class="mhead"><span class="t14 sb" style="line-height:22px;letter-spacing:-.01em">${t}</span><div class="close">${I.x()}</div></div>`;
+function createBot({name='',shapeIdx=4,color=5}={}){
+  const c=COLORS[color];
+  const sh=(i)=>`<div style="width:48px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:9999px;${i===shapeIdx?'box-shadow:0 0 0 1.5px rgba(245,245,245,.28)':''}">${shape(i,c,36)}</div>`;
+  const sw=(i)=>`<div style="width:24px;height:24px;border-radius:9999px;background:${COLORS[i]};${i===color?'box-shadow:0 0 0 3px #1F1F1F,0 0 0 4.5px rgba(245,245,245,.5)':''}"></div>`;
+  return `<div class="scrim"></div><div class="modal" data-n="Create New Bot" style="left:300px;top:89px;width:440px;height:582px">${modalHead('Create New Bot')}
+  <div class="col" style="flex-grow:1;align-items:center;padding:0 16px"><div style="height:128px;display:flex;align-items:center">${shape(shapeIdx,c,92)}</div>
+  <div style="width:406px;height:36px;border-radius:8px;border:1px solid var(--line2);display:flex;align-items:center;justify-content:center"><span class="t13 ${name?'sb':'i3'}">${name||'Name your Bot'}</span></div>
+  <div class="col" style="padding-top:22px;gap:8px;align-items:center"><div class="row" style="gap:8px">${[0,1,2,3,4].map(sh).join('')}</div><div class="row" style="gap:8px">${[5,6,7,8,9].map(sh).join('')}</div><div class="row" style="gap:8px">${[10,11,12].map(sh).join('')}</div></div>
+  <div class="col" style="padding-top:18px;gap:16px;align-items:center"><div class="row" style="gap:16px">${[0,1,2,3,4,5].map(sw).join('')}</div><div class="row" style="gap:16px">${[6,7,8,9,10].map(sw).join('')}</div></div></div>
+  <div class="mfoot"><div class="btn ghost">Cancel</div><div class="btn ${name?'light':'dis'}">Create</div></div></div>`;
+}
+function appRow(name,iconBg,iconSvg,state='Connect',w=400){
+  return `<div class="row" style="width:${w}px;height:40px;gap:10px"><div class="appicon" style="background:${iconBg}">${iconSvg}</div><span class="t13 m" style="flex-grow:1">${name}</span>${state==='Connect'?'<div class="conn">Connect</div>':state}</div>`;
+}
+const AI={ // app icons
+ datadog:['#fff','<svg width="26" height="26" viewBox="0 0 24 24"><path d="M5 3h12l2 15-8 3-6-4z" fill="#632CA6"/><circle cx="11" cy="10" r="3" fill="#FFF"/></svg>'],
+ vercel:['#fff','<svg width="22" height="20" viewBox="0 0 24 21"><path d="M12 0l12 21H0z" fill="#000"/></svg>'],
+ pstack:['#E8E2D9','<svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="10" r="6" fill="#2B2B2B"/><rect x="7" y="15" width="10" height="7" rx="2" fill="#C23B3B"/></svg>'],
+ superpowers:['#111','<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FFF" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M8 9l4 4 4-6" stroke-linecap="round"/></svg>'],
+ cloudflare:['#fff','<svg width="28" height="14" viewBox="0 0 28 14"><path d="M4 13h20a5 5 0 0 0-3-9A7 7 0 0 0 8 6a4 4 0 0 0-4 7z" fill="#F38020"/></svg>'],
+ supabase:['#fff','<svg width="22" height="24" viewBox="0 0 22 24"><path d="M13 0L1 14h9l-1 10 12-14h-9z" fill="#3ECF8E"/></svg>'],
+ onep:['#2A2A2A','<svg width="26" height="26" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#FFF"/><rect x="10.3" y="6" width="3.4" height="12" rx="1.2" fill="#1A1A1A"/></svg>'],
+ gdrive:['#fff','<svg width="26" height="22" viewBox="0 0 26 22"><path d="M9 0h8l9 15h-8z" fill="#FFBA00"/><path d="M0 15L9 0l4 7-5 8z" fill="#0F9D58"/><path d="M8 15h18l-4 7H4z" fill="#4285F4"/></svg>'],
+ gcal:['#fff','<svg width="24" height="24" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="3" fill="#4285F4"/><rect x="5" y="7" width="14" height="12" rx="1" fill="#FFF"/></svg>'],
+ outlook:['#fff','<svg width="24" height="24" viewBox="0 0 26 26"><rect x="9" y="4" width="15" height="18" rx="2" fill="#28A8EA"/><rect x="2" y="7" width="13" height="12" rx="2" fill="#0A64AD"/></svg>'],
+ github:['#24292F','<svg width="20" height="20" viewBox="0 0 24 24" fill="#FFF"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 0-.8.4-1.3.7-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2 0-.3-.5-1.5.2-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.7 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.5.4.9 1.1.9 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3"/></svg>'],
+ origin:['#14120B','<svg width="20" height="20" viewBox="0 0 24 24" fill="#FFF"><path d="M12 2l9 5v10l-9 5-9-5V7z"/></svg>'],
+};
+const appR=(k,n,s)=>appRow(n,AI[k][0],AI[k][1],s);
+function connectApps(){
+  return `<div class="scrim"></div><div class="modal" data-n="Connect Apps" style="left:70px;top:51px;width:900px;height:658px;padding:15px 15px 0 32px">
+  <div style="height:34px;display:flex;justify-content:flex-end;flex-shrink:0"><div class="close">${I.x()}</div></div>
+  <div class="row" style="height:32px;padding-right:17px;justify-content:space-between;flex-shrink:0"><span style="font-size:17px;line-height:24px;font-weight:500">Connect Apps</span><div class="row" style="gap:8px"><div class="row">${['outlook','github','github','origin'].map((k,i)=>`<div style="width:20px;height:20px;border-radius:6px;border:1px solid #1F1F1F;background:${AI[k][0]};${i?'margin-left:-6px':''};display:flex;align-items:center;justify-content:center;overflow:hidden">${AI[k][1].replace(/width="\d+" height="\d+"/,'width="11" height="11"')}</div>`).join('')}</div><span class="t12 i2">4 connected</span>${I.chev(12)}</div></div>
+  <div class="row" style="padding:16px 17px 0 0;gap:8px;flex-shrink:0"><div class="row" style="flex-grow:1;height:32px;padding:0 12px;gap:6px;border-radius:9999px;border:1px solid var(--line)">${I.search()}<span class="t14 i3">Search across apps and skills</span></div><div class="row" style="height:32px;padding:0 10px 0 6px;gap:6px;border-radius:9999px;border:1px solid var(--line)">${grok(20,'#1F1F1F')}<span class="t13">Bot templates</span>${ic('ext',12)}</div></div>
+  <div class="row" style="padding-top:12px;gap:8px;flex-shrink:0"><div class="chip" style="background:var(--ink);color:#121212">All</div>${['Password Managers','Productivity','Communication','Design','Code'].map(c=>`<div class="chip">${c}</div>`).join('')}<div class="chip" style="gap:4px">More${I.down(12,'#F5F5F5')}</div></div>
+  <div class="col" style="padding:26px 17px 0 0;gap:25px;flex-shrink:0"><div class="row" style="justify-content:space-between"><span class="t14 m">Recommended for you</span><span class="t12 m i2">View all</span></div>
+   <div class="row" style="gap:33px;align-items:flex-start"><div class="col" style="gap:26px">${appR('datadog','Datadog')}${appR('vercel','Vercel')}${appR('pstack','pstack')}</div><div class="col" style="gap:26px">${appR('superpowers','Superpowers')}${appR('cloudflare','Cloudflare')}${appR('supabase','Supabase')}</div></div></div>
+  <div class="col" style="padding:45px 17px 0 0;gap:25px;flex-shrink:0"><span class="t14 m">Password Managers</span>${appR('onep','1Password')}</div>
+  <div class="col" style="padding:45px 17px 0 0;gap:25px;flex-shrink:0"><div class="row" style="justify-content:space-between"><span class="t14 m">Productivity</span><span class="t12 m i2">View all</span></div><div class="row" style="gap:33px">${appR('gdrive','Google Drive')}${appR('gcal','Google Calendar')}</div></div></div>`;
+}
+function manageApps(){
+  const conn='<span class="t13" style="color:#00BA69">Connected</span>';
+  const r=(k,n,s)=>`<div class="row" style="width:390px;height:46px;gap:10px"><div class="appicon" style="background:${AI[k][0]};border:1px solid var(--line)">${AI[k][1]}</div><div class="col" style="flex-grow:1"><span class="t13 m">${n}</span><span class="t13 i2">1 connector</span></div>${s}</div>`;
+  return `<div class="scrim"></div><div class="modal" data-n="Manage plugins and skills" style="left:70px;top:51px;width:900px;height:658px;padding:18px 44px 0 44px">
+  <div class="row" style="height:24px;gap:6px;margin-left:-20px">${I.back}<span class="t13 i2">Connect Apps</span></div><div style="position:absolute;right:15px;top:15px" class="close">${I.x()}</div>
+  <span style="font-size:17px;line-height:24px;font-weight:500;padding-top:28px">Manage plugins and skills</span>
+  <span class="t12 i3" style="padding-top:28px">Installed</span>
+  <div class="row" style="padding-top:12px;gap:32px;flex-wrap:wrap;row-gap:20px">${r('outlook','Outlook','<div class="conn" style="width:70px">Connect</div>')}${r('github','GitHub',conn)}${r('github','GitHub',conn)}${r('origin','Origin',conn)}</div>
+  <span class="t12 i3" style="padding-top:36px">Private skills</span><span style="font-size:11px;line-height:16px;padding-top:8px" class="i3">No private skills yet. Ask your Bot to create one for you.</span></div>`;
+}
+function appDetail(){
+  const sk=(n,d)=>`<div class="row" style="padding:10px 14px;gap:10px;align-items:flex-start">${ic('cube',16,'rgba(245,245,245,.7)')}<div class="col" style="min-width:0;flex-grow:1"><span class="t13">${n}</span><span class="t12 i3" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:760px">${d}</span></div></div>`;
+  return `<div class="scrim"></div><div class="modal" data-n="App detail — Datadog" style="left:70px;top:51px;width:900px;height:658px;padding:18px 32px 0 32px">
+  <div class="row" style="height:24px;justify-content:space-between;margin-right:-17px;margin-left:-6px">${I.back}<div class="close">${I.x()}</div></div>
+  <div class="row" style="padding-top:22px;gap:12px"><div style="width:56px;height:56px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center">${AI.datadog[1].replace('width="26" height="26"','width="40" height="40"')}</div><span style="font-size:17px;line-height:24px;font-weight:500;flex-grow:1">Datadog</span><div class="btn soft" style="height:36px;padding:0 24px;gap:12px">${ic('link',16)}Share</div><div class="btn light" style="height:36px;padding:0 30px;font-weight:400">Connect</div></div>
+  <span class="t14 i2" style="padding-top:14px">Inspect and query Datadog logs, metrics, traces, dashboards, and more from your agent.</span>
+  <span class="t12" style="padding:30px 0 8px 14px">Apps <span class="i3">1</span></span>
+  <div style="border-radius:14px;border:1px solid var(--line2);background:rgba(245,245,245,.02)"><div class="row" style="padding:12px 14px;gap:10px">${ic('plug',16,'rgba(245,245,245,.7)')}<div class="col"><span class="t13">datadog</span><span class="t12 i3">Connector</span></div></div></div>
+  <span class="t12" style="padding:20px 0 8px 14px">Skills <span class="i3">4</span></span>
+  <div style="border-radius:14px;border:1px solid var(--line2);background:rgba(245,245,245,.02);padding:2px 0">${sk('datadog-app','Use ONLY when the user explicitly asks to create, scaffold, or initialize a new Datadog App project — they must use action words like "create"…')}${sk('ddconfig',"Configures or troubleshoots the plugin's Datadog MCP server. Use when the user wants to change the Datadog domain, switch organizations…")}${sk('ddsetup',"First-time initialization of the plugin's Datadog MCP server. When fulfilling requests that involve Datadog, use MCP tools from the plugin's D…")}${sk('ddtoolsets',"Manages toolsets for the plugin's Datadog MCP server. Use when the user wants to view, enable, or disable toolsets that control which tool…")}</div>
+  <span class="t12 i3" style="padding:20px 0 8px 14px">Information</span><div style="border-radius:14px;border:1px solid var(--line2);background:rgba(245,245,245,.02)"><div class="row" style="padding:12px 14px;justify-content:space-between"><span class="t13">Capabilities</span><span class="t13 i3">1 app, 4 skills</span></div></div></div>`;
+}
+const simpleModal=(name,l,t,w,h,inner)=>`<div class="scrim"></div><div class="modal" data-n="${name}" style="left:${l}px;top:${t}px;width:${w}px;height:${h}px">${inner}</div>`;
+function invite(){return simpleModal('Invite teammates',300,206,440,348,`<div class="col" style="padding:16px 16px 14px;gap:6px;border-bottom:1px solid var(--line2);position:relative"><span class="t14 sb">Invite teammates</span><span class="t14 i2" style="line-height:22px">Your plan becomes a team plan when your first teammate joins. Each teammate adds a seat, billed to you.</span><div class="close" style="position:absolute;right:11px;top:10px">${I.x()}</div></div>
+ <div class="col" style="padding:16px;gap:8px"><span class="t12 sb">Team name</span><div style="height:28px;border-radius:8px;border:1px solid rgba(245,245,245,.22);padding:0 8px;display:flex;align-items:center"><span class="t13">Michael's team</span></div><span class="t12 sb" style="padding-top:14px">Email</span><div style="height:72px;border-radius:8px;border:1px solid var(--line2);padding:8px"><span class="t13 i3">Email addresses, separated by commas</span></div></div>
+ <div class="mfoot" style="margin-top:auto"><div class="btn dis" style="font-weight:400">Send invite</div></div>`);}
+function qr(){let s='';let seed=7;const r=()=>(seed=(seed*9301+49297)%233280)/233280;for(let y=0;y<25;y++)for(let x=0;x<25;x++){const f=(x<7&&y<7)||(x>17&&y<7)||(x<7&&y>17);if(f)continue;if(r()>.5)s+=`<rect x="${x*7}" y="${y*7}" width="7" height="7"/>`;}
+ const fd=(x,y)=>`<rect x="${x}" y="${y}" width="49" height="49" fill="#000"/><rect x="${x+7}" y="${y+7}" width="35" height="35" fill="#fff"/><rect x="${x+14}" y="${y+14}" width="21" height="21" fill="#000"/>`;
+ return `<svg width="175" height="175" viewBox="0 0 175 175"><g fill="#000">${s}</g>${fd(0,0)}${fd(126,0)}${fd(0,126)}</svg>`;}
+function mobile(){return `<div class="scrim"></div><div class="modal" data-n="Get Grok Bot for mobile" style="left:360px;top:144px;width:320px;height:470px;background:var(--bg);align-items:center;padding-top:24px"><div class="close" style="position:absolute;right:8px;top:8px">${I.x()}</div>${grok(48)}<div style="margin-top:16px;width:224px;height:224px;border-radius:16px;background:#fff;display:flex;align-items:center;justify-content:center">${qr()}</div><span class="t14 m" style="padding-top:20px;font-size:15px">Grok Bot on your phone</span><span class="t13 i3" style="padding-top:6px">Scan with your camera to get the app</span><span class="t12 i3" style="padding-top:4px">Works on iPhone and Android</span><div class="row" style="gap:8px;padding-top:20px"><div class="btn" style="background:var(--surface);width:142px;justify-content:center;font-weight:400;font-size:13px;border:1px solid var(--line)">Open App Store</div><div class="btn light" style="width:142px;justify-content:center;font-weight:400;font-size:13px">Done</div></div></div>`;}
+function shortcuts(){
+  const k=(...a)=>`<div class="row" style="gap:4px">${a.map((x,j)=>(x==='/'&&j<a.length-1)||x==='or'?`<span class="t12 i3">${x}</span>`:`<div class="kbd">${x}</div>`).join('')}</div>`;
+  const r=(l,s,keys)=>`<div class="row" style="height:35px;justify-content:space-between;border-bottom:1px solid var(--line)"><span class="t14">${l}${s?` <span class="t13 i3">&nbsp;${s}</span>`:''}</span>${keys}</div>`;
+  const h=t=>`<span class="t13 m" style="padding:14px 0 6px">${t}</span>`;
+  return simpleModal('Keyboard shortcuts',70,119,900,522,`<div style="padding:18px 32px;position:relative"><span class="t14 sb" style="font-size:15px">Keyboard shortcuts</span><div class="close" style="position:absolute;right:11px;top:12px">${I.x()}</div>
+  <div class="row" style="gap:64px;align-items:flex-start;padding-top:2px"><div class="col" style="width:385px">${h('Essentials')}${r('Search','',k('Ctrl','K','or','Ctrl','Shift','F'))}${r('New Bot','',k('Ctrl','N'))}${r('Send','Shift+Enter for new line',k('Enter'))}${r('Go to Bot','',k('Ctrl','1–9'))}${r('Compact sidebar','',k('Ctrl','B'))}${r('Settings','',k('Ctrl',','))}${r('Keyboard shortcuts','',k('Ctrl','/'))}${h('Chat')}${r('Focus chat','',k('Ctrl','I'))}${r('Find in chat','',k('Ctrl','F'))}${r('Dictate','Hold to talk',k('Ctrl','D'))}${r('Add selection to chat','',k('Ctrl','L'))}</div>
+  <div class="col" style="width:385px">${h('Navigation')}${r('Previous / next Bot','',k('Alt','↑','/','Alt','↓'))}${r('Back / forward','',k('Ctrl','[','/','Ctrl',']'))}${r('Switch Bots','Hold Ctrl',k('Ctrl','Tab'))}${h('Panels')}${r('Details','',k('Ctrl','Alt','B'))}${r('Skills','',k('Ctrl','Shift','W'))}${r('Connect apps','',k('Ctrl','Shift','M'))}${h('Window')}${r('Zoom','',k('Ctrl','+','/','Ctrl','−','/','Ctrl','0'))}${r('Full screen','',k('F11'))}</div></div></div>`);}
+function feedback(){return simpleModal('Send Feedback',300,164,440,432,`${modalHead('Send Feedback')}<div class="col" style="padding:18px 16px 16px;gap:14px"><span class="t14 i2">We value all feedback, whether it's a bug, an idea, or a question</span><div style="height:142px;border-radius:8px;border:1px solid var(--line2);padding:10px"><span class="t13 i3">What happened? What did you expect?</span></div>
+ <div class="row" style="gap:8px"><div style="width:16px;height:16px;border-radius:4px;background:var(--toggle);display:flex;align-items:center;justify-content:center"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg></div><span class="t13">Include current conversation ID</span></div>
+ <div class="row" style="gap:8px;align-items:flex-start"><div style="width:16px;height:16px;border-radius:4px;border:1.5px solid rgba(245,245,245,.4);flex-shrink:0;margin-top:1px"></div><div class="col"><span class="t13">Include additional device diagnostics</span><span class="t12 i2" style="padding-top:2px;line-height:16px">Adds processor, memory, display, and app/runtime version details. When telemetry is enabled and privacy mode is off, it also adds an app launch ID to match this feedback with related telemetry.</span></div></div></div>
+ <div class="mfoot" style="margin-top:auto"><div class="btn ghost" style="font-weight:400">Cancel</div><div class="btn dis" style="font-weight:400">Send Feedback</div></div>`);}
+function about(){return simpleModal('About',360,241,320,277,`<div class="close" style="position:absolute;right:11px;top:11px">${I.x()}</div><div class="col" style="align-items:center;padding-top:32px"><div style="width:64px;height:64px;border-radius:16px;background:#000;display:flex;align-items:center;justify-content:center"><div style="width:64px;height:64px;border-radius:16px;background:#F5F5F5;clip-path:inset(12px 0 0 0 round 16px)"></div></div><span style="font-size:22px;line-height:28px;font-weight:600;padding-top:12px">Grok Bot</span><span class="t12 i2" style="padding-top:8px">Version 1.2.3</span><span class="t12 i2">Built Nov 17, 2026</span><span style="font-size:11px;line-height:16px;padding-top:10px" class="i3">Copyright © 2026 SpaceXSI</span><div class="btn soft" style="margin-top:16px;font-weight:400;border:1px solid var(--line2)">Copy version info</div></div>`);}
+function searchPal(){
+  const r=(icon,t,s,hl)=>`<div class="row" style="height:${s?56:46}px;padding:0 12px;gap:16px;border-radius:12px;${hl?'background:rgba(245,245,245,.06)':''}"><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;flex-shrink:0">${icon}</div><div class="col"><span class="t14">${t}</span>${s?`<span class="t13 i2" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:540px">${s}</span>`:''}</div></div>`;
+  const ci=k=>`<div style="width:28px;height:28px;border-radius:9999px;background:var(--fill2);display:flex;align-items:center;justify-content:center">${ic(k,14)}</div>`;
+  return `<div class="scrim" style="background:rgba(0,0,0,.4)"></div><div class="modal" data-n="Search palette" style="left:200px;top:100px;width:640px;height:560px;padding:0 10px">
+  <div class="row" style="height:64px;gap:14px;padding:0 12px">${I.search(18,'rgba(245,245,245,.7)')}<span style="font-size:22px;line-height:28px" class="i3">Search Bots, Chats, Settings…</span></div>
+  <span class="t12 i3" style="padding:10px 12px 8px">Bots</span>${r(grok(28),'Grok Bot',"Got it, I'll leave those suggestions for now. Is there anything you'd like help with, or s…",1)}${r(star(30),'Starry',"Yes, they're shared. Every skill I save goes into one library that all your assistants use,…")}
+  <span class="t12 i3" style="padding:26px 12px 8px">Actions</span>${r(ci('plus'.length?'pin':''),'New Bot').replace(ic('pin',14),I.plus(14,'rgba(245,245,245,.8)'))}${r(ci('people'),'New group chat')}${r(ci('kbd'),'Keyboard shortcuts','Help')}${r(ci('grid'),'Connect Apps','Search across apps and skills')}${r(ci('refresh'),'Check for Updates','Updates')}</div>`;
+}
+// settings
+const navItems=[['gear','General'],['monitor','Computer'],['shield','Permissions'],['vault','Vault'],['bars','Usage & Billing'],['cloud','Updates']];
+function settings(tab,content){
+  return `<div class="scrim"></div><div class="modal" data-n="Settings — ${tab}" style="left:70px;top:51px;width:900px;height:658px;background:var(--bg);flex-direction:row">
+  <div class="col" data-n="Nav" style="width:199px;flex-shrink:0;border-right:1px solid var(--line);padding:16px 12px;gap:2px">${navItems.map(([k,n])=>`<div class="row" style="height:32px;padding:7px 9px;gap:9px;border-radius:8px;${n===tab?'background:var(--fill2)':''}">${k==='gear'?I.gear(16,'#F5F5F5'):ic(k,16,'#F5F5F5')}<span class="t13">${n.replace('&','&amp;')}</span></div>`).join('')}</div>
+  <div class="col" data-n="Content" style="flex-grow:1;padding:33px 32px 0;overflow:hidden"><span style="font-size:17px;line-height:24px;font-weight:500;padding-left:14px;flex-shrink:0">${tab.replace('&','&amp;')}</span>${content}</div>
+  <div class="close" style="position:absolute;right:10px;top:10px">${I.x()}</div></div>`;
+}
+const sec=(label,inner,pt=28)=>`<div class="col" style="gap:8px;padding-top:${pt}px;flex-shrink:0">${label?`<span class="slabel">${label}</span>`:''}${inner}</div>`;
+const tog=on=>`<div class="toggle ${on?'on':'off'}"><i></i></div>`;
+const ssel=t=>`<div class="ssel">${t}${I.down()}</div>`;
+const srow=(title,sub,right,h=48)=>`<div class="srow" style="min-height:${h}px;padding-top:${sub?8:0}px;padding-bottom:${sub?8:0}px"><div class="col"><span class="t13">${title}</span>${sub?`<span class="t13 i2">${sub}</span>`:''}</div>${right}</div>`;
+const sbtn=(t,style='')=>`<div class="btn soft" style="${style}">${t}</div>`;
+const SET={
+ General:()=>sec('Account',`<div class="scard" style="padding:22px 14px 22px 16px;flex-direction:row;align-items:center;gap:14px"><div style="width:44px;height:44px;border-radius:9999px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:500;color:var(--ink2)">MM</div><div class="col" style="flex-grow:1"><span class="t13 m">Michael Muir</span><div class="row" style="gap:8px"><span class="t13 i2">name@example.com</span>${I.copy(13,'rgba(245,245,245,.66)')}</div></div>${sbtn('Add account')}${sbtn('Sign Out')}</div>`)
+  +sec('Appearance',`<div class="scard">${srow('Theme','',ssel('Follow System'))}${srow('Accent','',ssel('Bot color'))}${srow('Language','',ssel('Follow System'))}${srow('Check Spelling While Typing','',tog(1),40)}${srow('Send with Ctrl+Enter','Press Ctrl+Enter to send your message. Enter starts a new line.',tog(0))}</div>`)
+  +sec('System',`<div class="scard">${srow('Microphone','',ssel('System Default'))}${srow('Use hardware acceleration','',tog(1),40)}</div>`),
+ Computer:()=>sec('Your computer',`<div class="scard">${srow('Execution on this computer','Let Grok Bot open files and run tasks on your computer. Auto-review still checks everything first.',ssel('Ask every time'))}${srow('Route traffic through this computer',"Route network traffic from Grok Bot's computer through your local desktop computer instead of the cloud. 0 routed this session.",tog(1))}</div>`)
+  +sec('Manage devices',`<div class="scard" style="padding:16px 14px;flex-direction:row;gap:16px;align-items:center">${ic('monitor',16,'rgba(245,245,245,.8)')}<div class="col"><span class="t13">Workstation</span><div class="row" style="gap:6px"><div style="width:6px;height:6px;border-radius:9999px;background:#1BC56E"></div><span class="t13 i2">Computer · Online now</span></div></div></div>`)
+  +sec("Bot's computer",`<div class="scard" style="padding:14px">${`<div class="col"><span class="t13">Update Bot's Computer</span><span class="t13 i2">Updates the computer your Bots share. Your files and logins stay, but installed apps and packages are removed. All Bots update together.</span></div>`}<div class="row" style="margin-top:12px;height:34px;padding:0 12px;gap:8px;border-radius:8px;background:rgba(77,155,255,.08)">${ic('check',16,'#4D9BFF')}<span class="t13" style="color:#4D9BFF">Your computer is on the latest version</span></div><div class="row" style="margin-top:16px;gap:24px"><div class="col" style="flex-grow:1"><span class="t13">Reset Bot's Computer</span><span class="t13 i2">Start fresh if the computer gets stuck. It's rebuilt from your last saved snapshot, so very recent changes may be lost.</span></div><div class="btn" style="background:#D33A3A;font-weight:400;font-size:13px">Reset</div></div></div>`),
+ Permissions:()=>sec('',`<div class="scard" style="border:1px solid var(--line2)">${srow('Approvals','Grok Bot checks each action against your rules and asks when one needs your OK',`<div class="ssel" style="border:none">Auto-review${I.down()}</div>`,72)}</div>`,24)
+  +`<div class="col" style="padding:14px 0 0;gap:22px;flex-shrink:0">${srow('<span class="i2">Always Ask</span>','<span style="font-size:12px">Stop and ask when an action matches these rules</span>',sbtn('Add Rule','height:26px;font-size:13px'),40)}${srow('<span class="i2">Allow without Asking</span>','<span style="font-size:12px">Continue automatically when an action matches these rules</span>',sbtn('Add Rule','height:26px;font-size:13px'),40)}</div>`
+  +sec('',`<div class="scard" style="border:1px solid var(--line2)">${srow('App permissions',"Grok Bot follows the approval settings you choose for each app's tools",sbtn('Open apps'),56)}</div>`,20),
+ Vault:()=>`<div class="row" style="padding-top:28px;gap:6px;flex-shrink:0"><div class="chip" style="background:var(--fill2)"><span class="m">All</span>&nbsp;<span class="i3">0</span></div><div class="chip" style="background:none">Logins&nbsp;<span class="i3">0</span></div><div class="chip" style="background:none">Payments&nbsp;<span class="i3">0</span></div><div class="chip" style="background:none;gap:4px">More${I.down(12,'#F5F5F5')}</div><div style="flex-grow:1"></div><div class="row" style="width:160px;height:32px;padding:0 12px;gap:8px;border-radius:9999px;border:1px solid var(--line2)">${I.search(14,'rgba(245,245,245,.8)')}<span class="t13">Search Vault</span></div><div class="btn light" style="gap:6px;font-weight:400;font-size:13px">New item${I.down(12,'#121212')}</div></div>`
+  +sec('',`<div class="scard" style="padding:16px 14px;border:1px solid var(--line)"><span class="t13">Nothing saved yet. Add a login, card, or contact info with New item.</span></div>`,24),
+ 'Usage & Billing':()=>sec('My plan',`<div class="scard">${srow('Premium','Manage plan, payment methods, and invoices in your dashboard',sbtn('Manage plan'),56)}</div>`)
+  +sec('Usage limits',`<div class="scard" style="padding:18px 14px;gap:10px"><span class="t13">Weekly usage</span><div class="row" style="gap:6px;align-items:baseline"><span style="font-size:22px;line-height:28px">1%</span><span class="t13 i2">used</span></div><div style="height:3px;border-radius:2px;background:rgba(245,245,245,.1)"><div style="width:6px;height:3px;border-radius:2px;background:var(--toggle)"></div></div><span style="font-size:11px" class="i2">Resets in 7 days</span></div>`)
+  +sec('Additional usage',`<div class="scard">${srow('Credits','Pay for usage past your weekly limit. Credits expire after two years.',`<div class="btn" style="background:var(--toggle);font-weight:400;font-size:13px">Enable</div>`,56)}</div>`)
+  +sec('Grok Bot usage',`<div class="scard" style="padding:18px 14px"><div class="row" style="justify-content:space-between"><div class="col"><span style="font-size:22px;line-height:28px">1%</span><span class="t12 i3">of your weekly limit · Nov 23 – Nov 30</span></div><div class="row" style="padding:2px;border-radius:9999px;background:var(--fill)"><div class="chip" style="background:var(--fill2)">By source</div><div class="chip" style="background:none;color:var(--ink2)">By Bot</div></div></div><div style="margin-top:18px;height:8px;border-radius:4px;background:var(--toggle)"></div></div>`),
+ Updates:()=>sec('Grok Bot Updates',`<div class="scard">${srow('Automatic Updates',"Automatically update your client while you're away",tog(1),56)}${srow('Version 1.2.3',"You're up to date",sbtn('Check for Updates'),56)}</div>`),
+};
+// misc overlays
+const reactionBar=`<div class="row" data-n="Message actions" style="position:absolute;left:672px;top:546px;gap:6px">${ic('smile',15,'rgba(245,245,245,.7)')}${ic('reply',15,'rgba(245,245,245,.7)')}${ic('dots',15,'rgba(245,245,245,.9)')}</div>`;
+const reactions=`<div class="row" data-n="Reaction picker" style="position:absolute;left:670px;top:574px;height:42px;padding:0 6px;gap:0;border-radius:9999px;background:var(--surface);border:1px solid var(--line2);box-shadow:0 8px 24px rgba(0,0,0,.4)">${['👍','👎','❤️','😂','🎉'].map(e=>`<div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:20px">${e}</div>`).join('')}<div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center">${ic('smile',18,'rgba(245,245,245,.7)')}</div></div>`;
+const msgMore=`<div class="menu" data-n="Message more menu" style="left:722px;top:573px;width:200px">${menuItem(null,'Copy').replace('<span',I.copy(14)+'<span')}${menuItem(null,'Copy request ID').replace('<span',I.copy(14)+'<span')}</div>`;
+const ctxMenu=`<div class="menu" data-n="Sidebar context menu" style="left:38px;top:152px;width:200px">${menuItem('pin','Pin')}${menuItem('folder','Move to new section')}${menuItem('bell','Mark as Unread')}${menuItem('win','New window')}<div class="div"><i></i></div>${menuItem(null,'Copy conversation ID').replace('<span',I.copy(14,'rgba(245,245,245,.8)')+'<span')}<div class="div"><i></i></div>${menuItem('eyeoff','Hide from sidebar')}<div class="mi" style="color:#F2364A">${ic('trash',16,'#F2364A')}<span>Delete</span></div></div>`;
+function voicePicker(){const v=[['Kepler','Witty & inventive'],['Leo','Strong & assured'],['Liora','Calm & grounded',1],['Lumen','Warm & articulate'],['Luna','Gentle & patient'],['Lux','Quiet & wise']];
+ return `<div class="menu" data-n="Voice picker" style="left:716px;top:145px;width:300px;padding:10px 6px;gap:0"><div class="row" style="padding:2px 8px 12px;gap:12px"><span class="t13">Speed</span><div style="flex-grow:1;height:20px;border-radius:9999px;background:rgba(245,245,245,.08);position:relative"><div style="width:66px;height:20px;border-radius:9999px;background:var(--userBubble)"></div><div style="position:absolute;left:48px;top:1px;width:18px;height:18px;border-radius:9999px;background:#fff"></div></div><span class="t13" style="width:32px;text-align:right">1.0x</span></div>
+ <div class="row" style="flex-wrap:wrap;gap:6px">${v.map(([n,d,s])=>`<div class="col" style="width:140px;height:86px;border-radius:10px;padding:10px 12px;justify-content:flex-end;position:relative;border:1px solid ${s?'rgba(245,245,245,.14)':'var(--line)'};background:${s?'rgba(245,245,245,.08)':'rgba(245,245,245,.03)'}">${s?`<div style="position:absolute;left:10px;top:8px">${star(18)}</div>`:''}<div style="position:absolute;right:10px;top:10px">${ic('play',15,'rgba(245,245,245,.6)')}</div><span class="t14">${n}</span><span class="t12 i2">${d}</span></div>`).join('')}</div></div>`;}
+function avatarEditor(){const c='#F79E1B';const sh=i=>`<div style="width:56px;height:52px;display:flex;align-items:center;justify-content:center;border-radius:9999px;${i===11?'box-shadow:0 0 0 1.5px rgba(245,245,245,.2)':''}">${shape(i,c,36)}</div>`;
+ const sw=i=>`<div style="width:24px;height:24px;border-radius:9999px;background:${COLORS[i]};${i===4?'box-shadow:0 0 0 3px #1F1F1F,0 0 0 4.5px rgba(245,245,245,.5)':''}"></div>`;
+ return `<div class="menu" data-n="Avatar editor" style="left:732px;top:138px;width:298px;padding:0 0 14px;gap:0"><div class="row" style="height:42px;padding:0 8px;gap:4px;border-bottom:1px solid var(--line)"><div class="chip" style="background:var(--fill2);height:24px;padding:0 8px">Bot</div><div class="chip" style="background:none;height:24px;padding:0 8px;color:var(--ink2)">Generate</div><div class="chip" style="background:none;height:24px;padding:0 8px;color:var(--ink2)">Upload</div><div style="flex-grow:1"></div><span class="t13 i2" style="padding-right:8px">Reset</span></div>
+ <div class="col" style="align-items:center;padding-top:14px;gap:4px"><div class="row">${[0,1,2,3,4].map(sh).join('')}</div><div class="row">${[5,6,7,8,9].map(sh).join('')}</div><div class="row">${[10,11,12].map(sh).join('')}</div></div>
+ <div class="col" style="align-items:center;padding-top:22px;gap:16px"><div class="row" style="gap:16px">${[0,1,2,3,4,5].map(sw).join('')}</div><div class="row" style="gap:16px">${[6,7,8,9,10].map(sw).join('')}</div></div></div>`;}
+function groupChat(){return `${sidebar('two')}<div class="main" data-n="New group chat" style="padding-top:0"><div class="row" style="height:52px;flex-shrink:0;margin:0 -16px;padding:0 28px;border-bottom:1px solid var(--line);gap:6px"><span class="t13 i2">To:</span><span class="t13 i3" style="flex-grow:1">Start a chat with…</span>${I.x(14,'rgba(245,245,245,.6)')}</div>
+ <div class="menu" data-n="Recipient picker" style="left:16px;top:48px;width:560px;padding:6px"><div class="row" style="height:36px;padding:0 8px;gap:10px;border-radius:8px;background:rgba(245,245,245,.06)">${star(22)}<span class="t13 m" style="flex-grow:1">Starry</span><span class="t12 i3">Add to group chat</span></div><div class="row" style="height:36px;padding:0 8px;gap:10px">${grok(22)}<span class="t13 m">Grok Bot</span></div></div>
+ <div style="flex-grow:1"></div>${composer({ph:'Message Bot',voiceOnly:true})}</div>`;}
+function botComputer(){return `<div style="position:absolute;inset:0;background:var(--bg)" data-n="Bot's computer (live view)"><div style="position:absolute;left:870px;top:12px">${ic('shrink',18,'rgba(245,245,245,.85)')}</div>
+ <div style="position:absolute;left:8px;top:56px;width:1024px;height:640px;border-radius:8px;overflow:hidden;background:linear-gradient(120deg,#c7c7c7 0%,#bdbdbd 25%,#5b5b5b 45%,#6e6e6e 70%,#9a9a9a 100%)" data-n="Remote desktop (VNC)"><div style="position:absolute;left:0;bottom:0;width:1024px;height:22px;background:#1c1d22;display:flex;align-items:center;justify-content:center;gap:8px"><div style="width:14px;height:14px;border-radius:3px;background:#2aa7e0"></div><div style="width:14px;height:14px;border-radius:9999px;background:conic-gradient(#ea4335 0 33%,#fbbc05 0 66%,#34a853 0)"></div><div style="width:14px;height:14px;border-radius:2px;background:#9aa0a6"></div><div style="width:14px;height:14px;border-radius:2px;border:1px solid #9aa0a6"></div><span style="position:absolute;right:10px;font-size:8px;color:#ddd">Mon Nov 23  4:40 PM</span></div></div>
+ <div class="row" data-n="Watching / Take control" style="position:absolute;left:419px;top:704px;height:36px;padding:3px 3px 3px 12px;gap:8px;border-radius:9999px;background:var(--surface);border:1px solid var(--line)">${ic('eye',14,'rgba(245,245,245,.7)')}<span class="t14 m i2">Watching</span><div class="btn light" style="height:28px;padding:0 9px;font-weight:400">Take control</div></div></div>`;}
+// onboarding
+function signIn(){return `<div class="col" style="width:1040px;align-items:center;position:relative"><div class="row" style="padding-top:262px;gap:26px"><svg width="50" height="50" viewBox="38 38 116 116"><circle cx="96" cy="96" r="57.6" fill="#F5F5F5"/><circle cx="71" cy="77" r="11" fill="#121212"/><circle cx="105" cy="98" r="12" fill="#121212"/></svg><span style="font-size:64px;line-height:64px;letter-spacing:-.035em">Grok Bot</span></div>
+ <span style="font-size:20px;line-height:26px;width:340px;text-align:center;padding-top:52px">Your team of always-on Bots that you can give real work to</span>
+ <div class="row" style="padding-top:38px;gap:8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(245,245,245,.5)" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg><span class="t14 i2">Continue in your browser</span></div>
+ <div class="row" style="padding-top:20px;gap:20px"><span class="t14" style="color:var(--accent)">Reopen link</span><span class="t14 i3">·</span><span class="t14" style="color:var(--accent)">Copy link</span><span class="t14 i3">·</span><span class="t14">Cancel</span></div>
+ <span class="t13 i3" style="padding-top:18px;width:340px;text-align:center;line-height:19px">Wrong browser? Copy the link and open it where you use Cursor.</span>
+ <span class="t13 i3" style="position:absolute;top:708px;line-height:20px">By using Grok Bot, you additionally agree to these <u class="i2">Terms</u></span></div>`;}
+function meet(){return `<div class="col" style="width:1040px;align-items:center;position:relative"><span style="font-size:28px;line-height:34px;letter-spacing:-.02em;padding-top:116px">Meet Grok Bot</span><div style="position:absolute;left:493px;top:285px"><svg width="54" height="40" viewBox="0 0 54 40"><circle cx="6" cy="20" r="5" fill="rgba(245,245,245,.5)"/><circle cx="48" cy="20" r="5" fill="rgba(245,245,245,.5)"/><circle cx="27" cy="20" r="19" fill="#ECECEC"/></svg></div><div class="btn" style="position:absolute;left:376px;top:580px;width:288px;height:36px;justify-content:center;background:#F2F2F2;color:#121212;font-weight:400">Next</div></div>`;}
+function demoCard(){return `<div class="col" style="width:1040px;align-items:center;position:relative"><span style="font-size:28px;line-height:34px;letter-spacing:-.02em;padding-top:116px;width:440px;text-align:center">Grok Bot has its own computer and works just like you</span>
+ <div style="position:absolute;left:300px;top:209px;width:441px;height:300px;border-radius:16.6px;background:#90C5FD;border:1px solid rgba(20,20,20,.12);box-shadow:0 15.8px 44px rgba(0,0,0,.22);overflow:hidden" data-n="Demo card">
+  <div style="position:absolute;left:51px;top:46px;width:258px;height:158px;border-radius:8.3px;background:#F2F2F4;border:1px solid rgba(20,20,20,.1);box-shadow:0 12px 30px rgba(0,0,0,.12)"><div style="height:21px;background:#D9D9D9;display:flex;align-items:center;gap:4px;padding-left:8px">${['#FF5F57','#FEBC2E','#28C840'].map(c=>`<i style="display:block;width:6px;height:6px;border-radius:9999px;background:${c}"></i>`).join('')}</div><div class="row" style="gap:10px;padding:8px 12px">${[0,1,2,3].map(()=>`<div style="width:51px;height:38px;border-radius:5.5px;background:#fff"></div>`).join('')}</div><div style="margin:2px 12px;height:88px;border-radius:5.5px;background:#fff"></div></div>
+  <div style="position:absolute;left:144px;top:88px;width:226px;height:158px;border-radius:8.3px;background:#F2F2F4;border:1px solid rgba(20,20,20,.1);box-shadow:0 12px 30px rgba(0,0,0,.12)"><div style="height:21px;background:#D9D9D9;display:flex;align-items:center;gap:4px;padding-left:8px">${['#FF5F57','#FEBC2E','#28C840'].map(c=>`<i style="display:block;width:6px;height:6px;border-radius:9999px;background:${c}"></i>`).join('')}</div><div class="row" style="gap:6px;padding:12px 6px;align-items:flex-start"><div style="width:59px;height:125px;border-radius:5.3px;background:#fff"></div><div style="width:155px;height:125px;border-radius:5.5px;background:#fff;position:relative"><div style="position:absolute;left:12px;top:75px;width:131px;height:38px;border-radius:5.5px;background:rgba(4,4,4,.12)"></div></div></div></div>
+  <div style="position:absolute;left:218px;top:178px">${grok(67)}</div></div>
+ <div class="btn" style="position:absolute;left:376px;top:580px;width:288px;height:36px;justify-content:center;background:#DBDBDB;color:#121212;font-weight:400">Next</div><div class="btn" style="position:absolute;left:376px;top:628px;width:288px;height:36px;justify-content:center;background:rgba(245,245,245,.04);font-weight:400">Back</div></div>`;}
+function hear(){const o=[['X (Twitter)','<path d="M4 4l16 16M20 4L4 20"/>'],['Instagram or Facebook','<rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/>'],['TikTok','<path d="M14 3v11a4 4 0 1 1-4-4M14 3c.5 2.5 2.5 4 5 4"/>'],['App stores','<path d="M12 3L4 20M12 3l8 17M7 14h10"/>'],['Friend or colleague',P.people],['Reddit','<circle cx="12" cy="13" r="7"/><circle cx="17" cy="4" r="1.5"/>'],['YouTube','<rect x="2" y="5" width="20" height="14" rx="4"/><path d="M10 9l5 3-5 3z"/>'],['AI assistant','<path d="M10 3l1.8 5.2L17 10l-5.2 1.8L10 17l-1.8-5.2L3 10l5.2-1.8z"/>'],['LinkedIn','<rect x="2" y="2" width="20" height="20" rx="3"/><path d="M7 10v7M7 7v.5M11 17v-7M11 13a3 3 0 0 1 6 0v4"/>'],['Podcast','<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>'],['Search engine','<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>'],['TV or billboard','<path d="M3 10v4h3l7 5V5L6 10zM17 9.5a3.5 3.5 0 0 1 0 5"/>']];
+ const m=(c,l,t,s)=>`<div style="position:absolute;left:${l}px;top:${t}px"><svg width="${s}" height="${s}" viewBox="0 0 30 30"><circle cx="15" cy="15" r="15" fill="${c}"/>${eyes(10,16.5,10,3.5,9)}</svg></div>`;
+ return `<div class="col" style="width:1040px;align-items:center;position:relative"><span style="font-size:28px;line-height:34px;letter-spacing:-.02em;padding-top:116px">How did you first hear about Grok Bot?</span>${m('#F2364A',333,38,30)}${m('#14B8A6',224,109,36)}${m('#2186F7',748,88,37)}
+ <div class="row" style="flex-wrap:wrap;width:768px;gap:12px;padding-top:83px">${o.map(([l,p])=>`<div class="row" style="width:240px;height:60px;padding:0 14px;gap:16px;border-radius:12px;background:var(--surface);border:1px solid var(--line)"><div style="width:30px;height:30px;border-radius:9999px;background:var(--fill2);display:flex;align-items:center;justify-content:center">${I.o(p,16,'rgba(245,245,245,.75)')}</div><span class="t14 m">${l}</span></div>`).join('')}</div>
+ <span class="t14 m" style="position:absolute;top:628px">Skip</span><div class="btn" style="position:absolute;left:376px;top:668px;width:288px;height:36px;justify-content:center;background:var(--surface)">Back</div></div>`;}
+// ---------- screens ----------
+const S=[
+ ['App','Chat — Main', chat()],
+ ['App','Chat — Composer menu', chat({overlay:`<div class="menu" data-n="Composer menu" style="left:104px;top:625px;width:200px">${menuItem('clip','Attach files')}<div class="mi"><svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="#CF2B35" stroke-width="1.8"/><circle cx="12" cy="12" r="4.2" fill="#CF2B35"/></svg><span>Teach a task</span></div></div>`})],
+ ['App','Chat — Account menu', chat({overlay:accountMenu()})],
+ ['App','Chat — Account menu › Support', chat({bot:'starry',overlay:accountMenu('support')+supportMenu})],
+ ['App','Chat — Share menu', chat({overlay:`<div class="menu" data-n="Share menu" style="left:658px;top:53px;width:230px"><div class="row" style="height:52px;padding:0 10px;gap:13px"><div style="width:34px;height:34px;position:relative"><div style="position:absolute;left:0;top:10px">${grok(22,'#1F1F1F')}</div><div style="position:absolute;left:14px;top:0"><svg width="20" height="20" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="rgba(245,245,245,.66)" stroke-width="2" stroke-dasharray="2.4 2.2"/><circle cx="12" cy="12" r="5.5" fill="rgba(245,245,245,.66)"/></svg></div></div><div class="col"><span class="t14 m">Create a copy</span><span class="t13 i2">Share a template link</span></div></div></div>`})],
+ ['App','Chat — Bot panel (Activity)', chat({panel:botPanel('grok')})],
+ ['App','Chat — Bot panel (Library)', chat({bot:'starry',panel:botPanel('starry','library')})],
+ ['App','Chat — Bot panel › Voice picker', chat({bot:'starry',panel:botPanel('starry')+voicePicker()})],
+ ['App','Chat — Bot panel › Avatar editor', chat({bot:'starry',panel:botPanel('starry')+avatarEditor()})],
+ ['App','Chat — Second bot (Starry)', chat({bot:'starry'})],
+ ['App','Chat — Message actions + reactions', chat({bot:'starry',overlay:reactionBar+reactions})],
+ ['App','Chat — Message more menu', chat({bot:'starry',overlay:reactionBar+msgMore})],
+ ['App','Chat — Sidebar context menu', chat({bot:'starry',overlay:ctxMenu})],
+ ['App','Chat — Composer draft (Create a routine)', chat({bot:'starry',panel:botPanel('starry'),comp:{val:"What's a routine and how do I set one up?",send:true}})],
+ ['App','New group chat', groupChat()],
+ ["App","Bot's computer (live view)", botComputer()],
+ ['App','Search palette (Ctrl+K)', chat({bot:'starry',overlay:searchPal()})],
+ ['Modals','Create New Bot (empty)', chat({overlay:createBot()})],
+ ['Modals','Create New Bot (filled)', chat({bot:'starry',overlay:createBot({name:'Nova',shapeIdx:10,color:8})})],
+ ['Modals','Connect Apps', chat({overlay:connectApps()})],
+ ['Modals','Connect Apps › Manage plugins and skills', chat({bot:'starry',overlay:manageApps()})],
+ ['Modals','Connect Apps › App detail', chat({bot:'starry',overlay:appDetail()})],
+ ['Modals','Invite teammates', chat({bot:'starry',overlay:invite()})],
+ ['Modals','Get Grok Bot for mobile', chat({bot:'starry',overlay:mobile()})],
+ ['Modals','Keyboard shortcuts', chat({bot:'starry',overlay:shortcuts()})],
+ ['Modals','Send Feedback', chat({bot:'starry',overlay:feedback()})],
+ ['Modals','About', chat({bot:'starry',overlay:about()})],
+ ...['General','Computer','Permissions','Vault','Usage & Billing','Updates'].map(t=>['Settings','Settings — '+t, chat({bot:'starry',overlay:settings(t,SET[t]())})]),
+ ['Onboarding','Sign in', signIn()],
+ ['Onboarding','Meet Grok Bot', meet()],
+ ['Onboarding','Has its own computer', demoCard()],
+ ['Onboarding','How did you hear', hear()],
+];
+document.getElementById('root').innerHTML = S.map(([p,t,h],i)=>`<section class="screen" data-page="${p}" data-title="${t}" id="s${i}">${h}</section>`).join('');
+window.SCREENS = S.map(([p,t])=>({page:p,title:t}));
+</script></body></html>

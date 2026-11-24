@@ -1,0 +1,7 @@
+[
+ "317,222 [600 14px 245,245,245] Invite teammates",
+ "317,248 [400 14px 245,245,245,0.54] Your plan becomes a team plan when your first teammate joins. Each teammate adds a seat, b",
+ "317,325 [600 12px 245,245,245] Team name",
+ "317,387 [600 12px 245,245,245] Email",
+ "641,516 [400 14px color(srgb0.9607840.9607840.960784/0.3] Send invite"
+]
