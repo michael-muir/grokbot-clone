@@ -4,6 +4,7 @@ import { BotRegistry } from "./bots.ts";
 import { LocalFolderComputers } from "./computer.ts";
 import { Gateway } from "./gateway.ts";
 import { createHttpServer } from "./http.ts";
+import { Credentials, KeychainKeyStore } from "./keys.ts";
 import { defaultProviders } from "./providers/index.ts";
 import { TranscriptStore } from "./transcript.ts";
 
@@ -12,13 +13,25 @@ const port = Number(process.env.PORT || 8787);
 
 const bots = new BotRegistry(dataDir);
 const store = new TranscriptStore(dataDir);
-const providers = defaultProviders(dataDir);
+const credentials = new Credentials(new KeychainKeyStore());
+const providers = defaultProviders(dataDir, credentials);
 const gateway = new Gateway(bots, store, providers, new LocalFolderComputers(dataDir));
-const server = createHttpServer({ gateway, bots, store, providers, token: process.env.GATEWAY_TOKEN || undefined });
+const server = createHttpServer({
+  gateway,
+  bots,
+  store,
+  providers,
+  credentials,
+  token: process.env.GATEWAY_TOKEN || undefined,
+  allowedOrigins: (process.env.GATEWAY_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean),
+});
 
-if (!process.env.ANTHROPIC_API_KEY) {
+if (!credentials.key("claude")) {
   console.warn(
-    'ANTHROPIC_API_KEY is not set: Claude bots will fail. Set it in server/.env, or switch a bot to the "fake" provider.',
+    "No Claude API key: Claude bots will fail. Add one in Settings (PUT /providers/claude/key), set ANTHROPIC_API_KEY in server/.env, or switch the bot to another provider.",
   );
 }
 

@@ -40,9 +40,12 @@ The fake provider also understands `/tool` (an approval card), `/slow` (to test 
 |---|---|---|---|
 | GET | `/health` | | |
 | GET | `/bots` | | |
-| GET | `/providers` | | `[{id, label, local, configured}]` |
+| GET | `/providers` | | `[{id, label, local, configured, needsKey, keySource}]`; `keySource` is `keychain`, `env` or `null`, the key itself is never returned |
+| PUT | `/providers/:id/key` | `{key}` | 204. Saved in the OS keychain |
+| DELETE | `/providers/:id/key` | | 204 |
+| POST | `/providers/:id/test` | `{baseUrl?}` | `{ok: true, models}` or `{ok: false, error}`. Lists models with the current key, so it spends no tokens |
 | GET | `/providers/:id/models` | | `{models}`; 404 if the provider can't list, 502 if it can't be reached |
-| PATCH | `/bots/:id` | `{name?, provider?, model?}` | Changing provider drops the old provider's session |
+| PATCH | `/bots/:id` | `{name?, provider?, model?, baseUrl?}` | Changing provider drops the old session and model, and posts a `notice` entry. `baseUrl` (http or https) points this bot at its own server |
 | GET | `/bots/:id/transcript?since=N` | | Entries whose `updatedSeq` > N |
 | GET | `/bots/:id/events?since=N` | | Server-Sent Events: the backlog, then live updates |
 | POST | `/bots/:id/messages` | `{text}` | 202. 409 while the bot is still working |
@@ -64,6 +67,15 @@ Each entry has `seq` (its position, never changes), `updatedSeq` (bumped on ever
 | `approval` | approval card, `pending` → `approved`/`denied`/`expired` | yes |
 | `run` | turn status and cost, `running` → `finished`/`interrupted`/`failed` | yes |
 | `error` | error row | no |
+| `notice` | a note from the app ("Switched to Ollama") | no |
+
+## API keys
+
+Keys are saved with `PUT /providers/:id/key` into the OS keychain (Windows Credential Manager, macOS Keychain,
+Linux Secret Service) under the service `grokbot-clone`. They're read on every request, so a new key works on the
+next message. A key in the keychain wins over the provider's environment variable (`ANTHROPIC_API_KEY`,
+`OPENAI_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY`, `GEMINI_API_KEY`), which still works as a fallback. Keys never
+appear in API responses, logs, the transcript or files on disk.
 
 ## Providers
 

@@ -1,13 +1,22 @@
 // ModelAdapter for the Gemini API (generativelanguage.googleapis.com): streamed text and function calls over SSE.
 // The key goes in the x-goog-api-key header, never in the URL.
-import type { ChatMessage, ModelAdapter, ModelEvent, ModelRequest, ToolSpec } from "./model.ts";
+import { NotConfiguredError } from "../errors.ts";
+import {
+  type ChatMessage,
+  type KeyInput,
+  type ModelAdapter,
+  type ModelEvent,
+  type ModelRequest,
+  readKey,
+  type ToolSpec,
+} from "./model.ts";
 import { apiErrorMessage, ModelApiError, sseData } from "./openai-compatible.ts";
 
 export const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 
 export interface GeminiOptions {
   baseUrl?: string;
-  apiKey?: string;
+  apiKey?: KeyInput;
   defaultModel?: string;
   fetch?: typeof fetch;
 }
@@ -87,7 +96,7 @@ function declaration(t: ToolSpec) {
 
 export class GeminiAdapter implements ModelAdapter {
   private readonly baseUrl: string;
-  private readonly apiKey?: string;
+  private readonly apiKey: KeyInput;
   private readonly defaultModel?: string;
   private readonly fetch: typeof fetch;
 
@@ -99,15 +108,15 @@ export class GeminiAdapter implements ModelAdapter {
   }
 
   get configured(): boolean {
-    return Boolean(this.apiKey);
+    return Boolean(readKey(this.apiKey));
   }
 
-  async listModels(signal: AbortSignal): Promise<string[]> {
+  async listModels(signal: AbortSignal, baseUrl?: string): Promise<string[]> {
     const models: string[] = [];
     let pageToken: string | undefined;
     do {
       const query = new URLSearchParams({ pageSize: "1000", ...(pageToken ? { pageToken } : {}) });
-      const res = await this.request(`/models?${query}`, { method: "GET", signal });
+      const res = await this.request(`/models?${query}`, { method: "GET", signal }, baseUrl);
       const body = (await res.json()) as {
         models?: { name?: string; supportedGenerationMethods?: string[] }[];
         nextPageToken?: string;
@@ -124,7 +133,7 @@ export class GeminiAdapter implements ModelAdapter {
 
   async *stream(req: ModelRequest, signal: AbortSignal): AsyncGenerator<ModelEvent> {
     const model = req.model || this.defaultModel;
-    if (!model) throw new Error("Choose a model for this bot.");
+    if (!model) throw new NotConfiguredError("Choose a model for this bot.");
     const body = {
       systemInstruction: { parts: [{ text: req.system }] },
       contents: toGeminiContents(req.messages),
@@ -132,12 +141,16 @@ export class GeminiAdapter implements ModelAdapter {
     };
     // Accept "models/gemini-x" as written in Google's docs, as well as "gemini-x".
     const name = model.replace(/^models\//, "");
-    const res = await this.request(`/models/${encodeURIComponent(name)}:streamGenerateContent?alt=sse`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-      signal,
-    });
+    const res = await this.request(
+      `/models/${encodeURIComponent(name)}:streamGenerateContent?alt=sse`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+        signal,
+      },
+      req.baseUrl,
+    );
     if (!res.body) throw new Error("Gemini sent an empty response.");
 
     let usage: { inputTokens: number; outputTokens: number } | undefined;
@@ -201,16 +214,22 @@ export class GeminiAdapter implements ModelAdapter {
     yield { type: "done", usage };
   }
 
-  private async request(path: string, init: RequestInit): Promise<Response> {
-    if (!this.apiKey) throw new Error("Set GEMINI_API_KEY (or switch this bot to another provider).");
+  private async request(path: string, init: RequestInit, baseUrlOverride?: string): Promise<Response> {
+    const apiKey = readKey(this.apiKey);
+    if (!apiKey) {
+      throw new NotConfiguredError(
+        "Add an API key in Settings, or set GEMINI_API_KEY (or switch this bot to another provider).",
+      );
+    }
+    const baseUrl = baseUrlOverride?.replace(/\/+$/, "") || this.baseUrl;
     const headers = new Headers(init.headers);
-    headers.set("x-goog-api-key", this.apiKey);
+    headers.set("x-goog-api-key", apiKey);
     let res: Response;
     try {
-      res = await this.fetch(`${this.baseUrl}${path}`, { ...init, headers });
+      res = await this.fetch(`${baseUrl}${path}`, { ...init, headers });
     } catch (err) {
       if ((err as Error).name === "AbortError") throw err;
-      throw new Error(`Couldn't reach Gemini at ${this.baseUrl}: ${(err as Error).message}`);
+      throw new Error(`Couldn't reach Gemini at ${baseUrl}: ${(err as Error).message}`);
     }
     if (!res.ok) throw new ModelApiError(res.status, await apiErrorMessage(res, "Gemini"));
     return res;

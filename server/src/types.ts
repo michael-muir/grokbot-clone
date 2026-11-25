@@ -36,6 +36,8 @@ export type EntryBody =
       reason?: string;
     }
   | { kind: "error"; message: string }
+  /** A note from the app itself, such as "Switched to Ollama". */
+  | { kind: "notice"; text: string }
   | {
       kind: "run";
       provider: ProviderId;
@@ -62,6 +64,8 @@ export interface Bot {
   name: string;
   provider: ProviderId;
   model?: string;
+  /** Overrides the provider's server for this bot (e.g. an Ollama on another machine). */
+  baseUrl?: string;
   avatar: { shape: string; color: string };
   /** Provider session to resume, so each bot keeps one long-running conversation. */
   sessionId?: string;
@@ -77,6 +81,7 @@ export interface RunRequest {
   prompt: string;
   sessionId?: string;
   model?: string;
+  baseUrl?: string;
   /** The bot's computer: the directory the agent works in. */
   workspaceDir: string;
   /** Persona and product instructions appended to the provider's own system prompt. */
@@ -128,5 +133,5 @@ export interface AgentProvider {
   /** For the provider list in Settings. */
   info?(): ProviderInfo;
   /** The models this provider can run, when it can list them. */
-  listModels?(signal: AbortSignal): Promise<string[]>;
+  listModels?(signal: AbortSignal, baseUrl?: string): Promise<string[]>;
 }

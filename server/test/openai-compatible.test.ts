@@ -15,6 +15,7 @@ import { BotRegistry } from "../src/bots.ts";
 import { LocalFolderComputers } from "../src/computer.ts";
 import { Gateway } from "../src/gateway.ts";
 import { createHttpServer } from "../src/http.ts";
+import { Credentials, MemoryKeyStore } from "../src/keys.ts";
 import { ClaudeProvider } from "../src/providers/claude.ts";
 import type { ProviderRegistry } from "../src/providers/index.ts";
 import { OPENAI_PRESETS, openAICompatibleProvider } from "../src/providers/openai-compatible.ts";
@@ -266,7 +267,7 @@ test("a remote preset without its key says which variable to set", async () => {
       streamUsage: true,
     }),
   ).catch((err: Error) => err.message);
-  assert.equal(events, "Set OPENAI_API_KEY (or switch this bot to another provider).");
+  assert.equal(events, "Add an API key in Settings, or set OPENAI_API_KEY (or switch this bot to another provider).");
 });
 
 // ---------- the /providers routes ----------
@@ -285,13 +286,19 @@ test("GET /providers lists every provider; GET /providers/:id/models lists model
     XAI_API_KEY: "xai-key",
   };
   const providers: ProviderRegistry = new Map<ProviderId, AgentProvider>([
-    ["claude", new ClaudeProvider()],
+    ["claude", new ClaudeProvider(undefined, () => undefined)],
     ...OPENAI_PRESETS.map((p) => [p.id, openAICompatibleProvider(p, sessions, env)] as const),
   ]);
   const bots = new BotRegistry(dataDir, []);
   const store = new TranscriptStore(dataDir);
   const gateway = new Gateway(bots, store, providers, new LocalFolderComputers(dataDir));
-  const server = createHttpServer({ gateway, bots, store, providers });
+  const server = createHttpServer({
+    gateway,
+    bots,
+    store,
+    providers,
+    credentials: new Credentials(new MemoryKeyStore(), env),
+  });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   try {
@@ -317,7 +324,10 @@ test("GET /providers lists every provider; GET /providers/:id/models lists model
     assert.equal(unreachable.status, 502);
     assert.match(((await unreachable.json()) as { error: string }).error, /Couldn't reach/);
 
-    assert.equal((await fetch(`${url}/providers/claude/models`)).status, 404);
+    // Claude can list models but has no key here: a settings problem (409), not an unreachable server.
+    const claude = await fetch(`${url}/providers/claude/models`);
+    assert.equal(claude.status, 409);
+    assert.match(((await claude.json()) as { error: string }).error, /Add an API key in Settings/);
     assert.equal((await fetch(`${url}/providers/nope/models`)).status, 404);
   } finally {
     server.closeAllConnections();

@@ -1,5 +1,6 @@
 // Provider registry: every backend a bot can run on, keyed by ProviderId.
 import { SessionStore } from "../agent/sessions.ts";
+import type { Credentials } from "../keys.ts";
 import type { AgentProvider, ProviderId, ProviderInfo, RunOutcome } from "../types.ts";
 import { ClaudeProvider } from "./claude.ts";
 import { FakeProvider } from "./fake.ts";
@@ -29,12 +30,12 @@ class NotYetAvailable implements AgentProvider {
 
 export type ProviderRegistry = Map<ProviderId, AgentProvider>;
 
-export function defaultProviders(dataDir: string): ProviderRegistry {
+export function defaultProviders(dataDir: string, credentials: Credentials): ProviderRegistry {
   const sessions = new SessionStore(dataDir);
   const providers: AgentProvider[] = [
-    new ClaudeProvider(),
-    ...OPENAI_PRESETS.map((preset) => openAICompatibleProvider(preset, sessions)),
-    geminiProvider(sessions),
+    new ClaudeProvider(undefined, () => credentials.key("claude")),
+    ...OPENAI_PRESETS.map((preset) => openAICompatibleProvider(preset, sessions, process.env, credentials)),
+    geminiProvider(sessions, process.env, credentials),
     new NotYetAvailable("codex", "Codex", "Planned: Codex SDK or `codex app-server`."),
     new NotYetAvailable("cursor", "Cursor", "Planned: Cursor CLI in print mode with JSON streaming."),
     new FakeProvider(40),

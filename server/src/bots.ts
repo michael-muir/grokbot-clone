@@ -32,11 +32,13 @@ export class BotRegistry {
     if (!bot) throw new Error(`Unknown bot ${id}`);
     const next: Bot = { ...bot, ...patch };
     // A provider's session can't be resumed by another provider.
-    // Its model names don't mean anything to another provider either, unless this same patch sets one.
+    // Its model names and server don't belong to another provider either, unless this same patch sets them.
     if (patch.provider && patch.provider !== bot.provider) {
       delete next.sessionId;
       delete next.sessionProvider;
       if (!("model" in patch)) delete next.model;
+      // A server picked for the old provider must never receive the new provider's key.
+      if (!("baseUrl" in patch)) delete next.baseUrl;
     }
     this.bots.set(id, next);
     this.save();
