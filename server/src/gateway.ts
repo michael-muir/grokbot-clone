@@ -63,7 +63,14 @@ export class Gateway {
     const run: ActiveRun = { controller, done: Promise.resolve() };
     this.active.set(botId, run);
 
-    const entry = this.store.append(botId, { kind: "user_message", text });
+    let entry: TranscriptEntry;
+    try {
+      entry = this.store.append(botId, { kind: "user_message", text });
+    } catch (err) {
+      // Release the claim, or the bot would look busy until the gateway restarts.
+      this.active.delete(botId);
+      throw err;
+    }
     run.done = this.execute(bot, provider, text, controller).finally(() => this.active.delete(botId));
     return { entry, done: run.done };
   }

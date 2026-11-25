@@ -1,3 +1,4 @@
+// Gateway entry point: wires the bot registry, transcript store, providers and HTTP server, then listens.
 import { resolve } from "node:path";
 import { BotRegistry } from "./bots.ts";
 import { LocalFolderComputers } from "./computer.ts";

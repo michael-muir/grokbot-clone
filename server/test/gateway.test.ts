@@ -1,3 +1,4 @@
+// Gateway tests: message flow, streaming, approvals, interrupts, persistence and the HTTP/SSE API, on the fake provider.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import type { AddressInfo } from "node:net";
@@ -129,6 +130,26 @@ test("a failed run records an error entry", async () => {
       { kind: "error", message: "Scripted failure." },
     ]);
   } finally {
+    t.cleanup();
+  }
+});
+
+test("a message that can't be recorded doesn't leave the bot busy", async () => {
+  const t = setup();
+  const append = t.store.append.bind(t.store);
+  try {
+    t.store.append = () => {
+      throw new Error("disk full");
+    };
+    await assert.rejects(t.gateway.sendMessage("nova", "hello"), /disk full/);
+    assert.equal(t.gateway.isRunning("nova"), false);
+
+    t.store.append = append;
+    const { done } = await t.gateway.sendMessage("nova", "hello again");
+    await done;
+    assert.equal(ofKind(t.store.list("nova"), "run")[0].state, "finished");
+  } finally {
+    t.store.append = append;
     t.cleanup();
   }
 });
