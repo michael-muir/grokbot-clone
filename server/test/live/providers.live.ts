@@ -1,8 +1,10 @@
 // Live end-to-end check of an OpenAI-compatible provider through the gateway. Not part of `npm test`.
 //
 //   LIVE_PROVIDER=ollama LIVE_MODEL=qwen3.5:4b npm run test:live
-//   LIVE_PROVIDER=openai LIVE_MODEL=<model> OPENAI_API_KEY=... npm run test:live
-//   LIVE_PROVIDER=gemini LIVE_MODEL=<model> GEMINI_API_KEY=... npm run test:live
+//   LIVE_PROVIDER=openai LIVE_MODEL=<model> npm run test:live
+//   LIVE_PROVIDER=gemini LIVE_MODEL=<model> npm run test:live
+//
+// Keys come from the OS keychain (saved through PUT /providers/:id/key), else OPENAI_API_KEY / GEMINI_API_KEY.
 //
 // The bot is asked to create a file with write_file. The approval is granted automatically, then the test checks
 // the file exists and the run finished.
@@ -15,6 +17,7 @@ import { SessionStore } from "../../src/agent/sessions.ts";
 import { BotRegistry } from "../../src/bots.ts";
 import { LocalFolderComputers } from "../../src/computer.ts";
 import { Gateway } from "../../src/gateway.ts";
+import { Credentials, KeychainKeyStore } from "../../src/keys.ts";
 import { geminiProvider } from "../../src/providers/gemini.ts";
 import { OPENAI_PRESETS, openAICompatibleProvider } from "../../src/providers/openai-compatible.ts";
 import { TranscriptStore } from "../../src/transcript.ts";
@@ -36,7 +39,11 @@ test(`live: ${presetId} creates a file through an approved tool call`, { timeout
     ]);
     const store = new TranscriptStore(dataDir);
     const sessions = new SessionStore(dataDir);
-    const provider = preset ? openAICompatibleProvider(preset, sessions) : geminiProvider(sessions);
+    // Same lookup as the gateway: a key saved in Settings (OS keychain) first, then the env var.
+    const credentials = new Credentials(new KeychainKeyStore());
+    const provider = preset
+      ? openAICompatibleProvider(preset, sessions, process.env, credentials)
+      : geminiProvider(sessions, process.env, credentials);
     const gateway = new Gateway(bots, store, new Map([[providerId, provider]]), new LocalFolderComputers(dataDir));
 
     // Approve every card as it appears, and print the transcript as it changes.
