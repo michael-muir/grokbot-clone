@@ -59,6 +59,7 @@ function follow(url: string) {
     signal: controller.signal,
     backoff: { initialMs: 20, maxMs: 100 },
     onState: (s) => states.push(s),
+    onError: () => {}, // drops are the point of these tests
     onEntry: (e) => {
       delivered.push(`${e.id}@${e.updatedSeq}`);
       view.apply(e);
@@ -214,6 +215,7 @@ test("a connection that goes silent is replaced", async () => {
     signal: controller.signal,
     onEntry: () => {},
     staleAfterMs: 150,
+    onError: () => {},
     backoff: { initialMs: 10, maxMs: 10 },
   });
   try {
@@ -238,6 +240,7 @@ test("retries back off, and a permanent refusal stops with an error", async () =
     signal: controller.signal,
     onEntry: () => {},
     backoff: { initialMs: 40, maxMs: 160 },
+    onError: () => {},
   });
   try {
     await until(() => attempts.length >= 5, 4000);
