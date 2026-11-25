@@ -5,6 +5,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { BOT_COLORS, botColor, initial } from "../src/renderer/src/bot-colors.ts";
 
 const rendererDir = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "renderer");
 const tokensFile = join(rendererDir, "src", "theme", "tokens.css");
@@ -70,23 +71,90 @@ function filesIn(dir: string, ext: RegExp): string[] {
   );
 }
 
-const COLOR_LITERAL = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\(/i;
+test("the bot colors in code are exactly the theme's", () => {
+  const palette = [...dark.keys()].filter((k) => k.startsWith("--color-bot-")).map((k) => k.slice(12));
+  assert.deepEqual([...BOT_COLORS].sort(), palette.sort());
+  assert.equal(botColor("violet"), "amber", "unknown names fall back to the default");
+  assert.equal(initial("🚀 Rocket"), "🚀", "astral characters stay whole");
+  assert.equal(initial("  nova"), "N");
+  assert.equal(initial(""), "?");
+});
 
-test("no color, type size or radius literals outside the theme file", () => {
+const COLOR_LITERAL = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\(/i;
+/** Properties whose values may hold a color, including shorthands. */
+const COLOR_PROP =
+  /^(color|background(-color)?|border(-(top|right|bottom|left))?(-color)?|outline(-color)?|box-shadow|text-shadow|fill|stroke|caret-color|accent-color|text-decoration(-color)?|column-rule(-color)?)$/;
+/** Words a color-bearing value may contain besides var(): styles and keywords, never a color name. */
+const NON_COLOR_WORDS = new Set([
+  "solid",
+  "dashed",
+  "dotted",
+  "double",
+  "none",
+  "inset",
+  "transparent",
+  "currentcolor",
+  "inherit",
+  "initial",
+  "unset",
+  "auto",
+  "calc",
+  "underline",
+]);
+const TYPE_PROP = /^(font|font-size|font-family|font-weight|line-height|letter-spacing|border(-[\w-]+)?-radius)$/;
+const stripVars = (value: string) => value.replace(/var\([^()]*\)/g, " ");
+
+/** Why a declaration breaks the token rule, or undefined when it's fine. */
+function literalProblem(prop: string, value: string): string | undefined {
+  if (COLOR_LITERAL.test(value)) return "color literal";
+  const rest = stripVars(value);
+  // Spacing, sizes and type all come from tokens: no pixel values written by hand.
+  if (/\d*\.?\d+px\b/.test(rest)) return "px literal";
+  if (TYPE_PROP.test(prop) && !/var\(/.test(value) && !/^\s*(inherit|0|normal)\s*$/.test(value)) {
+    return "type or radius literal";
+  }
+  // Named and system colors (red, Canvas, GrayText…) bypass the theme just like hex does.
+  if (COLOR_PROP.test(prop)) {
+    const words = rest.toLowerCase().match(/[a-z][a-z-]*/g) ?? [];
+    if (words.some((w) => !NON_COLOR_WORDS.has(w))) return "named color";
+  }
+  return undefined;
+}
+
+test("the literal check catches what it should and passes what it should", () => {
+  const caught = [
+    ["border", "1px solid red"],
+    ["outline", "2px solid Highlight"],
+    ["font", "14px serif"],
+    ["padding", "8px 16px"],
+    ["box-shadow", "0 0 0 1px black"],
+    ["background", "#fff"],
+    ["color", "GrayText"],
+    ["border-radius", "3px"],
+  ];
+  for (const [prop = "", value = ""] of caught) assert.ok(literalProblem(prop, value), `${prop}: ${value}`);
+  const fine = [
+    ["border", "var(--size-hairline) solid var(--color-line)"],
+    ["outline", "none"],
+    ["padding", "0 var(--space-4)"],
+    ["max-height", "calc(var(--text-chat--line-height) * 8)"],
+    ["background", "transparent"],
+    ["letter-spacing", "inherit"],
+    ["height", "100vh"],
+  ];
+  for (const [prop = "", value = ""] of fine) assert.equal(literalProblem(prop, value), undefined, `${prop}: ${value}`);
+});
+
+test("no color, spacing, type or radius literals outside the theme file", () => {
   const problems = new Set<string>();
   for (const file of filesIn(rendererDir, /\.css$/)) {
     if (file === tokensFile) continue;
     const css = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
-    for (const m of css.matchAll(/([\w-]+)\s*:\s*([^;{}]+);/g)) {
+    // A declaration ends at ";" or at the "}" closing its rule (the last one may have no ";").
+    for (const m of css.matchAll(/([\w-]+)\s*:\s*([^;{}]+?)\s*(?=[;}])/g)) {
       const [, prop = "", value = ""] = m;
-      const where = `${relative(rendererDir, file)}: ${prop}: ${value.trim()}`;
-      if (COLOR_LITERAL.test(value)) problems.add(where);
-      const typed = ["font-size", "line-height", "letter-spacing", "font-weight", "border-radius", "font-family"];
-      if (typed.includes(prop) && !/var\(|^\s*(inherit|0|normal)\s*$/.test(value)) problems.add(where);
-      // Named and system colors (Canvas, GrayText, red…) bypass the theme just like hex does.
-      if (/^(color|background|background-color|border-color|outline-color|fill|stroke)$/.test(prop)) {
-        if (!/var\(|^\s*(transparent|currentColor|inherit|none)\s*$/.test(value)) problems.add(where);
-      }
+      const problem = literalProblem(prop, value);
+      if (problem) problems.add(`${relative(rendererDir, file)}: ${prop}: ${value} (${problem})`);
     }
   }
   for (const file of filesIn(rendererDir, /\.tsx?$/)) {

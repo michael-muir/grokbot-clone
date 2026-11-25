@@ -5,26 +5,11 @@ import type { StreamState } from "../../../../server/src/client/subscribe.ts";
 import { TranscriptView } from "../../../../server/src/client/transcript-view.ts";
 import type { PublicBot, TranscriptEntry } from "../../../../server/src/types.ts";
 import type { ConnectionInfo } from "../../shared/ipc.ts";
+import { botColor, initial } from "./bot-colors.ts";
 import { call } from "./gateway.ts";
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
-
-/** The avatar editor's colors (theme/tokens.css). Anything else shows the default. */
-const BOT_COLORS = new Set([
-  "white",
-  "brown",
-  "red",
-  "orange",
-  "amber",
-  "green",
-  "teal",
-  "blue",
-  "purple",
-  "pink",
-  "gray",
-]);
-const botColor = (bot: PublicBot) => (BOT_COLORS.has(bot.avatar.color) ? bot.avatar.color : "amber");
-const initial = (name: string) => name.trim().charAt(0).toUpperCase() || "?";
+const colorOf = (bot: PublicBot) => botColor(bot.avatar.color);
 
 export function App() {
   const [connection, setConnection] = useState<ConnectionInfo>();
@@ -72,7 +57,7 @@ export function App() {
                 aria-current={b.id === selected}
                 aria-label={`${b.name} (${b.provider})`}
                 title={b.name}
-                data-bot-color={botColor(b)}
+                data-bot-color={colorOf(b)}
                 onClick={() => setSelected(b.id)}
               >
                 <span className="avatar" aria-hidden="true">
@@ -82,13 +67,15 @@ export function App() {
             </li>
           ))}
         </ul>
+        {/* A live region announces its text content, so the words are in it (hidden), not in aria-label. */}
         <span
           className="connection-dot"
           role="status"
-          aria-label={connectionText}
           title={connectionText}
           data-state={connection === undefined ? "pending" : connection.ok ? "ok" : "failed"}
-        />
+        >
+          <span className="visually-hidden">{connectionText}</span>
+        </span>
       </nav>
       <main className="chat">
         {connection?.ok === false && (
@@ -171,13 +158,13 @@ function Chat({ bot }: { bot: PublicBot }) {
   };
 
   return (
-    <div className="chat-body" data-bot-color={botColor(bot)}>
+    <div className="chat-body" data-bot-color={colorOf(bot)}>
       <header className="chat-header">
         <h2 className="name-pill">
           <span className="avatar small" aria-hidden="true">
             {initial(bot.name)}
           </span>
-          {bot.name}
+          <span className="name">{bot.name}</span>
         </h2>
         <span className="header-meta">
           {bot.provider}

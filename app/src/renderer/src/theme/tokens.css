@@ -163,6 +163,8 @@
 }
 [data-bot-color="white"] {
   --bot: var(--color-bot-white);
+  /* White darkens to a light gray bubble: dark text keeps it readable. */
+  --color-on-user-bubble: #121212;
 }
 [data-bot-color="brown"] {
   --bot: var(--color-bot-brown);
