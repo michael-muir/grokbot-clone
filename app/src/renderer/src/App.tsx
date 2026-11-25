@@ -1,13 +1,15 @@
-// The scaffold's one screen: connection state, the bot list, and a live chat with the selected bot. A working
-// base for the real screens, which replace it from #9 on.
+// The scaffold's one screen: the bot tiles, and a live chat with the selected bot. A working base, styled with the
+// theme tokens, for the real screens that replace it from #10 on.
 import { type FormEvent, type KeyboardEvent, useEffect, useReducer, useRef, useState } from "react";
 import type { StreamState } from "../../../../server/src/client/subscribe.ts";
 import { TranscriptView } from "../../../../server/src/client/transcript-view.ts";
 import type { PublicBot, TranscriptEntry } from "../../../../server/src/types.ts";
 import type { ConnectionInfo } from "../../shared/ipc.ts";
+import { botColor, initial } from "./bot-colors.ts";
 import { call } from "./gateway.ts";
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
+const colorOf = (bot: PublicBot) => botColor(bot.avatar.color);
 
 export function App() {
   const [connection, setConnection] = useState<ConnectionInfo>();
@@ -35,31 +37,59 @@ export function App() {
     };
   }, []);
 
+  const connectionText =
+    connection === undefined
+      ? "Connecting to the gateway…"
+      : connection.ok
+        ? `Gateway ${connection.spawned ? "started" : "attached"} at ${connection.url}`
+        : connection.error;
   const bot = bots?.find((b) => b.id === selected);
+
   return (
     <div className="shell">
       <nav className="sidebar" aria-label="Bots">
-        <h1 className="app-name">GrokBot Clone</h1>
-        <p className="connection" role="status">
-          {connection === undefined
-            ? "Connecting to the gateway…"
-            : connection.ok
-              ? `Gateway ${connection.spawned ? "started" : "attached"} at ${connection.url}`
-              : connection.error}
-        </p>
-        {error && <p className="error">{error}</p>}
         <ul className="bot-list">
           {bots?.map((b) => (
             <li key={b.id}>
-              <button type="button" aria-current={b.id === selected} onClick={() => setSelected(b.id)}>
-                {b.name}
-                <span className="muted"> · {b.provider}</span>
+              <button
+                type="button"
+                className="bot-tile"
+                aria-current={b.id === selected}
+                aria-label={`${b.name} (${b.provider})`}
+                title={b.name}
+                data-bot-color={colorOf(b)}
+                onClick={() => setSelected(b.id)}
+              >
+                <span className="avatar" aria-hidden="true">
+                  {initial(b.name)}
+                </span>
               </button>
             </li>
           ))}
         </ul>
+        {/* A live region announces its text content, so the words are in it (hidden), not in aria-label. */}
+        <span
+          className="connection-dot"
+          role="status"
+          title={connectionText}
+          data-state={connection === undefined ? "pending" : connection.ok ? "ok" : "failed"}
+        >
+          <span className="visually-hidden">{connectionText}</span>
+        </span>
       </nav>
-      <main className="chat">{bot ? <Chat key={bot.id} bot={bot} /> : <p className="muted">No bot selected.</p>}</main>
+      <main className="chat">
+        {connection?.ok === false && (
+          <p className="banner" role="alert">
+            {connection.error}
+          </p>
+        )}
+        {error && (
+          <p className="banner" role="alert">
+            {error}
+          </p>
+        )}
+        {bot ? <Chat key={bot.id} bot={bot} /> : connection?.ok && <p className="muted">No bot selected.</p>}
+      </main>
     </div>
   );
 }
@@ -128,10 +158,15 @@ function Chat({ bot }: { bot: PublicBot }) {
   };
 
   return (
-    <>
+    <div className="chat-body" data-bot-color={colorOf(bot)}>
       <header className="chat-header">
-        <h2>{bot.name}</h2>
-        <span className="muted">
+        <h2 className="name-pill">
+          <span className="avatar small" aria-hidden="true">
+            {initial(bot.name)}
+          </span>
+          <span className="name">{bot.name}</span>
+        </h2>
+        <span className="header-meta">
           {bot.provider}
           {bot.model ? ` · ${bot.model}` : ""} · {stream}
         </span>
@@ -147,10 +182,10 @@ function Chat({ bot }: { bot: PublicBot }) {
         {entries.map((entry) => (
           <Entry key={entry.id} entry={entry} botId={bot.id} onError={setProblem} />
         ))}
-        <li ref={end} aria-hidden="true" className="transcript-end" />
+        <li ref={end} aria-hidden="true" />
       </ol>
       {problem && (
-        <p className="error" role="alert">
+        <p className="banner" role="alert">
           {problem}
         </p>
       )}
@@ -159,23 +194,29 @@ function Chat({ bot }: { bot: PublicBot }) {
           aria-label={`Message ${bot.name}`}
           placeholder={`Message ${bot.name}`}
           value={draft}
-          rows={2}
+          rows={1}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
         />
         {busy ? (
-          <button type="button" onClick={() => call("interrupt", bot.id).catch((err) => setProblem(message(err)))}>
+          <button
+            type="button"
+            className="send"
+            onClick={() => call("interrupt", bot.id).catch((err) => setProblem(message(err)))}
+          >
             Stop
           </button>
         ) : (
-          <button type="submit" disabled={!draft.trim() || isSending}>
+          <button type="submit" className="send" disabled={!draft.trim() || isSending}>
             Send
           </button>
         )}
       </form>
-    </>
+    </div>
   );
 }
+
+const APPROVAL_STATE = { pending: "Waiting", approved: "Allowed", denied: "Denied", expired: "Expired" } as const;
 
 function Entry({ entry, botId, onError }: { entry: TranscriptEntry; botId: string; onError(m: string): void }) {
   const b = entry.body;
@@ -191,7 +232,7 @@ function Entry({ entry, botId, onError }: { entry: TranscriptEntry; botId: strin
       );
     case "status":
       return (
-        <li className="entry status muted">
+        <li className="entry status">
           {b.label} · {b.state}
         </li>
       );
@@ -202,18 +243,20 @@ function Entry({ entry, botId, onError }: { entry: TranscriptEntry; botId: strin
         );
       return (
         <li className="entry approval">
-          <strong>Allow {b.tool}?</strong> {b.summary}
+          <span className="approval-text">
+            <strong>Allow {b.tool}?</strong> {b.summary}
+          </span>
           {b.state === "pending" ? (
             <span className="actions">
-              <button type="button" onClick={() => answer(true)}>
+              <button type="button" className="button primary" onClick={() => answer(true)}>
                 Allow
               </button>
-              <button type="button" onClick={() => answer(false)}>
+              <button type="button" className="button secondary" onClick={() => answer(false)}>
                 Deny
               </button>
             </span>
           ) : (
-            <span className="muted"> · {b.state}</span>
+            <span className="approval-state">{APPROVAL_STATE[b.state]}</span>
           )}
         </li>
       );
@@ -221,10 +264,8 @@ function Entry({ entry, botId, onError }: { entry: TranscriptEntry; botId: strin
     case "error":
       return <li className="entry error">{b.message}</li>;
     case "notice":
-      return <li className="entry notice muted">{b.text}</li>;
+      return <li className="entry notice">{b.text}</li>;
     case "run":
-      return b.state === "running" || b.state === "finished" ? null : (
-        <li className="entry notice muted">Run {b.state}</li>
-      );
+      return b.state === "running" || b.state === "finished" ? null : <li className="entry notice">Run {b.state}</li>;
   }
 }

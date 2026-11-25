@@ -1,9 +1,6 @@
-/* Scaffold styles: layout only, in the system's own colors. Design tokens and the real look come in #9. */
-:root {
-  color-scheme: light dark;
-  font-family: system-ui, sans-serif;
-  font-size: 14px;
-}
+/* Scaffold styles, built only on theme tokens (theme/tokens.css). The real screens replace this from #10 on. */
+@import "@fontsource-variable/inter/wght.css";
+@import "./theme/tokens.css";
 
 * {
   box-sizing: border-box;
@@ -11,132 +8,357 @@
 
 body {
   margin: 0;
-  background: Canvas;
-  color: CanvasText;
+  background: var(--color-app);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  letter-spacing: var(--tracking-wide);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+textarea {
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: var(--space-0-5);
 }
 
 .shell {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: var(--size-sidebar) 1fr;
   height: 100vh;
 }
 
+/* ---- Sidebar: one tile per bot ---- */
+
 .sidebar {
-  border-right: 1px solid GrayText;
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2-5);
+  padding: var(--space-2-5) 0 var(--space-2);
+  background: var(--color-sidebar);
+  border-right: var(--size-hairline) solid var(--color-line);
   overflow-y: auto;
 }
 
-.app-name {
-  font-size: 16px;
-  margin: 0 0 8px;
-}
-
-.connection,
-.muted {
-  color: GrayText;
-}
-
 .bot-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
   list-style: none;
-  margin: 16px 0 0;
+  margin: 0;
   padding: 0;
 }
 
-.bot-list button {
-  width: 100%;
-  text-align: left;
-  padding: 8px;
-  background: none;
+.bot-tile {
+  display: grid;
+  place-items: center;
+  width: var(--size-tile);
+  height: var(--size-tile);
   border: 0;
-  border-radius: 6px;
-  color: inherit;
-  font: inherit;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
-.bot-list button[aria-current="true"] {
-  background: Highlight;
-  color: HighlightText;
+.bot-tile:hover {
+  background: var(--color-fill);
 }
+
+.bot-tile[aria-current="true"] {
+  background: var(--color-fill-strong);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: var(--size-control);
+  height: var(--size-control);
+  border-radius: var(--radius-full);
+  background: var(--bot);
+  /* Keeps a white avatar visible on a light surface. */
+  box-shadow: var(--shadow-hairline);
+  color: var(--color-on-bot);
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-tight);
+}
+
+.avatar.small {
+  width: var(--size-avatar-sm);
+  height: var(--size-avatar-sm);
+  font-size: var(--text-xs);
+}
+
+.connection-dot {
+  margin-top: auto;
+  width: var(--space-2-5);
+  height: var(--space-2-5);
+  border-radius: var(--radius-full);
+  background: var(--color-text-disabled);
+}
+
+.connection-dot[data-state="ok"] {
+  background: var(--color-success);
+}
+
+.connection-dot[data-state="failed"] {
+  background: var(--color-danger);
+}
+
+/* ---- Chat ---- */
 
 .chat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.chat-body {
+  flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 
+/* Three columns: the pill stays centered and the meta text gets its own space, so they never overlap. */
 .chat-header {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 12px 16px;
-  border-bottom: 1px solid GrayText;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  gap: var(--space-3);
+  height: var(--size-header);
+  flex-shrink: 0;
+  padding-top: var(--space-2-5);
 }
 
-.chat-header h2 {
-  font-size: 16px;
+.name-pill .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.name-pill {
+  grid-column: 2;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   margin: 0;
+  padding: var(--padding-pill);
+  border: var(--size-hairline) solid var(--color-line);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  font-size: var(--text-md);
+  line-height: var(--text-md--line-height);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--tracking-normal);
+}
+
+.header-meta {
+  grid-column: 3;
+  justify-self: end;
+  min-width: 0;
+  margin-top: var(--space-1-5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+}
+
+.banner {
+  margin: 0 auto var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-fill);
+  color: var(--color-danger-text);
 }
 
 .transcript {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
   overflow-y: auto;
   list-style: none;
   margin: 0;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  padding: 0 0 var(--space-4);
 }
 
 .entry {
+  max-width: var(--size-chat-column);
   white-space: pre-wrap;
-  max-width: 70ch;
+  overflow-wrap: anywhere;
+}
+
+.entry.assistant,
+.entry.user {
+  padding: var(--padding-bubble);
+  border-radius: var(--radius-bubble);
+  font-size: var(--text-chat);
+  line-height: var(--text-chat--line-height);
+  letter-spacing: var(--tracking-normal);
+}
+
+.entry.assistant {
+  align-self: flex-start;
+  background: var(--color-fill);
+  box-shadow: var(--shadow-hairline);
 }
 
 .entry.user {
   align-self: flex-end;
-  border: 1px solid GrayText;
-  border-radius: 12px;
-  padding: 8px 12px;
+  margin-top: var(--space-2);
+  background: var(--color-user-bubble);
+  color: var(--color-on-user-bubble);
 }
 
-.entry.approval {
-  border: 1px solid GrayText;
-  border-radius: 8px;
-  padding: 8px 12px;
+.entry.status,
+.entry.notice {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  padding: var(--space-1) var(--space-3);
 }
 
 .entry.notice {
   align-self: center;
 }
 
-.actions {
-  display: inline-flex;
-  gap: 8px;
-  margin-left: 8px;
+.entry.error {
+  color: var(--color-danger-text);
+  padding: var(--space-1) var(--space-3);
 }
 
-.error {
-  color: LinkText;
-  font-weight: 600;
-  padding: 0 16px;
+.entry.approval {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: var(--space-1) 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-ring);
 }
+
+.approval-text {
+  flex: 1 1 auto;
+}
+
+.approval-state {
+  color: var(--color-text-tertiary);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.button {
+  padding: var(--padding-button);
+  border: 0;
+  border-radius: var(--radius-full);
+  font-size: var(--text-md);
+  line-height: var(--text-md--line-height);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.button.primary {
+  background: var(--color-contrast);
+  color: var(--color-on-contrast);
+}
+
+.button.secondary {
+  background: var(--color-fill);
+  box-shadow: var(--shadow-bevel);
+}
+
+.button.secondary:hover {
+  background: var(--color-fill-hover);
+}
+
+/* ---- Composer ---- */
 
 .composer {
   display: flex;
-  gap: 8px;
-  padding: 12px 16px;
-  border-top: 1px solid GrayText;
+  align-items: flex-end;
+  gap: var(--space-2);
+  min-height: var(--size-composer);
+  padding: var(--space-1-5) var(--space-1-5) var(--space-1-5) var(--space-4);
+  border: var(--size-hairline) solid var(--color-line-strong);
+  border-radius: var(--radius-composer);
+  background: var(--color-surface);
+}
+
+/* The textarea draws no outline of its own; the whole composer shows the focus ring instead. */
+.composer:has(textarea:focus-visible) {
+  border-color: var(--color-line-focus);
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: var(--space-0-5);
 }
 
 .composer textarea {
   flex: 1;
+  align-self: center;
+  max-height: calc(var(--text-chat--line-height) * 8);
+  padding: 0;
+  border: 0;
+  background: transparent;
   resize: none;
-  font: inherit;
+  outline: none;
+  font-size: var(--text-chat);
+  line-height: var(--text-chat--line-height);
+  letter-spacing: var(--tracking-normal);
+  field-sizing: content;
 }
 
-:focus-visible {
-  outline: 2px solid Highlight;
-  outline-offset: 2px;
+.composer textarea::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.send {
+  flex-shrink: 0;
+  height: var(--size-control-sm);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-contrast);
+  color: var(--color-on-contrast);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.send:disabled {
+  background: var(--color-fill-strong);
+  color: var(--color-text-disabled);
+  cursor: default;
+}
+
+.muted {
+  color: var(--color-text-tertiary);
+}
+
+/* Read by screen readers, not drawn. */
+.visually-hidden {
+  position: absolute;
+  width: var(--size-hairline);
+  height: var(--size-hairline);
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
