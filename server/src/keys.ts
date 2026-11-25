@@ -12,9 +12,17 @@ export const KEY_ENV: Partial<Record<ProviderId, string[]>> = {
   xai: ["XAI_API_KEY"],
   openrouter: ["OPENROUTER_API_KEY"],
   gemini: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+  // Local servers work without a key, but take one when they sit behind an auth proxy.
+  ollama: ["OLLAMA_API_KEY"],
+  lmstudio: ["LMSTUDIO_API_KEY"],
 };
 
-export const needsKey = (provider: ProviderId): boolean => provider in KEY_ENV;
+const OPTIONAL_KEY: ProviderId[] = ["ollama", "lmstudio"];
+
+/** The provider can use a key (required or optional). */
+export const acceptsKey = (provider: ProviderId): boolean => provider in KEY_ENV;
+/** The provider can't run without a key. */
+export const needsKey = (provider: ProviderId): boolean => acceptsKey(provider) && !OPTIONAL_KEY.includes(provider);
 
 export interface KeyStore {
   get(provider: ProviderId): string | undefined;
@@ -25,7 +33,8 @@ export interface KeyStore {
 export class KeyStoreUnavailableError extends Error {}
 
 export class KeychainKeyStore implements KeyStore {
-  private warned = false;
+  /** Failures already logged, so a missing keychain doesn't flood the log but a new kind of failure still shows. */
+  private readonly logged = new Set<string>();
   private readonly service: string;
 
   /** `service` is the keychain entry's service name; tests use their own so they never touch real keys. */
@@ -37,11 +46,13 @@ export class KeychainKeyStore implements KeyStore {
     try {
       return new Entry(this.service, provider).getPassword() ?? undefined;
     } catch (err) {
-      // No keychain on this machine (e.g. a Linux server without a Secret Service): fall back to env, say so once.
-      if (!this.warned) {
-        this.warned = true;
+      // E.g. no Secret Service on a Linux server, or access denied: fall back to env, and say so (never the key).
+      const reason = message(err);
+      const seen = `${provider}: ${reason}`;
+      if (!this.logged.has(seen)) {
+        this.logged.add(seen);
         console.warn(
-          `The OS keychain isn't available; API keys come from environment variables only. (${message(err)})`,
+          `Couldn't read the ${provider} key from the OS keychain; using the environment instead. (${reason})`,
         );
       }
       return undefined;

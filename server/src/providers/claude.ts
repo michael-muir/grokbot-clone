@@ -9,6 +9,7 @@
 //   canUseTool           -> approval card in the transcript
 import { type Options, query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { apiErrorMessage } from "../agent/openai-compatible.ts";
+import { NotConfiguredError } from "../errors.ts";
 import type { AgentProvider, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
 
 export const DEFAULT_CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
@@ -43,7 +44,7 @@ export class ClaudeProvider implements AgentProvider {
   /** Lists Claude models; also how Settings tests a key. */
   async listModels(signal: AbortSignal): Promise<string[]> {
     const key = this.getKey();
-    if (!key) throw new Error("Add an API key in Settings, or set ANTHROPIC_API_KEY.");
+    if (!key) throw new NotConfiguredError("Add an API key in Settings, or set ANTHROPIC_API_KEY.");
     const base = (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\/+$/, "");
     let res: Response;
     try {

@@ -61,5 +61,5 @@ export interface ModelAdapter {
 }
 
 /** An API key given directly, or read each time it's needed (so a key saved in Settings works at once). */
-export type KeySource = string | (() => string | undefined) | undefined;
-export const readKey = (k: KeySource): string | undefined => (typeof k === "function" ? k() : k) || undefined;
+export type KeyInput = string | (() => string | undefined) | undefined;
+export const readKey = (k: KeyInput): string | undefined => (typeof k === "function" ? k() : k) || undefined;

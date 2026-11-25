@@ -23,6 +23,10 @@ const server = createHttpServer({
   providers,
   credentials,
   token: process.env.GATEWAY_TOKEN || undefined,
+  allowedOrigins: (process.env.GATEWAY_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean),
 });
 
 if (!credentials.key("claude")) {

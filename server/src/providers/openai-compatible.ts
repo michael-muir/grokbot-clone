@@ -1,5 +1,5 @@
 // Presets for OpenAI-compatible model servers, each a provider on the built-in agent loop.
-// Keys and base URLs come from environment variables for now (#5 moves keys to the OS keychain).
+// Keys come from Credentials (OS keychain, then env); base URLs and default models from env.
 import { LoopProvider } from "../agent/loop.ts";
 import { OpenAICompatibleAdapter } from "../agent/openai-compatible.ts";
 import type { SessionStore } from "../agent/sessions.ts";
@@ -10,7 +10,7 @@ export interface OpenAIPreset {
   id: Extract<ProviderId, "openai" | "xai" | "openrouter" | "ollama" | "lmstudio">;
   label: string;
   baseUrl: string;
-  /** Environment variable prefix: <PREFIX>_API_KEY, <PREFIX>_BASE_URL, <PREFIX>_MODEL. */
+  /** Environment variable prefix: <PREFIX>_BASE_URL and <PREFIX>_MODEL (keys: see KEY_ENV in keys.ts). */
   env: string;
   local: boolean;
 }

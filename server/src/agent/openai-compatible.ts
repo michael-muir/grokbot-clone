@@ -1,9 +1,10 @@
 // ModelAdapter for the OpenAI Chat Completions API and the many servers that copy it (xAI, OpenRouter, Ollama,
 // LM Studio). Streams text and tool calls over SSE; uses only the subset these servers share.
+import { NotConfiguredError } from "../errors.ts";
 import {
   type ChatMessage,
   INVALID_ARGUMENTS,
-  type KeySource,
+  type KeyInput,
   type ModelAdapter,
   type ModelEvent,
   type ModelRequest,
@@ -13,7 +14,7 @@ import {
 
 export interface OpenAICompatibleOptions {
   baseUrl: string;
-  apiKey?: KeySource;
+  apiKey?: KeyInput;
   /** Name of the environment variable the key comes from, for error messages. */
   keyEnv?: string;
   /** Local servers need no key, and fall back to their first model when none is chosen. */
@@ -230,7 +231,7 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
   private async chooseModel(requested: string | undefined, signal: AbortSignal, baseUrl?: string): Promise<string> {
     const model = requested || this.opts.defaultModel;
     if (model) return model;
-    if (!this.opts.local) throw new Error("Choose a model for this bot.");
+    if (!this.opts.local) throw new NotConfiguredError("Choose a model for this bot.");
     // Asked every time, so installing or removing models takes effect without a restart.
     const first = (await this.serverModels(signal, baseUrl))[0];
     if (!first) throw new Error("The local model server has no models installed.");
@@ -240,7 +241,7 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
   private async request(path: string, init: RequestInit, baseUrlOverride?: string): Promise<Response> {
     const apiKey = readKey(this.opts.apiKey);
     if (!this.opts.local && !apiKey) {
-      throw new Error(
+      throw new NotConfiguredError(
         `Add an API key in Settings, or set ${this.opts.keyEnv ?? "the API key"} (or switch this bot to another provider).`,
       );
     }

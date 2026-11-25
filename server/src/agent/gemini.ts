@@ -1,8 +1,9 @@
 // ModelAdapter for the Gemini API (generativelanguage.googleapis.com): streamed text and function calls over SSE.
 // The key goes in the x-goog-api-key header, never in the URL.
+import { NotConfiguredError } from "../errors.ts";
 import {
   type ChatMessage,
-  type KeySource,
+  type KeyInput,
   type ModelAdapter,
   type ModelEvent,
   type ModelRequest,
@@ -15,7 +16,7 @@ export const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta
 
 export interface GeminiOptions {
   baseUrl?: string;
-  apiKey?: KeySource;
+  apiKey?: KeyInput;
   defaultModel?: string;
   fetch?: typeof fetch;
 }
@@ -95,7 +96,7 @@ function declaration(t: ToolSpec) {
 
 export class GeminiAdapter implements ModelAdapter {
   private readonly baseUrl: string;
-  private readonly apiKey: KeySource;
+  private readonly apiKey: KeyInput;
   private readonly defaultModel?: string;
   private readonly fetch: typeof fetch;
 
@@ -132,7 +133,7 @@ export class GeminiAdapter implements ModelAdapter {
 
   async *stream(req: ModelRequest, signal: AbortSignal): AsyncGenerator<ModelEvent> {
     const model = req.model || this.defaultModel;
-    if (!model) throw new Error("Choose a model for this bot.");
+    if (!model) throw new NotConfiguredError("Choose a model for this bot.");
     const body = {
       systemInstruction: { parts: [{ text: req.system }] },
       contents: toGeminiContents(req.messages),
@@ -216,7 +217,9 @@ export class GeminiAdapter implements ModelAdapter {
   private async request(path: string, init: RequestInit, baseUrlOverride?: string): Promise<Response> {
     const apiKey = readKey(this.apiKey);
     if (!apiKey) {
-      throw new Error("Add an API key in Settings, or set GEMINI_API_KEY (or switch this bot to another provider).");
+      throw new NotConfiguredError(
+        "Add an API key in Settings, or set GEMINI_API_KEY (or switch this bot to another provider).",
+      );
     }
     const baseUrl = baseUrlOverride?.replace(/\/+$/, "") || this.baseUrl;
     const headers = new Headers(init.headers);

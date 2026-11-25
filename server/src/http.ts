@@ -1,8 +1,9 @@
-// HTTP API for the desktop client. Binds to localhost only.
+// HTTP API for the desktop client. Binds to localhost only, and refuses requests from web pages (see
+// refuseForeignRequest).
 //
 //   GET   /health
-//   GET   /providers                     [{id, label, local, configured}]
-//   GET   /providers/:id/models          {models}  (502 when the provider can't be reached)
+//   GET   /providers                     [{id, label, local, configured, needsKey, keySource}] (never a key)
+//   GET   /providers/:id/models          {models}  (409 when not set up, 502 when it can't be reached)
 //   PUT   /providers/:id/key             {key}  -> 204, saved in the OS keychain (never returned)
 //   DELETE /providers/:id/key                   -> 204
 //   POST  /providers/:id/test            {baseUrl?} -> {ok, models} or {ok: false, error}
@@ -17,8 +18,9 @@
 import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { BotRegistry } from "./bots.ts";
+import { NotConfiguredError } from "./errors.ts";
 import { BotBusyError, BotNotFoundError, type Gateway } from "./gateway.ts";
-import { type Credentials, KeyStoreUnavailableError, needsKey } from "./keys.ts";
+import { acceptsKey, type Credentials, KeyStoreUnavailableError, needsKey } from "./keys.ts";
 import type { ProviderRegistry } from "./providers/index.ts";
 import type { TranscriptStore } from "./transcript.ts";
 import { type Bot, isProviderId } from "./types.ts";
@@ -32,10 +34,14 @@ export interface HttpDeps {
   providers: ProviderRegistry;
   credentials: Credentials;
   token?: string;
+  /** Extra browser origins allowed to call the API (loopback origins always are). */
+  allowedOrigins?: string[];
 }
 
 export function createHttpServer(deps: HttpDeps): Server {
   return createServer((req, res) => {
+    const refused = refuseForeignRequest(req, deps.allowedOrigins ?? []);
+    if (refused) return send(res, 403, { error: refused });
     handle(req, res, deps).catch((err) => {
       console.error(err);
       if (!res.headersSent) send(res, 500, { error: "Internal error" });
@@ -157,7 +163,7 @@ async function handleProviders(
   const action = `${method} ${parts[2]}`;
 
   if (action === "PUT key" || action === "DELETE key") {
-    if (!needsKey(provider.id)) return send(res, 400, { error: "This provider doesn't use an API key" });
+    if (!acceptsKey(provider.id)) return send(res, 400, { error: "This provider doesn't use an API key" });
     try {
       if (method === "DELETE") d.credentials.delete(provider.id);
       else {
@@ -190,10 +196,44 @@ async function handleProviders(
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       // A failed test is an answer, not a gateway error: the UI shows the message next to the key field.
-      return method === "POST" ? send(res, 200, { ok: false, error }) : send(res, 502, { error });
+      if (method === "POST") return send(res, 200, { ok: false, error });
+      // Missing key or model is a settings problem (409), not an unreachable server (502).
+      return send(res, err instanceof NotConfiguredError ? 409 : 502, { error });
     }
   }
   return send(res, 404, { error: "Not found" });
+}
+
+const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]", "::1"]);
+const MUTATING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+/**
+ * Only this machine's own clients may call the gateway: it can run commands and holds API keys.
+ * - Host must be a loopback name, which defeats DNS rebinding (evil.example resolving to 127.0.0.1).
+ * - A browser Origin, when sent, must be loopback or explicitly allowed, so a web page can't drive the API.
+ * - Requests that change things must be JSON, which browsers can't send cross-site without a CORS preflight.
+ * Returns the reason to refuse, or undefined to allow.
+ */
+export function refuseForeignRequest(req: IncomingMessage, allowedOrigins: string[]): string | undefined {
+  const host = (req.headers.host ?? "").replace(/:\d+$/, "").toLowerCase();
+  if (!LOOPBACK.has(host)) return "Requests must be addressed to localhost";
+  const origin = req.headers.origin;
+  if (origin && !allowedOrigins.includes(origin)) {
+    let hostname = "";
+    try {
+      const u = new URL(origin);
+      if (u.protocol === "http:" || u.protocol === "https:") hostname = u.hostname.toLowerCase();
+    } catch {
+      // "null" and other opaque origins aren't URLs: refused below
+    }
+    if (!LOOPBACK.has(hostname)) return "This origin may not call the gateway";
+  }
+  const method = req.method ?? "GET";
+  const hasBody = Number(req.headers["content-length"] ?? 0) > 0 || req.headers["transfer-encoding"] !== undefined;
+  if (MUTATING.has(method) && hasBody && !(req.headers["content-type"] ?? "").startsWith("application/json")) {
+    return "Send JSON (content-type: application/json)";
+  }
+  return undefined;
 }
 
 function isHttpUrl(value: string): boolean {

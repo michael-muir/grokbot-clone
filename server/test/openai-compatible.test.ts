@@ -324,9 +324,9 @@ test("GET /providers lists every provider; GET /providers/:id/models lists model
     assert.equal(unreachable.status, 502);
     assert.match(((await unreachable.json()) as { error: string }).error, /Couldn't reach/);
 
-    // Claude can list models, but has no key here: the reason comes back as a 502.
+    // Claude can list models but has no key here: a settings problem (409), not an unreachable server.
     const claude = await fetch(`${url}/providers/claude/models`);
-    assert.equal(claude.status, 502);
+    assert.equal(claude.status, 409);
     assert.match(((await claude.json()) as { error: string }).error, /Add an API key in Settings/);
     assert.equal((await fetch(`${url}/providers/nope/models`)).status, 404);
   } finally {

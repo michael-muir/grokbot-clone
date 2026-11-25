@@ -12,7 +12,7 @@ import { SessionStore } from "../src/agent/sessions.ts";
 import { BotRegistry } from "../src/bots.ts";
 import { LocalFolderComputers } from "../src/computer.ts";
 import { Gateway } from "../src/gateway.ts";
-import { createHttpServer } from "../src/http.ts";
+import { createHttpServer, refuseForeignRequest } from "../src/http.ts";
 import { Credentials, KeychainKeyStore, MemoryKeyStore, needsKey } from "../src/keys.ts";
 import { ClaudeProvider } from "../src/providers/claude.ts";
 import { FakeProvider } from "../src/providers/fake.ts";
@@ -20,7 +20,7 @@ import type { ProviderRegistry } from "../src/providers/index.ts";
 import { OPENAI_PRESETS, openAICompatibleProvider } from "../src/providers/openai-compatible.ts";
 import { TranscriptStore } from "../src/transcript.ts";
 import type { AgentProvider, ProviderId, TranscriptEntry } from "../src/types.ts";
-import { MockOpenAI, textReply } from "./support/mock-openai.ts";
+import { MockOpenAI, type Script, textReply } from "./support/mock-openai.ts";
 
 const dirs: string[] = [];
 const tempDir = () => {
@@ -29,11 +29,11 @@ const tempDir = () => {
   return d;
 };
 
-const mock = new MockOpenAI((r) =>
+const defaultScript: Script = (r) =>
   r.path.endsWith("/models")
     ? { status: 200, json: { data: [{ id: "gpt-test" }, { id: "gpt-other" }] } }
-    : { sse: textReply("Hello from the new provider.") },
-);
+    : { sse: textReply("Hello from the new provider.") };
+const mock = new MockOpenAI(defaultScript);
 let mockUrl = "";
 before(async () => {
   mockUrl = await mock.start();
@@ -91,7 +91,8 @@ async function setup(credentials: Credentials) {
     server.closeAllConnections();
     await new Promise<void>((r) => server.close(() => r()));
   };
-  return { dataDir, store, call, responses, waitForRun, close };
+  const raw = (path: string, init: RequestInit) => fetch(`${url}${path}`, init);
+  return { dataDir, store, call, raw, responses, waitForRun, close };
 }
 
 /** Every file under `dir`, recursively, as text. */
@@ -150,11 +151,12 @@ test("a saved key is used, and never appears in responses, logs or files on disk
 
       // A failing request must not echo the key either.
       mock.setScript(() => ({ status: 401, json: { error: { message: "Incorrect API key provided." } } }));
-      const failed = await t.call("POST", "/providers/openai/test", { baseUrl: `${mockUrl}/v1` });
-      assert.equal(failed.json?.ok, false);
-      mock.setScript((r) =>
-        r.path.endsWith("/models") ? { status: 200, json: { data: [{ id: "gpt-test" }] } } : { sse: textReply("Hi.") },
-      );
+      try {
+        const failed = await t.call("POST", "/providers/openai/test", { baseUrl: `${mockUrl}/v1` });
+        assert.equal(failed.json?.ok, false);
+      } finally {
+        mock.setScript(defaultScript);
+      }
     });
 
     // The key reached the model server, so it really was used.
@@ -198,7 +200,7 @@ test("switching provider applies to the next message and posts a notice", async 
 test("key routes validate input, and deleting a saved key falls back to the environment", async () => {
   const t = await setup(new Credentials(new MemoryKeyStore(), { OPENAI_API_KEY: "sk-env" }));
   try {
-    assert.equal((await t.call("PUT", "/providers/ollama/key", { key: "x" })).status, 400, "ollama takes no key");
+    assert.equal((await t.call("PUT", "/providers/fake/key", { key: "x" })).status, 400, "fake takes no key");
     assert.equal((await t.call("PUT", "/providers/openai/key", { key: "  " })).status, 400);
     assert.equal((await t.call("PUT", "/providers/openai/key", { key: "sk-saved" })).status, 204);
     const source = async () =>
@@ -269,4 +271,59 @@ test("the OS keychain store saves, reads and deletes a key", (t) => {
     store.delete("openai");
   }
   assert.equal(store.get("openai"), undefined);
+});
+
+test("switching provider also drops a server chosen for the old one, so the new key never goes there", async () => {
+  const t = await setup(new Credentials(new MemoryKeyStore(), { OPENAI_API_KEY: "sk-env" }));
+  try {
+    await t.call("PATCH", "/bots/nova", { provider: "ollama", baseUrl: "http://192.168.1.50:11434/v1" });
+    const switched = await t.call("PATCH", "/bots/nova", { provider: "openai" });
+    assert.equal(switched.json?.baseUrl, undefined);
+    const kept = await t.call("PATCH", "/bots/nova", { provider: "ollama", baseUrl: `${mockUrl}/v1` });
+    assert.equal(kept.json?.baseUrl, `${mockUrl}/v1`, "a server set in the same change is kept");
+  } finally {
+    await t.close();
+  }
+});
+
+test("a local server's optional key from the environment is sent", async () => {
+  const sessions = new SessionStore(tempDir());
+  const provider = openAICompatibleProvider(preset("ollama"), sessions, {
+    OLLAMA_BASE_URL: `${mockUrl}/v1`,
+    OLLAMA_API_KEY: "proxy-key",
+  });
+  assert.deepEqual(await provider.listModels?.(new AbortController().signal), ["gpt-other", "gpt-test"]);
+  assert.equal(mock.requests.at(-1)?.headers.authorization, "Bearer proxy-key");
+});
+
+test("requests from web pages and other hosts are refused", async () => {
+  const req = (headers: Record<string, string>, method = "POST") =>
+    ({ method, headers: { host: "127.0.0.1:8787", ...headers } }) as unknown as Parameters<
+      typeof refuseForeignRequest
+    >[0];
+  const json = { "content-type": "application/json", "content-length": "2" };
+  assert.equal(refuseForeignRequest(req(json), []), undefined, "a local JSON request is fine");
+  assert.equal(refuseForeignRequest(req({ ...json, origin: "http://localhost:5173" }), []), undefined);
+  assert.match(String(refuseForeignRequest(req({ ...json, host: "evil.example:8787" }), [])), /localhost/);
+  assert.match(String(refuseForeignRequest(req({ ...json, origin: "https://evil.example" }), [])), /origin/);
+  assert.match(String(refuseForeignRequest(req({ ...json, origin: "null" }), [])), /origin/);
+  assert.equal(refuseForeignRequest(req({ ...json, origin: "app://grokbot" }), ["app://grokbot"]), undefined);
+  const textPlain = { "content-type": "text/plain", "content-length": "20" };
+  assert.match(String(refuseForeignRequest(req(textPlain), [])), /JSON/);
+  assert.equal(refuseForeignRequest(req({}, "POST"), []), undefined, "a POST with no body needs no content type");
+
+  // End to end: a cross-site page can't make the gateway test a key against its own server.
+  const t = await setup(new Credentials(new MemoryKeyStore(), { OPENAI_API_KEY: "sk-env" }));
+  try {
+    const before = mock.requests.length;
+    const attack = await t.raw("/providers/openai/test", {
+      method: "POST",
+      headers: { origin: "https://evil.example", "content-type": "text/plain" },
+      body: JSON.stringify({ baseUrl: `${mockUrl}/v1` }),
+    });
+    assert.equal(attack.status, 403);
+    assert.equal(mock.requests.length, before, "nothing was sent to the attacker's server");
+  } finally {
+    await t.close();
+  }
 });
