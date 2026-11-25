@@ -1,12 +1,13 @@
 // Desktop app entry point: starts or attaches to the gateway, opens the window, wires IPC, and runs the
 // `--smoke` check used by CI.
 import { join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, Menu, type MenuItemConstructorOptions, shell } from "electron";
 import type { GatewayClient } from "../../../server/src/client/gateway-client.ts";
 import type { ConnectionInfo } from "../shared/ipc.ts";
 import { type GatewayHandle, startGateway } from "./gateway-process.ts";
 import { registerIpc } from "./ipc-main.ts";
+import { ownPageCheck } from "./own-page.ts";
 import { platformFor } from "./platform/index.ts";
 
 const SMOKE = process.argv.includes("--smoke");
@@ -19,10 +20,11 @@ const preloadFile = fileURLToPath(new URL("../preload/index.cjs", import.meta.ur
 let handle: GatewayHandle | undefined;
 let connection: ConnectionInfo | undefined;
 let stoppingGateway = false;
+const startup = new AbortController();
 
 // The repo layout in development: app/ next to server/.
 const serverDir = join(app.getAppPath(), "..", "server");
-const gateway: Promise<GatewayClient> = startGateway({ serverDir }).then(
+const gateway: Promise<GatewayClient> = startGateway({ serverDir, signal: startup.signal }).then(
   (h) => {
     handle = h;
     connection = { ok: true, url: h.client.baseUrl, spawned: h.spawned };
@@ -36,24 +38,22 @@ const gateway: Promise<GatewayClient> = startGateway({ serverDir }).then(
   (err: unknown) => {
     const message = err instanceof Error ? err.message : String(err);
     connection = { ok: false, error: message };
-    console.error(`Couldn't connect to the gateway: ${message}`);
+    if (!stoppingGateway) console.error(`Couldn't connect to the gateway: ${message}`);
     throw err;
   },
 );
 // Callers see the failure through `connection`; this only stops an unhandled-rejection crash.
 gateway.catch(() => {});
 
-/** Stops a gateway this app started, including one still starting up. */
+/** Stops a gateway this app started. One still starting up is abandoned at once (and stopped by the launcher). */
 async function stopGateway(): Promise<void> {
   stoppingGateway = true;
+  startup.abort();
   await gateway.catch(() => {});
   if (handle?.spawned) await handle.stop();
 }
 
-function isOwnPage(url: string): boolean {
-  if (rendererUrl) return url.startsWith(rendererUrl);
-  return url === pathToFileURL(rendererFile).href || url.startsWith(`${pathToFileURL(rendererFile).href}#`);
-}
+const isOwnPage = ownPageCheck(rendererUrl, rendererFile);
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -93,9 +93,12 @@ function buildMenu(): Menu {
 }
 
 let smokeTimer: ReturnType<typeof setTimeout> | undefined;
+let smokeDone = false;
 
-/** Ends a smoke run. app.exit skips will-quit, so the gateway is stopped here first. */
+/** Ends a smoke run, once. app.exit skips will-quit, so the gateway is stopped here first. */
 async function exitSmoke(code: number, line: string) {
+  if (smokeDone) return;
+  smokeDone = true;
   clearTimeout(smokeTimer);
   (code === 0 ? console.log : console.error)(line);
   await stopGateway();

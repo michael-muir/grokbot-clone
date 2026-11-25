@@ -33,14 +33,14 @@ export class GatewayClient {
     this.fetchFn = opts.fetch ?? fetch;
   }
 
-  /** True when the gateway answers and accepts the token; false when it can't be reached yet. */
+  /** True when the gateway answers and accepts the token; false when it isn't (yet) answering properly. */
   async health(signal?: AbortSignal): Promise<boolean> {
     try {
       await this.request("GET", "/health", undefined, signal);
       return true;
     } catch (err) {
-      // A wrong token won't fix itself by waiting: say so instead of reporting "not up yet".
-      if (err instanceof GatewayError) throw err;
+      // A refused token won't fix itself by waiting: say so instead of reporting "not up yet".
+      if (err instanceof GatewayError && (err.status === 401 || err.status === 403)) throw err;
       return false;
     }
   }

@@ -71,6 +71,11 @@ function Chat({ bot }: { bot: PublicBot }) {
   const [problem, setProblem] = useState<string>();
   const [draft, setDraft] = useState("");
   const end = useRef<HTMLLIElement>(null);
+  // Follow new output only while the user is at the bottom; scrolling up to read stops the jumping.
+  const atBottom = useRef(true);
+  // A ref, not state: a second Enter in the same tick must already see the first send.
+  const sending = useRef(false);
+  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     // Resume from what's already held, so a re-subscribe (StrictMode, a reload of this view) repeats nothing.
@@ -93,20 +98,28 @@ function Chat({ bot }: { bot: PublicBot }) {
   const lastRun = entries.findLast((e) => e.body.kind === "run");
   const busy = lastRun?.body.kind === "run" && lastRun.body.state === "running";
 
+  const cursor = view.current.cursor;
   useEffect(() => {
-    end.current?.scrollIntoView({ block: "end" });
-  });
+    // Runs when an entry arrives or changes (the cursor moves), not on every keystroke in the composer.
+    if (cursor >= 0 && atBottom.current) end.current?.scrollIntoView({ block: "end" });
+  }, [cursor]);
 
   const send = async (e?: FormEvent) => {
     e?.preventDefault();
     const text = draft.trim();
-    if (!text) return;
+    if (!text || sending.current) return;
+    sending.current = true;
+    setIsSending(true);
     try {
       await call("sendMessage", bot.id, text);
       setDraft("");
       setProblem(undefined);
+      atBottom.current = true;
     } catch (err) {
       setProblem(message(err));
+    } finally {
+      sending.current = false;
+      setIsSending(false);
     }
   };
 
@@ -123,7 +136,14 @@ function Chat({ bot }: { bot: PublicBot }) {
           {bot.model ? ` · ${bot.model}` : ""} · {stream}
         </span>
       </header>
-      <ol className="transcript" aria-live="polite">
+      <ol
+        className="transcript"
+        aria-live="polite"
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+        }}
+      >
         {entries.map((entry) => (
           <Entry key={entry.id} entry={entry} botId={bot.id} onError={setProblem} />
         ))}
@@ -148,7 +168,7 @@ function Chat({ bot }: { bot: PublicBot }) {
             Stop
           </button>
         ) : (
-          <button type="submit" disabled={!draft.trim()}>
+          <button type="submit" disabled={!draft.trim() || isSending}>
             Send
           </button>
         )}

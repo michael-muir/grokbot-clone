@@ -106,6 +106,13 @@ export class Gateway {
     return true;
   }
 
+  /** Interrupts every run and waits for each to record how it ended, so nothing is cut off mid-write. */
+  async shutdown(): Promise<void> {
+    const runs = [...this.active.values()];
+    for (const run of runs) run.controller.abort();
+    await Promise.allSettled(runs.map((run) => run.done));
+  }
+
   /** Answers an approval card. Returns false if the card isn't pending. */
   answerApproval(botId: string, entryId: string, decision: ApprovalDecision): boolean {
     const entry = this.store.get(botId, entryId);

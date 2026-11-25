@@ -95,8 +95,9 @@ export function registerIpc(deps: IpcDeps): void {
         closeAll();
         watched.delete(id);
       });
-      sender.on("did-start-navigation", (_e, _url, _inPlace, isMainFrame) => {
-        if (isMainFrame) closeAll();
+      // A reload or new page drops the renderer's listeners. A hash or history change (isInPlace) keeps them.
+      sender.on("did-start-navigation", (_e, _url, isInPlace, isMainFrame) => {
+        if (isMainFrame && !isInPlace) closeAll();
       });
     }
 

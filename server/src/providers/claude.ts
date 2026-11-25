@@ -9,6 +9,7 @@
 //   canUseTool           -> approval card in the transcript
 import { type Options, query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { apiErrorMessage } from "../agent/openai-compatible.ts";
+import { childEnv } from "../child-env.ts";
 import { NotConfiguredError } from "../errors.ts";
 import type { AgentProvider, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
 
@@ -81,7 +82,8 @@ export class ClaudeProvider implements AgentProvider {
       includePartialMessages: true,
       abortController,
       // The key is read now, so a key saved in Settings works without a restart. Never logged.
-      env: { ...process.env, ...(this.getKey() ? { ANTHROPIC_API_KEY: this.getKey() } : {}) },
+      // Claude Code needs its own key, and no other secret of the gateway's.
+      env: { ...childEnv(), ...(this.getKey() ? { ANTHROPIC_API_KEY: this.getKey() } : {}) },
       canUseTool: async (toolName, input, { signal }) => {
         const decision = await cb.requestApproval(
           { tool: toolName, summary: summarizeTool(toolName, input), input },

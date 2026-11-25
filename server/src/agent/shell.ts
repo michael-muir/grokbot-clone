@@ -2,6 +2,7 @@
 // tree on abort or timeout, and caps the captured output.
 import { spawn } from "node:child_process";
 import { platform } from "node:os";
+import { childEnv } from "../child-env.ts";
 
 export interface ShellOptions {
   cwd: string;
@@ -57,7 +58,7 @@ export function runShell(script: string, opts: ShellOptions, shell: ShellInfo = 
     const windows = platform() === "win32";
     const child = spawn(shell.command, shell.args(script), {
       cwd: opts.cwd,
-      env: process.env,
+      env: childEnv(),
       // Own process group on POSIX, so the whole tree can be killed at once.
       detached: !windows,
       windowsHide: true,

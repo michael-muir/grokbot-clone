@@ -96,6 +96,14 @@ exits early reports the exit instead of waiting out the timeout.
 
 ## Risks and open questions
 
+- The scaffold's stylesheet uses system colors and a few literal sizes. That's a deliberate, short-lived exception
+  to the "tokens, never literals" rule: #9, next, adds the tokens and replaces this stylesheet.
+- The gateway's token must not reach anything a bot runs. Child processes (shell tool, Claude CLI) get the
+  gateway's environment minus `GATEWAY_TOKEN` and every provider key variable (`server/src/child-env.ts`).
+- On Windows a kill can't be caught, so the app asks the gateway to stop over the child IPC channel; it
+  interrupts runs, waits for them to record their end, then exits. The same channel makes the gateway exit if
+  the app dies.
+
 - Electron downloads a ~100 MB binary on install. CI's verify job sets `ELECTRON_SKIP_BINARY_DOWNLOAD=1`,
   since it only typechecks and runs Node tests; the #45 matrix downloads it for the smoke run.
 - The packaged app can't run `server/src/main.ts` from the repo. Bundling the gateway is part of #46.

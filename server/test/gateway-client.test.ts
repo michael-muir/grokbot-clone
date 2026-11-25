@@ -112,6 +112,11 @@ test("client: a wrong token is an error, an unreachable gateway is just not heal
   });
   const nobody = new GatewayClient({ baseUrl: "http://127.0.0.1:9" });
   assert.equal(await nobody.health(), false);
+  // A proxy still booting, or something else on the port: keep waiting rather than fail.
+  for (const status of [404, 502]) {
+    const odd = new GatewayClient({ baseUrl: "http://gateway.test", fetch: async () => new Response("", { status }) });
+    assert.equal(await odd.health(), false);
+  }
 });
 
 test("client: a non-JSON error page becomes a plain status message", async () => {

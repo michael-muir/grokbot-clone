@@ -119,6 +119,22 @@ test("interrupt stops a run, and a second message while busy is refused", async 
   }
 });
 
+test("shutdown interrupts every run and waits until each has recorded its end", async () => {
+  const t = setup();
+  try {
+    const { done } = await t.gateway.sendMessage("nova", "/slow");
+    await waitFor(() => t.store.list("nova").find((e) => e.body.kind === "assistant_text"));
+    await t.gateway.shutdown();
+    // Already recorded when shutdown resolves, not some time later.
+    assert.equal(ofKind(t.store.list("nova"), "run")[0]?.state, "interrupted");
+    assert.equal(t.gateway.isRunning("nova"), false);
+    await done;
+    await t.gateway.shutdown(); // nothing running: resolves at once
+  } finally {
+    t.cleanup();
+  }
+});
+
 test("a failed run records an error entry", async () => {
   const t = setup();
   try {

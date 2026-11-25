@@ -16,6 +16,8 @@ export interface StartGatewayOptions {
   /** Node binary that runs the gateway. */
   node?: string;
   timeoutMs?: number;
+  /** Gives up on starting (and stops the process) when it fires. */
+  signal?: AbortSignal;
   log?: (line: string) => void;
 }
 
@@ -23,12 +25,15 @@ export interface GatewayHandle {
   client: GatewayClient;
   /** True when this app started the gateway (and so stops it). */
   spawned: boolean;
-  /** Settles if a gateway this app started stops on its own. */
+  /** Settles when a gateway this app started has exited, for whatever reason. */
   exited: Promise<void>;
   stop(): Promise<void>;
 }
 
-const STOP_GRACE_MS = 3000;
+/** How long the gateway gets to finish runs after being asked to stop: its own limit, plus a margin. */
+const STOP_GRACE_MS = 7000;
+const KILL_WAIT_MS = 3000;
+const PORT_ATTEMPTS = 3;
 
 export async function startGateway(opts: StartGatewayOptions): Promise<GatewayHandle> {
   const env = opts.env ?? process.env;
@@ -37,77 +42,123 @@ export async function startGateway(opts: StartGatewayOptions): Promise<GatewayHa
 
   if (env.GATEWAY_URL) {
     const client = new GatewayClient({ baseUrl: env.GATEWAY_URL, token: env.GATEWAY_TOKEN || undefined });
-    await waitUntilHealthy(client, timeoutMs, () => undefined);
+    await waitUntilHealthy(client, timeoutMs, opts.signal, () => undefined);
     return { client, spawned: false, exited: new Promise(() => {}), stop: async () => {} };
   }
 
+  // The port is free when picked but could be taken before the gateway binds it; a fresh port fixes that.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await spawnGateway(opts, env, timeoutMs, log);
+    } catch (err) {
+      if (!(err instanceof PortTakenError) || attempt >= PORT_ATTEMPTS) throw err;
+      log(`[gateway] port ${err.port} was taken; trying another`);
+    }
+  }
+}
+
+class PortTakenError extends Error {
+  readonly port: number;
+  constructor(port: number) {
+    super(`Port ${port} is in use`);
+    this.port = port;
+  }
+}
+
+async function spawnGateway(
+  opts: StartGatewayOptions,
+  env: NodeJS.ProcessEnv,
+  timeoutMs: number,
+  log: (line: string) => void,
+): Promise<GatewayHandle> {
   const port = await freePort();
   const token = randomBytes(32).toString("hex");
   const child = spawn(opts.node ?? "node", ["--env-file-if-exists=.env", opts.entry ?? join("src", "main.ts")], {
     cwd: opts.serverDir,
     // Our port and token win over the user's server/.env: Node's --env-file never overrides set variables.
     env: { ...env, PORT: String(port), GATEWAY_TOKEN: token },
-    stdio: ["ignore", "pipe", "pipe"],
+    // The IPC channel carries the shutdown request (a kill on Windows can't be caught) and tells the gateway
+    // to exit if the app dies.
+    stdio: ["ignore", "pipe", "pipe", "ipc"],
     windowsHide: true,
   });
 
   const recentErrors: string[] = [];
   let failure: string | undefined;
+  let running = true;
   const exited = new Promise<void>((resolve) => {
     // "close", not "exit": it waits for stdout and stderr to drain, so the last error lines are in.
     child.once("close", (code, signal) => {
       failure ??= `The gateway exited (${signal ?? `code ${code}`}) before it was ready.`;
+      running = false;
       resolve();
     });
-    // Spawning failed (no node on PATH, say): there will be no exit event.
+    // Spawning failed (no node on PATH, say): there may be no close event.
     child.once("error", (err) => {
       failure ??= `Couldn't start the gateway: ${err.message}`;
+      running = false;
       resolve();
     });
   });
-  let running = true;
-  void exited.then(() => {
-    running = false;
-  });
 
-  createInterface({ input: child.stdout }).on("line", (line) => log(`[gateway] ${line}`));
-  createInterface({ input: child.stderr }).on("line", (line) => {
+  // Both are pipes (see stdio above); the types allow null only because stdio is configurable.
+  const { stdout, stderr } = child;
+  if (!stdout || !stderr) throw new Error("The gateway's output pipes weren't created");
+  createInterface({ input: stdout }).on("line", (line) => log(`[gateway] ${line}`));
+  createInterface({ input: stderr }).on("line", (line) => {
     log(`[gateway] ${line}`);
     recentErrors.push(line);
     if (recentErrors.length > 10) recentErrors.shift();
   });
 
-  const stop = async () => {
+  /** Graceful: ask first, so runs can record their end. A gateway that never got ready has none: kill it. */
+  const stop = async (graceful = true) => {
     if (!running) return;
+    if (graceful && child.connected) {
+      child.send({ type: "shutdown" });
+      if (await settlesWithin(exited, STOP_GRACE_MS)) return;
+      log("[gateway] didn't stop when asked; killing it");
+    }
     child.kill();
-    if (await settlesWithin(exited, STOP_GRACE_MS)) return;
+    if (await settlesWithin(exited, KILL_WAIT_MS)) return;
     child.kill("SIGKILL");
-    await settlesWithin(exited, STOP_GRACE_MS);
+    await settlesWithin(exited, KILL_WAIT_MS);
   };
 
   const client = new GatewayClient({ baseUrl: `http://127.0.0.1:${port}`, token });
   try {
-    await waitUntilHealthy(client, timeoutMs, () =>
+    await waitUntilHealthy(client, timeoutMs, opts.signal, () =>
       failure ? [failure, ...recentErrors.slice(-3)].join("\n") : undefined,
     );
   } catch (err) {
-    await stop();
+    await stop(false);
+    if (recentErrors.some((line) => line.includes("EADDRINUSE"))) throw new PortTakenError(port);
     throw err;
   }
-  return { client, spawned: true, exited, stop };
+  return { client, spawned: true, exited, stop: () => stop(true) };
 }
 
-/** Polls /health until it answers. Fails at once when `failed` reports a reason or the token is refused. */
-async function waitUntilHealthy(client: GatewayClient, timeoutMs: number, failed: () => string | undefined) {
+/**
+ * Polls /health until it answers. Fails at once when `failed` reports a reason, the token is refused, or the
+ * signal fires.
+ */
+async function waitUntilHealthy(
+  client: GatewayClient,
+  timeoutMs: number,
+  signal: AbortSignal | undefined,
+  failed: () => string | undefined,
+) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
+    if (signal?.aborted) throw new Error("Stopped while the gateway was starting.");
     const reason = failed();
     if (reason) throw new Error(reason);
-    if (await client.health(AbortSignal.timeout(1000))) return;
+    const attempt = signal ? AbortSignal.any([signal, AbortSignal.timeout(1000)]) : AbortSignal.timeout(1000);
+    if (await client.health(attempt)) return;
     if (Date.now() > deadline) {
       throw new Error(`The gateway at ${client.baseUrl} didn't answer within ${Math.round(timeoutMs / 1000)} s.`);
     }
-    await new Promise((r) => setTimeout(r, 100));
+    await sleep(100, signal);
   }
 }
 
@@ -121,6 +172,18 @@ function freePort(): Promise<number> {
       const port = typeof address === "object" && address ? address.port : 0;
       server.close(() => (port ? resolve(port) : reject(new Error("Couldn't find a free port"))));
     });
+  });
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(done, ms);
+    function done() {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    }
+    signal?.addEventListener("abort", done, { once: true });
   });
 }
 
