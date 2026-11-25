@@ -1,5 +1,5 @@
 // Core tools for the built-in agent loop. File tools stay inside the bot's workspace; the shell asks first.
-import { existsSync, realpathSync } from "node:fs";
+import { lstatSync, realpathSync } from "node:fs";
 import { glob, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import type { ToolSpec } from "./model.ts";
@@ -19,12 +19,15 @@ export interface Tool {
   spec: ToolSpec;
   /** Read-only tools run without asking. Everything else goes through an approval card. */
   readOnly: boolean;
+  /** A line for the system prompt, when the model needs to know something about this tool. */
+  promptNote?: string;
   /** Short label for the status row, like "Running npm test". */
   summarize(input: Record<string, unknown>): string;
   run(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>;
 }
 
 const MAX_READ_BYTES = 100_000;
+const MAX_RANGE_FILE_BYTES = 50_000_000;
 const MAX_LIST = 500;
 const MAX_MATCHES = 200;
 const MAX_SEARCH_FILE_BYTES = 1_000_000;
@@ -64,17 +67,33 @@ const isInside = (root: string, target: string) => {
   return rel === "" || (!rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel));
 };
 
+const exists = (p: string) => {
+  try {
+    lstatSync(p); // lstat, so a dangling symlink counts as existing and gets checked
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Resolves `path` against the workspace and refuses anything outside it, including through symlinks.
- * For a path that doesn't exist yet, its nearest existing parent is checked.
+ * For a path that doesn't exist yet, its nearest existing ancestor is checked. A symlink whose target can't be
+ * resolved (dangling) is refused, because writing through it could land anywhere.
  */
 export function resolveInWorkspace(workspaceDir: string, path: string): string {
   const root = realpathSync(workspaceDir);
   const target = resolve(root, path);
   if (!isInside(root, target)) throw new ToolInputError(`${path} is outside the workspace.`);
   let existing = target;
-  while (!existsSync(existing)) existing = dirname(existing);
-  if (!isInside(root, realpathSync(existing))) throw new ToolInputError(`${path} is outside the workspace.`);
+  while (!exists(existing)) existing = dirname(existing);
+  let real: string;
+  try {
+    real = realpathSync(existing);
+  } catch {
+    throw new ToolInputError(`${path} goes through a link that can't be resolved.`);
+  }
+  if (!isInside(root, real)) throw new ToolInputError(`${path} is outside the workspace.`);
   return target;
 }
 
@@ -100,16 +119,25 @@ export const readFileTool: Tool = {
     const file = resolveInWorkspace(ctx.workspaceDir, str(input, "path"));
     const info = await stat(file);
     if (!info.isFile()) return { ok: false, output: `${input.path} is not a file.` };
-    let text = (await readFile(file)).subarray(0, MAX_READ_BYTES).toString("utf8");
     const start = optInt(input, "start_line");
     const end = optInt(input, "end_line");
-    if (start || end) {
-      const lines = text.split("\n");
-      text = lines.slice((start ?? 1) - 1, end ?? lines.length).join("\n");
+    if (!start && !end) {
+      const text = (await readFile(file)).subarray(0, MAX_READ_BYTES).toString("utf8");
+      const note =
+        info.size > MAX_READ_BYTES
+          ? `\n\n[File is ${info.size} bytes; only the first ${MAX_READ_BYTES} were read. Pass start_line and end_line to read further.]`
+          : "";
+      return { ok: true, output: text + note };
     }
+    // A line range can be anywhere in the file, so read the whole file (up to a hard cap), then cut the range.
+    if (info.size > MAX_RANGE_FILE_BYTES) {
+      return { ok: false, output: `${input.path} is ${info.size} bytes, too large to read by line range.` };
+    }
+    const lines = (await readFile(file, "utf8")).split("\n");
+    const text = lines.slice((start ?? 1) - 1, end ?? lines.length).join("\n");
     const note =
-      info.size > MAX_READ_BYTES ? `\n\n[File is ${info.size} bytes; only the first ${MAX_READ_BYTES} were read.]` : "";
-    return { ok: true, output: text + note };
+      text.length > MAX_READ_BYTES ? `\n\n[Range cut at ${MAX_READ_BYTES} characters. Ask for fewer lines.]` : "";
+    return { ok: true, output: text.slice(0, MAX_READ_BYTES) + note };
   },
 };
 
@@ -164,7 +192,11 @@ export const editFileTool: Tool = {
   },
 };
 
-/** Files under the workspace matching `pattern`, as sorted POSIX-style relative paths, up to MAX_LIST. */
+/**
+ * Files under the workspace matching `pattern`, as sorted POSIX-style relative paths, up to MAX_LIST.
+ * Every match is checked with resolveInWorkspace, so brace tricks like "{..,x}/*" and symlinks pointing out are
+ * dropped, whatever the pattern text says.
+ */
 async function listWorkspaceFiles(
   workspaceDir: string,
   pattern: string,
@@ -174,20 +206,32 @@ async function listWorkspaceFiles(
     throw new ToolInputError("pattern must stay inside the workspace.");
   }
   const root = realpathSync(workspaceDir);
-  const files: string[] = [];
+  const files = new Set<string>();
   let truncated = false;
   const exclude = (name: string) => SKIP_DIRS.has(name.split(/[\\/]/).pop() ?? "");
   for await (const entry of glob(pattern, { cwd: root, exclude })) {
     if (signal.aborted) break;
-    const info = await stat(resolve(root, entry)).catch(() => undefined);
+    let full: string;
+    try {
+      full = resolveInWorkspace(root, entry);
+    } catch {
+      continue; // outside the workspace, or a link that can't be resolved: not listed
+    }
+    const info = await stat(full).catch((err: NodeJS.ErrnoException) => {
+      if (err.code !== "ENOENT") console.warn(`list_files: can't stat ${entry}`, err);
+      return undefined;
+    });
     if (!info?.isFile()) continue;
-    if (files.length >= MAX_LIST) {
+    // Report each file once, by its path inside the workspace, however the pattern reached it.
+    const rel = toPosix(relative(root, full));
+    if (files.has(rel)) continue;
+    if (files.size >= MAX_LIST) {
       truncated = true;
       break;
     }
-    files.push(toPosix(entry));
+    files.add(rel);
   }
-  return { root, files: files.sort(), truncated };
+  return { root, files: [...files].sort(), truncated };
 }
 
 export const listFilesTool: Tool = {
@@ -266,6 +310,7 @@ export function shellTool(shell: ShellInfo = defaultShell()): Tool {
       },
     },
     readOnly: false,
+    promptNote: `The shell tool uses ${shell.name}, so write commands in its syntax.`,
     summarize: (input) => `Running ${short(input.command)}`,
     async run(input, ctx) {
       const command = str(input, "command");

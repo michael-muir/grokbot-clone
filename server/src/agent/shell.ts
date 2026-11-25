@@ -66,41 +66,81 @@ export function runShell(script: string, opts: ShellOptions, shell: ShellInfo = 
 
     let output = "";
     // Hold at most twice the cap while running; truncateMiddle trims at the end.
-    const collect = (chunk: Buffer) => {
-      output += chunk.toString("utf8");
+    const collect = (chunk: string) => {
+      output += chunk;
       if (output.length > opts.maxOutput * 2) output = truncateMiddle(output, opts.maxOutput * 2);
     };
+    // Decode as a stream, so a character split across two chunks isn't garbled.
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
     child.stdout?.on("data", collect);
     child.stderr?.on("data", collect);
 
     let timedOut = false;
     let aborted = false;
+    let settled = false;
+    let exitCode: number | null = null;
+    const timers: NodeJS.Timeout[] = [];
+
+    const finish = (code: number | null, extra = "") => {
+      if (settled) return;
+      settled = true;
+      for (const t of timers) clearTimeout(t);
+      opts.signal.removeEventListener("abort", onAbort);
+      // A background process may still hold the pipes; stop listening to them.
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+      resolve({ exitCode: code, output: truncateMiddle(output + extra, opts.maxOutput), timedOut, aborted });
+    };
+
+    // Kills the shell and everything it started. Runs even after the shell itself has exited, because a
+    // background child can outlive it (the POSIX process group stays valid while any member is alive).
     const killTree = () => {
-      if (child.pid === undefined || child.exitCode !== null) return;
-      try {
-        if (windows) spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true });
-        else process.kill(-child.pid, "SIGKILL");
-      } catch {
-        child.kill("SIGKILL");
+      if (child.pid === undefined) return;
+      if (windows) {
+        const killer = spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { windowsHide: true });
+        killer.on("error", (err) => {
+          console.warn("taskkill failed; killing the shell only", err);
+          child.kill();
+        });
+      } else {
+        try {
+          process.kill(-child.pid, "SIGKILL");
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code !== "ESRCH") console.warn("couldn't kill the process group", err);
+          child.kill("SIGKILL");
+        }
       }
     };
-    const timer = setTimeout(() => {
-      timedOut = true;
+    const stop = (why: "timeout" | "abort") => {
+      if (why === "timeout") timedOut = true;
+      else aborted = true;
       killTree();
-    }, opts.timeoutMs);
-    const onAbort = () => {
-      aborted = true;
-      killTree();
+      // Don't wait for every pipe to close: return within a second even if something survived the kill.
+      timers.push(setTimeout(() => finish(exitCode, "\n[Stopped waiting for the command's output.]"), STOP_GRACE_MS));
     };
+    const onAbort = () => stop("abort");
+
+    timers.push(setTimeout(() => stop("timeout"), opts.timeoutMs));
     if (opts.signal.aborted) onAbort();
     else opts.signal.addEventListener("abort", onAbort, { once: true });
 
-    const finish = (exitCode: number | null, extra = "") => {
-      clearTimeout(timer);
-      opts.signal.removeEventListener("abort", onAbort);
-      resolve({ exitCode, output: truncateMiddle(output + extra, opts.maxOutput), timedOut, aborted });
-    };
     child.on("error", (err) => finish(null, `\n${err.message}`));
-    child.on("close", (code) => finish(code));
+    child.on("exit", (code) => {
+      exitCode = code;
+      // Normally 'close' follows at once. If a background process keeps the output open, finish anyway.
+      timers.push(
+        setTimeout(
+          () => finish(code, "\n[The command left a background process running; stopped waiting for its output.]"),
+          EXIT_GRACE_MS,
+        ),
+      );
+    });
+    child.on("close", (code) => finish(code ?? exitCode));
   });
 }
+
+/** After a kill, how long to wait for the output to close before returning anyway. */
+const STOP_GRACE_MS = 1000;
+/** After the shell exits, how long to wait for background processes to release its output. */
+const EXIT_GRACE_MS = 2000;

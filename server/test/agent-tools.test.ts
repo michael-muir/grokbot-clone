@@ -156,3 +156,58 @@ test("tool summaries match the status row wording", () => {
   assert.equal(editFileTool.summarize({ path: "a.txt" }), "Editing a.txt");
   assert.equal(searchFilesTool.summarize({ pattern: "TODO" }), "Searching files for TODO");
 });
+
+test("writes through a dangling link are refused", async () => {
+  const { ws, outside } = workspace();
+  symlinkSync(join(outside, "does-not-exist"), join(ws, "evil"), "junction");
+  await assert.rejects(writeFileTool.run({ path: "evil/x.txt", content: "x" }, ctx(ws)), ToolInputError);
+});
+
+test("glob brace tricks and links can't list or search outside the workspace", async () => {
+  const { ws, outside } = workspace();
+  writeFileSync(join(ws, "inside.txt"), "top of the inside file");
+  symlinkSync(outside, join(ws, "link"), "junction");
+  const listed = await listFilesTool.run({ pattern: "{..,x}/outside/*" }, ctx(ws));
+  assert.equal(listed.output, "No files match.");
+  const all = await listFilesTool.run({}, ctx(ws));
+  assert.equal(all.output, "inside.txt");
+  const found = await searchFilesTool.run({ pattern: "top", glob: "{..,.}/**/*" }, ctx(ws));
+  assert.equal(found.output, "inside.txt:1: top of the inside file");
+});
+
+test("read_file reads a line range past the first 100 KB", async () => {
+  const { ws } = workspace();
+  const lines = Array.from({ length: 20_000 }, (_, i) => `line ${i + 1} ${"x".repeat(20)}`);
+  writeFileSync(join(ws, "big.log"), lines.join("\n"));
+  const r = await readFileTool.run({ path: "big.log", start_line: 19_999, end_line: 20_000 }, ctx(ws));
+  assert.equal(r.ok, true);
+  assert.equal(r.output, `${lines[19_998]}\n${lines[19_999]}`);
+});
+
+test("a command that leaves a background process running still returns", async () => {
+  const { ws } = workspace();
+  // The grandchild inherits the output pipes and outlives the shell by 4 seconds.
+  const script =
+    "node -e \"require('child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 4000)'], { stdio: 'inherit' }).unref()\"";
+  const started = Date.now();
+  const r = await runShell(script, {
+    cwd: ws,
+    signal: new AbortController().signal,
+    timeoutMs: 20_000,
+    maxOutput: 1000,
+  });
+  assert.equal(r.exitCode, 0);
+  assert.ok(Date.now() - started < 3900, `returned after ${Date.now() - started} ms`);
+});
+
+test("shell output keeps multi-byte characters intact", async () => {
+  const { ws } = workspace();
+  const script = "node -e \"process.stdout.write('é'.repeat(100000))\"";
+  const r = await runShell(script, {
+    cwd: ws,
+    signal: new AbortController().signal,
+    timeoutMs: 20_000,
+    maxOutput: 300_000,
+  });
+  assert.equal(r.output, "é".repeat(100_000));
+});

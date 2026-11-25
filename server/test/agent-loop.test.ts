@@ -7,7 +7,7 @@ import { after, test } from "node:test";
 import { closeUnansweredCalls, LoopProvider } from "../src/agent/loop.ts";
 import type { ChatMessage } from "../src/agent/model.ts";
 import { SessionStore } from "../src/agent/sessions.ts";
-import type { Tool } from "../src/agent/tools.ts";
+import { shellTool, type Tool } from "../src/agent/tools.ts";
 import { BotRegistry } from "../src/bots.ts";
 import { LocalFolderComputers } from "../src/computer.ts";
 import { Gateway } from "../src/gateway.ts";
@@ -236,7 +236,7 @@ test("closeUnansweredCalls fills missing results right after their tool calls", 
   );
 });
 
-test("the model sees the tools and a system prompt naming the shell", async () => {
+test("the model sees the tools and a system prompt with the instructions and the OS", async () => {
   const model = new ScriptedModel([says("Hello.")]);
   const { run } = setup(model, [fakeTool("act"), fakeTool("look", { readOnly: true })]);
   await run("hi");
@@ -246,7 +246,7 @@ test("the model sees the tools and a system prompt naming the shell", async () =
     ["act", "look"],
   );
   assert.match(req?.system ?? "", /Be brief\./);
-  assert.match(req?.system ?? "", /shell tool uses/);
+  assert.match(req?.system ?? "", /The computer runs /);
 });
 
 test("an adapter error ends the run as failed with its message", async () => {
@@ -328,4 +328,47 @@ test("blank or repeated tool call ids are made unique", async () => {
   const ids = rec.ofType("tool_start").map((e) => e.toolUseId);
   assert.equal(new Set(ids).size, 3);
   assert.ok(ids.every(Boolean));
+});
+
+test("a reused tool call id isn't treated as answered by an earlier result", () => {
+  const history: ChatMessage[] = [
+    { role: "assistant", text: "", toolCalls: [{ id: "call_0", name: "t", input: {} }] },
+    { role: "tool", toolCallId: "call_0", name: "t", output: "ok", isError: false },
+    { role: "assistant", text: "", toolCalls: [{ id: "call_0", name: "t", input: {} }] },
+  ];
+  const closed = closeUnansweredCalls(history);
+  assert.equal(closed.length, 4);
+  assert.deepEqual(closed[3], {
+    role: "tool",
+    toolCallId: "call_0",
+    name: "t",
+    output: "The run was stopped before this tool ran.",
+    isError: true,
+  });
+});
+
+test("tool call ids stay unique across runs of the same session", async () => {
+  const look = fakeTool("look", { readOnly: true });
+  const model = new ScriptedModel([
+    calls([{ id: "call_0", name: "look", input: {} }]),
+    says("Once."),
+    calls([{ id: "call_0", name: "look", input: {} }]),
+    says("Twice."),
+  ]);
+  const { run, sessions } = setup(model, [look]);
+  const first = await run("look");
+  await run("look again", { sessionId: first.outcome.sessionId });
+  const ids = sessions
+    .load(first.outcome.sessionId ?? "")
+    .flatMap((m) => (m.role === "assistant" ? m.toolCalls.map((c) => c.id) : []));
+  assert.equal(ids.length, 2);
+  assert.equal(new Set(ids).size, 2);
+});
+
+test("the system prompt names the shell of the configured shell tool", async () => {
+  const bash = shellTool({ name: "bash", command: "bash", args: (s) => ["-c", s] });
+  const model = new ScriptedModel([says("Hi.")]);
+  const { run } = setup(model, [bash]);
+  await run("hi");
+  assert.match(model.requests[0]?.system ?? "", /The shell tool uses bash/);
 });

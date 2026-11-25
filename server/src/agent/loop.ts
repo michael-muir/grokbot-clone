@@ -1,11 +1,11 @@
 // LoopProvider: our own agent loop, so any chat model with function calling can act as an agent.
 // The model streams text and asks for tools; the loop runs the tools (asking the user for anything that isn't
 // read-only), feeds the results back, and repeats until the model answers without tools.
+import { randomUUID } from "node:crypto";
 import { platform } from "node:os";
 import type { AgentProvider, ProviderId, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
 import type { ChatMessage, ModelAdapter, ToolCall } from "./model.ts";
 import type { SessionStore } from "./sessions.ts";
-import { defaultShell } from "./shell.ts";
 import { defaultTools, type Tool, ToolInputError } from "./tools.ts";
 
 export const DEFAULT_MAX_STEPS = 25;
@@ -48,8 +48,10 @@ export class LoopProvider implements AgentProvider {
 
     const turn = ++this.turn;
     messages.push({ role: "user", text: req.prompt });
+    // Tool call ids must be unique across the whole session, not just one step: APIs match results by id.
+    const usedIds = new Set(messages.flatMap((m) => (m.role === "assistant" ? m.toolCalls.map((c) => c.id) : [])));
     const save = () => this.sessions.save(sessionId, closeUnansweredCalls(messages));
-    const system = systemPrompt(req.instructions);
+    const system = systemPrompt(req.instructions, [...this.tools.values()]);
     const specs = [...this.tools.values()].map((t) => t.spec);
     // The model turn in progress, kept so an interrupt mid-stream still saves what the model said.
     let partial: { blockId: string; text: string; calls: ToolCall[] } | undefined;
@@ -70,7 +72,6 @@ export class LoopProvider implements AgentProvider {
         const blockId = `${turn}:${step}`;
         partial = { blockId, text: "", calls: [] };
         const current = partial;
-        const usedIds = new Set<string>();
         for await (const ev of this.adapter.stream({ model: req.model, system, messages, tools: specs }, req.signal)) {
           if (req.signal.aborted) break;
           if (ev.type === "text_delta" && ev.text) {
@@ -79,7 +80,7 @@ export class LoopProvider implements AgentProvider {
           } else if (ev.type === "tool_call") {
             // Some models (often local ones) send blank or repeated call ids; the history needs unique ones.
             let id = ev.call.id;
-            if (!id || usedIds.has(id)) id = `call-${turn}-${step}-${current.calls.length}`;
+            if (!id || usedIds.has(id)) id = `call-${randomUUID()}`;
             usedIds.add(id);
             current.calls.push({ ...ev.call, id });
           }
@@ -157,13 +158,14 @@ export class LoopProvider implements AgentProvider {
   }
 }
 
-function systemPrompt(instructions: string): string {
+function systemPrompt(instructions: string, tools: Tool[]): string {
   const os = { win32: "Windows", darwin: "macOS", linux: "Linux" }[platform() as string] ?? platform();
   return [
     instructions,
     "",
     "You can use tools to work in your workspace. File paths are relative to it.",
-    `The computer runs ${os}; the shell tool uses ${defaultShell().name}, so write commands in its syntax.`,
+    `The computer runs ${os}.`,
+    ...tools.flatMap((t) => (t.promptNote ? [t.promptNote] : [])),
     "Some tools need the user's approval. If the user denies one, don't retry it; explain or pick another way.",
     "When the task is done, reply with a short summary and no tool calls.",
   ].join("\n");
@@ -171,17 +173,19 @@ function systemPrompt(instructions: string): string {
 
 /** Gives every tool call without a result a "stopped" result, so the history stays valid for every model API. */
 export function closeUnansweredCalls(messages: ChatMessage[]): ChatMessage[] {
-  const answered = new Set(messages.flatMap((m) => (m.role === "tool" ? [m.toolCallId] : [])));
   const out: ChatMessage[] = [];
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i];
     if (!m) continue;
     out.push(m);
     if (m.role !== "assistant" || !m.toolCalls.length) continue;
-    // Results for this message's calls come right after it; add the missing ones after the last of them.
+    // A call counts as answered only by the results right after its own message; add the missing ones after them.
+    const answered = new Set<string>();
     while (messages[i + 1]?.role === "tool") {
       const next = messages[++i];
-      if (next) out.push(next);
+      if (next?.role !== "tool") break;
+      answered.add(next.toolCallId);
+      out.push(next);
     }
     for (const call of m.toolCalls) {
       if (!answered.has(call.id)) {
@@ -204,7 +208,8 @@ function interrupted(save: () => void, sessionId: string): RunOutcome {
 function safeSummary(tool: Tool, input: Record<string, unknown>): string {
   try {
     return tool.summarize(input);
-  } catch {
+  } catch (err) {
+    console.warn(`${tool.spec.name}: couldn't summarize the call`, err);
     return `Using ${tool.spec.name}`;
   }
 }
