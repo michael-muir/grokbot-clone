@@ -7,7 +7,7 @@
 //   user tool_result     -> tool_end
 //   result               -> RunOutcome (cost, success or error)
 //   canUseTool           -> approval card in the transcript
-import { query, type Options, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { type Options, query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { AgentProvider, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
 
 export const DEFAULT_CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
@@ -94,7 +94,12 @@ export class ClaudeProvider implements AgentProvider {
             cb.emit({ type: "text", blockId: text.claimFinal(msg.message.id), text: block.text });
           } else if (block.type === "tool_use") {
             const input = (block.input ?? {}) as Record<string, unknown>;
-            cb.emit({ type: "tool_start", toolUseId: block.id, tool: block.name, summary: summarizeTool(block.name, input) });
+            cb.emit({
+              type: "tool_start",
+              toolUseId: block.id,
+              tool: block.name,
+              summary: summarizeTool(block.name, input),
+            });
           }
         }
         return;
@@ -156,7 +161,7 @@ class TextBlocks {
 export function summarizeTool(tool: string, input: Record<string, unknown>): string {
   const s = (v: unknown, max = 80) => {
     const str = typeof v === "string" ? v : JSON.stringify(v ?? "");
-    return str.length > max ? str.slice(0, max - 1) + "…" : str;
+    return str.length > max ? `${str.slice(0, max - 1)}…` : str;
   };
   switch (tool) {
     case "Bash":

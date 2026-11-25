@@ -1,9 +1,10 @@
-import { test } from "node:test";
+// Gateway tests: message flow, streaming, approvals, interrupts, persistence and the HTTP/SSE API, on the fake provider.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AddressInfo } from "node:net";
+import { test } from "node:test";
 import { BotRegistry } from "../src/bots.ts";
 import { LocalFolderComputers } from "../src/computer.ts";
 import { BotBusyError, Gateway } from "../src/gateway.ts";
@@ -15,7 +16,9 @@ import type { EntryBody, ProviderId, TranscriptEntry } from "../src/types.ts";
 
 function setup() {
   const dir = mkdtempSync(join(tmpdir(), "grokbot-test-"));
-  const bots = new BotRegistry(dir, [{ id: "nova", name: "Nova", provider: "fake", avatar: { shape: "star", color: "violet" } }]);
+  const bots = new BotRegistry(dir, [
+    { id: "nova", name: "Nova", provider: "fake", avatar: { shape: "star", color: "violet" } },
+  ]);
   const store = new TranscriptStore(dir);
   const providers: ProviderRegistry = new Map<ProviderId, FakeProvider>([["fake", new FakeProvider(1)]]);
   const gateway = new Gateway(bots, store, providers, new LocalFolderComputers(dir));
@@ -45,7 +48,10 @@ test("a message produces user, run, and a streamed-then-final assistant entry", 
     await done;
 
     const entries = t.store.list("nova");
-    assert.deepEqual(entries.map((e) => e.body.kind), ["user_message", "run", "assistant_text"]);
+    assert.deepEqual(
+      entries.map((e) => e.body.kind),
+      ["user_message", "run", "assistant_text"],
+    );
     assert.deepEqual(ofKind(entries, "assistant_text")[0], {
       kind: "assistant_text",
       text: "Nova here. You said: hello there",
@@ -58,7 +64,10 @@ test("a message produces user, run, and a streamed-then-final assistant entry", 
     assert.equal(new Set(assistantUpdates.map((e) => e.id)).size, 1);
     // updatedSeq strictly increases across all updates.
     const seqs = seen.map((e) => e.updatedSeq);
-    assert.deepEqual(seqs, [...seqs].sort((a, b) => a - b));
+    assert.deepEqual(
+      seqs,
+      [...seqs].sort((a, b) => a - b),
+    );
     // The session is stored for resume.
     assert.equal(t.bots.get("nova")?.sessionId, "fake-session-nova");
   } finally {
@@ -79,8 +88,8 @@ test("approval card: allow runs the tool, deny reports the reason", async () => 
         true,
       );
       await done;
-      const answered = t.store.get("nova", card.id)!.body;
-      assert.equal(answered.kind === "approval" && answered.state, allow ? "approved" : "denied");
+      const answered = t.store.get("nova", card.id)?.body;
+      assert.equal(answered?.kind === "approval" && answered.state, allow ? "approved" : "denied");
     }
     const statuses = ofKind(t.store.list("nova"), "status").map((s) => s.state);
     assert.deepEqual(statuses, ["done", "failed"]);
@@ -125,6 +134,26 @@ test("a failed run records an error entry", async () => {
   }
 });
 
+test("a message that can't be recorded doesn't leave the bot busy", async () => {
+  const t = setup();
+  const append = t.store.append.bind(t.store);
+  try {
+    t.store.append = () => {
+      throw new Error("disk full");
+    };
+    await assert.rejects(t.gateway.sendMessage("nova", "hello"), /disk full/);
+    assert.equal(t.gateway.isRunning("nova"), false);
+
+    t.store.append = append;
+    const { done } = await t.gateway.sendMessage("nova", "hello again");
+    await done;
+    assert.equal(ofKind(t.store.list("nova"), "run")[0].state, "finished");
+  } finally {
+    t.store.append = append;
+    t.cleanup();
+  }
+});
+
 test("transcript survives a restart", async () => {
   const t = setup();
   try {
@@ -151,16 +180,17 @@ test("HTTP: send a message, read it back over SSE, and answer an approval", asyn
 
     const sseAbort = new AbortController();
     const sse = await fetch(`${base}/bots/nova/events`, { headers: auth, signal: sseAbort.signal });
-    const reader = sse.body!.getReader();
+    assert.ok(sse.body, "SSE response has a body");
+    const reader = sse.body.getReader();
+    const decoder = new TextDecoder();
     const events: TranscriptEntry[] = [];
     const pump = (async () => {
       let buf = "";
       for (;;) {
         const { value, done } = await reader.read();
         if (done) return;
-        buf += new TextDecoder().decode(value);
-        let i;
-        while ((i = buf.indexOf("\n\n")) >= 0) {
+        buf += decoder.decode(value, { stream: true });
+        for (let i = buf.indexOf("\n\n"); i >= 0; i = buf.indexOf("\n\n")) {
           const chunk = buf.slice(0, i);
           buf = buf.slice(i + 2);
           if (chunk.startsWith("data: ")) events.push(JSON.parse(chunk.slice(6)));
@@ -168,16 +198,32 @@ test("HTTP: send a message, read it back over SSE, and answer an approval", asyn
       }
     })();
 
-    const sent = await fetch(`${base}/bots/nova/messages`, { method: "POST", headers: auth, body: JSON.stringify({ text: "/tool" }) });
+    const sent = await fetch(`${base}/bots/nova/messages`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ text: "/tool" }),
+    });
     assert.equal(sent.status, 202);
     const card = await waitFor(() => events.find((e) => e.body.kind === "approval"));
-    const busy = await fetch(`${base}/bots/nova/messages`, { method: "POST", headers: auth, body: JSON.stringify({ text: "hi" }) });
+    const busy = await fetch(`${base}/bots/nova/messages`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ text: "hi" }),
+    });
     assert.equal(busy.status, 409);
-    const answered = await fetch(`${base}/bots/nova/approvals/${card.id}`, { method: "POST", headers: auth, body: JSON.stringify({ allow: true }) });
+    const answered = await fetch(`${base}/bots/nova/approvals/${card.id}`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ allow: true }),
+    });
     assert.equal(answered.status, 200);
     await waitFor(() => events.find((e) => e.body.kind === "run" && e.body.state === "finished"));
 
-    const bad = await fetch(`${base}/bots/nova`, { method: "PATCH", headers: auth, body: JSON.stringify({ provider: "gpt" }) });
+    const bad = await fetch(`${base}/bots/nova`, {
+      method: "PATCH",
+      headers: auth,
+      body: JSON.stringify({ provider: "gpt" }),
+    });
     assert.equal(bad.status, 400);
     sseAbort.abort();
     await pump.catch(() => {});

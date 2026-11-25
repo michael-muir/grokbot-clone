@@ -1,3 +1,4 @@
+// Gateway entry point: wires the bot registry, transcript store, providers and HTTP server, then listens.
 import { resolve } from "node:path";
 import { BotRegistry } from "./bots.ts";
 import { LocalFolderComputers } from "./computer.ts";
@@ -15,7 +16,9 @@ const gateway = new Gateway(bots, store, defaultProviders(), new LocalFolderComp
 const server = createHttpServer({ gateway, bots, store, token: process.env.GATEWAY_TOKEN || undefined });
 
 if (!process.env.ANTHROPIC_API_KEY) {
-  console.warn("ANTHROPIC_API_KEY is not set: Claude bots will fail. Set it in server/.env, or switch a bot to the \"fake\" provider.");
+  console.warn(
+    'ANTHROPIC_API_KEY is not set: Claude bots will fail. Set it in server/.env, or switch a bot to the "fake" provider.',
+  );
 }
 
 // Localhost only: the agent can run commands on this machine.

@@ -11,7 +11,14 @@ const sleep = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
     if (signal.aborted) return reject(new Error("aborted"));
     const t = setTimeout(resolve, ms);
-    signal.addEventListener("abort", () => (clearTimeout(t), reject(new Error("aborted"))), { once: true });
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(t);
+        reject(new Error("aborted"));
+      },
+      { once: true },
+    );
   });
 
 export class FakeProvider implements AgentProvider {
@@ -37,7 +44,9 @@ export class FakeProvider implements AgentProvider {
         cb.emit({ type: "tool_start", toolUseId, tool: "Bash", summary: "Running echo hello" });
         const decision = await cb.requestApproval({ tool: "Bash", summary: "Running echo hello", input }, req.signal);
         cb.emit({ type: "tool_end", toolUseId, ok: decision.allow });
-        const reply = decision.allow ? "Done. The command printed hello." : `Okay, I won't run it (${decision.reason}).`;
+        const reply = decision.allow
+          ? "Done. The command printed hello."
+          : `Okay, I won't run it (${decision.reason}).`;
         cb.emit({ type: "text", blockId: `msg-${turn}:0`, text: reply });
         return { status: "finished", sessionId, costUsd: 0 };
       }
