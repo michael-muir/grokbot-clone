@@ -4,7 +4,15 @@ import type { BotRegistry } from "./bots.ts";
 import type { ComputerManager } from "./computer.ts";
 import type { ProviderRegistry } from "./providers/index.ts";
 import type { TranscriptStore } from "./transcript.ts";
-import type { ApprovalDecision, Bot, EntryBody, ProviderEvent, RunOutcome, TranscriptEntry } from "./types.ts";
+import type {
+  AgentProvider,
+  ApprovalDecision,
+  Bot,
+  EntryBody,
+  ProviderEvent,
+  RunOutcome,
+  TranscriptEntry,
+} from "./types.ts";
 
 export class BotNotFoundError extends Error {}
 export class BotBusyError extends Error {}
@@ -56,7 +64,7 @@ export class Gateway {
     this.active.set(botId, run);
 
     const entry = this.store.append(botId, { kind: "user_message", text });
-    run.done = this.execute(bot, text, controller).finally(() => this.active.delete(botId));
+    run.done = this.execute(bot, provider, text, controller).finally(() => this.active.delete(botId));
     return { entry, done: run.done };
   }
 
@@ -71,12 +79,11 @@ export class Gateway {
   /** Answers an approval card. Returns false if the card isn't pending. */
   answerApproval(botId: string, entryId: string, decision: ApprovalDecision): boolean {
     const entry = this.store.get(botId, entryId);
-    if (!entry || entry.body.kind !== "approval" || entry.body.state !== "pending") return false;
+    if (entry?.body.kind !== "approval" || entry.body.state !== "pending") return false;
     return this.approvals.answer(entryId, decision);
   }
 
-  private async execute(bot: Bot, text: string, controller: AbortController): Promise<void> {
-    const provider = this.providers.get(bot.provider)!;
+  private async execute(bot: Bot, provider: AgentProvider, text: string, controller: AbortController): Promise<void> {
     const runEntry = this.store.append(bot.id, { kind: "run", provider: provider.id, state: "running" });
     const textEntries = new Map<string, string>(); // provider blockId -> entry id
     const toolEntries = new Map<string, string>(); // toolUseId -> entry id
@@ -180,7 +187,9 @@ export class Gateway {
       this.store.append(bot.id, { kind: "error", message: outcome.error ?? "Something went wrong." });
     }
     set(runEntry.id, (b) =>
-      b.kind === "run" ? { ...b, state: outcome.status, ...(outcome.costUsd !== undefined ? { costUsd: outcome.costUsd } : {}) } : b,
+      b.kind === "run"
+        ? { ...b, state: outcome.status, ...(outcome.costUsd !== undefined ? { costUsd: outcome.costUsd } : {}) }
+        : b,
     );
   }
 }

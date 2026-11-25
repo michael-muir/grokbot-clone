@@ -1,8 +1,9 @@
 // Per-bot transcript store: append-or-update entries with seq/updatedSeq,
 // live subscribers, and append-only JSONL persistence (last write per id wins on load).
+
+import { randomUUID } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { randomUUID } from "node:crypto";
 import type { EntryBody, TranscriptEntry } from "./types.ts";
 
 type Listener = (entry: TranscriptEntry) => void;
@@ -58,9 +59,7 @@ export class TranscriptStore {
 
   /** Entries changed after `since` (an updatedSeq), in conversation order. */
   list(botId: string, since = -1): TranscriptEntry[] {
-    return [...this.log(botId).entries.values()]
-      .filter((e) => e.updatedSeq > since)
-      .sort((a, b) => a.seq - b.seq);
+    return [...this.log(botId).entries.values()].filter((e) => e.updatedSeq > since).sort((a, b) => a.seq - b.seq);
   }
 
   subscribe(botId: string, listener: Listener): () => void {
@@ -71,7 +70,7 @@ export class TranscriptStore {
 
   private commit(log: BotLog, entry: TranscriptEntry): TranscriptEntry {
     log.entries.set(entry.id, entry);
-    appendFileSync(log.file, JSON.stringify(entry) + "\n");
+    appendFileSync(log.file, `${JSON.stringify(entry)}\n`);
     for (const listener of log.listeners) {
       try {
         listener(entry);

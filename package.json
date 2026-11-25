@@ -1,0 +1,16 @@
+{
+  "name": "grokbot-clone",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop agent app modeled on the Grok Bot UI, with a swappable model backend",
+  "scripts": {
+    "check": "biome check .",
+    "fix": "biome check --write .",
+    "typecheck": "npm --prefix server run typecheck",
+    "test": "npm --prefix server test",
+    "verify": "npm run check && npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.6"
+  }
+}

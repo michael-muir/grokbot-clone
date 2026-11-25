@@ -15,7 +15,9 @@ const gateway = new Gateway(bots, store, defaultProviders(), new LocalFolderComp
 const server = createHttpServer({ gateway, bots, store, token: process.env.GATEWAY_TOKEN || undefined });
 
 if (!process.env.ANTHROPIC_API_KEY) {
-  console.warn("ANTHROPIC_API_KEY is not set: Claude bots will fail. Set it in server/.env, or switch a bot to the \"fake\" provider.");
+  console.warn(
+    'ANTHROPIC_API_KEY is not set: Claude bots will fail. Set it in server/.env, or switch a bot to the "fake" provider.',
+  );
 }
 
 // Localhost only: the agent can run commands on this machine.

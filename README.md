@@ -35,3 +35,13 @@ Created in [T3 Code](https://t3.codes).
 Reference material was captured from a locally installed copy of Grok Bot for design reference only.
 This project does not use Grok Bot's or Cursor's private APIs, and anything shipped should use its own
 name, mascot and copy.
+
+## Development
+
+```bash
+npm install && npm --prefix server install
+npm run verify   # lint, format check, typecheck, tests
+```
+
+Work follows the [software factory process](docs/factory/PROCESS.md), and the coding standards are in
+[`CLAUDE.md`](CLAUDE.md).

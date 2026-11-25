@@ -8,8 +8,9 @@
 //   POST  /bots/:id/messages             {text}         -> 202, 409 while the bot is busy
 //   POST  /bots/:id/interrupt                           -> 202, 409 when idle
 //   POST  /bots/:id/approvals/:entryId   {allow, reason?}
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+
 import { timingSafeEqual } from "node:crypto";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { BotRegistry } from "./bots.ts";
 import { BotBusyError, BotNotFoundError, type Gateway } from "./gateway.ts";
 import type { TranscriptStore } from "./transcript.ts";
@@ -67,7 +68,11 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
       return send(res, 200, d.store.list(bot.id, since));
 
     case "GET events": {
-      res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+      res.writeHead(200, {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache",
+        connection: "keep-alive",
+      });
       // Send something immediately: with an empty backlog the client would otherwise wait for the first heartbeat.
       res.write(": connected\n\n");
       const write = (e: unknown) => res.write(`data: ${JSON.stringify(e)}\n\n`);
@@ -75,7 +80,10 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
       const unsubscribe = d.store.subscribe(bot.id, write);
       const heartbeat = setInterval(() => res.write(": ping\n\n"), 15_000);
       // `res` closes when the client disconnects (req "close" can fire once the request body is read).
-      res.on("close", () => (unsubscribe(), clearInterval(heartbeat)));
+      res.on("close", () => {
+        unsubscribe();
+        clearInterval(heartbeat);
+      });
       return;
     }
 
@@ -93,7 +101,9 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
     }
 
     case "POST interrupt":
-      return d.gateway.interrupt(bot.id) ? send(res, 202, { ok: true }) : send(res, 409, { error: "Nothing is running" });
+      return d.gateway.interrupt(bot.id)
+        ? send(res, 202, { ok: true })
+        : send(res, 409, { error: "Nothing is running" });
 
     default:
       if (method === "POST" && parts[2] === "approvals" && parts[3] && parts.length === 4) {
