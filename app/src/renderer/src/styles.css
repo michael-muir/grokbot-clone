@@ -1,0 +1,142 @@
+/* Scaffold styles: layout only, in the system's own colors. Design tokens and the real look come in #9. */
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: Canvas;
+  color: CanvasText;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  height: 100vh;
+}
+
+.sidebar {
+  border-right: 1px solid GrayText;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.app-name {
+  font-size: 16px;
+  margin: 0 0 8px;
+}
+
+.connection,
+.muted {
+  color: GrayText;
+}
+
+.bot-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+
+.bot-list button {
+  width: 100%;
+  text-align: left;
+  padding: 8px;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+}
+
+.bot-list button[aria-current="true"] {
+  background: Highlight;
+  color: HighlightText;
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid GrayText;
+}
+
+.chat-header h2 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.transcript {
+  flex: 1;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.entry {
+  white-space: pre-wrap;
+  max-width: 70ch;
+}
+
+.entry.user {
+  align-self: flex-end;
+  border: 1px solid GrayText;
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+
+.entry.approval {
+  border: 1px solid GrayText;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.entry.notice {
+  align-self: center;
+}
+
+.actions {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: 8px;
+}
+
+.error {
+  color: LinkText;
+  font-weight: 600;
+  padding: 0 16px;
+}
+
+.composer {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid GrayText;
+}
+
+.composer textarea {
+  flex: 1;
+  resize: none;
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid Highlight;
+  outline-offset: 2px;
+}

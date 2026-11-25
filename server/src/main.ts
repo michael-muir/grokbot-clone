@@ -39,3 +39,32 @@ if (!credentials.key("claude")) {
 server.listen(port, "127.0.0.1", () => {
   console.log(`GrokBot Clone gateway on http://127.0.0.1:${port} (data: ${dataDir})`);
 });
+
+// Stop cleanly: interrupted runs are recorded as interrupted, and no transcript write is cut off. The desktop app
+// asks over its IPC channel, because on Windows a kill is immediate and can't be caught.
+const SHUTDOWN_GRACE_MS = 5000;
+let shuttingDown = false;
+function shutdown(reason: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`Shutting down (${reason})`);
+  server.close();
+  server.closeAllConnections();
+  const forced = setTimeout(() => {
+    console.error("Runs didn't stop in time; exiting anyway.");
+    process.exit(1);
+  }, SHUTDOWN_GRACE_MS);
+  void gateway.shutdown().then(() => {
+    clearTimeout(forced);
+    process.exit(0);
+  });
+}
+process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("message", (message: unknown) => {
+  if (typeof message === "object" && message !== null && "type" in message && message.type === "shutdown") {
+    shutdown("asked by the app");
+  }
+});
+// Started by the app, which has gone away without asking (crashed or killed): don't linger.
+process.on("disconnect", () => shutdown("the app went away"));

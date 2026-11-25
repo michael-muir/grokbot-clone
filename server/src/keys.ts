@@ -1,7 +1,9 @@
 // API keys for providers: kept in the OS keychain (Windows Credential Manager, macOS Keychain, Linux Secret
 // Service), with the provider's environment variable as a fallback. Keys never go to files, logs or responses.
 import { Entry } from "@napi-rs/keyring";
-import type { ProviderId } from "./types.ts";
+import type { KeySource, ProviderId } from "./types.ts";
+
+export type { KeySource };
 
 const SERVICE = "grokbot-clone";
 
@@ -91,8 +93,6 @@ export class MemoryKeyStore implements KeyStore {
     this.keys.delete(provider);
   }
 }
-
-export type KeySource = "keychain" | "env";
 
 /** Where providers get their keys: the key store first, then the environment. Read on every call, never cached. */
 export class Credentials {

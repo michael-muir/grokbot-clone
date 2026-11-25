@@ -4,10 +4,12 @@
   "private": true,
   "description": "Desktop agent app modeled on the Grok Bot UI, with a swappable model backend",
   "scripts": {
+    "dev": "npm --prefix app run dev",
+    "smoke": "npm --prefix app run smoke",
     "check": "biome check .",
     "fix": "biome check --write .",
-    "typecheck": "npm --prefix server run typecheck",
-    "test": "npm --prefix server test",
+    "typecheck": "npm --prefix server run typecheck && npm --prefix app run typecheck",
+    "test": "npm --prefix server test && npm --prefix app test",
     "verify": "npm run check && npm run typecheck && npm test"
   },
   "devDependencies": {

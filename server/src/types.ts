@@ -73,6 +73,19 @@ export interface Bot {
   sessionProvider?: ProviderId;
 }
 
+/** A bot as the API shows it: the provider session is the gateway's business. */
+export type PublicBot = Omit<Bot, "sessionId" | "sessionProvider">;
+
+/** Where a provider's API key came from. */
+export type KeySource = "keychain" | "env";
+
+/** One row of GET /providers. Never includes a key. */
+export interface ProviderSummary extends ProviderInfo {
+  id: ProviderId;
+  needsKey: boolean;
+  keySource: KeySource | null;
+}
+
 // ---------- provider contract ----------
 
 export interface RunRequest {
