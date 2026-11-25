@@ -24,7 +24,7 @@ import { BotBusyError, BotNotFoundError, type Gateway } from "./gateway.ts";
 import { acceptsKey, type Credentials, KeyStoreUnavailableError, needsKey } from "./keys.ts";
 import type { ProviderRegistry } from "./providers/index.ts";
 import type { TranscriptStore } from "./transcript.ts";
-import { type Bot, isProviderId, type TranscriptEntry } from "./types.ts";
+import { type Bot, isProviderId, type ProviderSummary, type PublicBot, type TranscriptEntry } from "./types.ts";
 
 const MAX_BODY = 1_000_000;
 const HEARTBEAT_MS = 15_000;
@@ -174,12 +174,14 @@ async function handleProviders(
   d: HttpDeps,
 ): Promise<void> {
   if (parts.length === 1 && method === "GET") {
-    const list = [...d.providers.values()].map((p) => ({
-      id: p.id,
-      ...(p.info?.() ?? { label: p.id, local: false, configured: true }),
-      needsKey: needsKey(p.id),
-      keySource: d.credentials.source(p.id) ?? null,
-    }));
+    const list = [...d.providers.values()].map(
+      (p): ProviderSummary => ({
+        id: p.id,
+        ...(p.info?.() ?? { label: p.id, local: false, configured: true }),
+        needsKey: needsKey(p.id),
+        keySource: d.credentials.source(p.id) ?? null,
+      }),
+    );
     return send(res, 200, list);
   }
   const provider = isProviderId(parts[1]) ? d.providers.get(parts[1]) : undefined;
@@ -269,7 +271,7 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
-function publicBot(bot: Bot) {
+function publicBot(bot: Bot): PublicBot {
   const { sessionId: _s, sessionProvider: _p, ...rest } = bot;
   return rest;
 }
