@@ -65,12 +65,17 @@ export class LoopProvider implements AgentProvider {
     const system = systemPrompt(req.instructions, [...this.tools.values()]);
     const specs = [...this.tools.values()].map((t) => t.spec);
     // The model turn in progress, kept so an interrupt mid-stream still saves what the model said.
-    let partial: { blockId: string; text: string; calls: ToolCall[] } | undefined;
+    let partial: { blockId: string; text: string; calls: ToolCall[]; meta?: Record<string, unknown> } | undefined;
     /** Ends the turn in progress: closes its streamed text and keeps it in the history. */
     const keepPartial = () => {
       if (partial?.text) cb.emit({ type: "text", blockId: partial.blockId, text: partial.text });
       if (partial && (partial.text || partial.calls.length)) {
-        messages.push({ role: "assistant", text: partial.text, toolCalls: partial.calls });
+        messages.push({
+          role: "assistant",
+          text: partial.text,
+          toolCalls: partial.calls,
+          ...(partial.meta ? { meta: partial.meta } : {}),
+        });
       }
       partial = undefined;
     };
@@ -94,6 +99,8 @@ export class LoopProvider implements AgentProvider {
             if (!id || usedIds.has(id)) id = `call-${randomUUID()}`;
             usedIds.add(id);
             current.calls.push({ ...ev.call, id });
+          } else if (ev.type === "turn_meta") {
+            current.meta = { ...current.meta, ...ev.meta };
           }
         }
         keepPartial();

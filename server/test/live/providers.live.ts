@@ -2,6 +2,7 @@
 //
 //   LIVE_PROVIDER=ollama LIVE_MODEL=qwen3.5:4b npm run test:live
 //   LIVE_PROVIDER=openai LIVE_MODEL=<model> OPENAI_API_KEY=... npm run test:live
+//   LIVE_PROVIDER=gemini LIVE_MODEL=<model> GEMINI_API_KEY=... npm run test:live
 //
 // The bot is asked to create a file with write_file. The approval is granted automatically, then the test checks
 // the file exists and the run finished.
@@ -14,6 +15,7 @@ import { SessionStore } from "../../src/agent/sessions.ts";
 import { BotRegistry } from "../../src/bots.ts";
 import { LocalFolderComputers } from "../../src/computer.ts";
 import { Gateway } from "../../src/gateway.ts";
+import { geminiProvider } from "../../src/providers/gemini.ts";
 import { OPENAI_PRESETS, openAICompatibleProvider } from "../../src/providers/openai-compatible.ts";
 import { TranscriptStore } from "../../src/transcript.ts";
 
@@ -22,15 +24,20 @@ const model = process.env.LIVE_MODEL;
 
 test(`live: ${presetId} creates a file through an approved tool call`, { timeout: 300_000 }, async () => {
   const preset = OPENAI_PRESETS.find((p) => p.id === presetId);
-  assert.ok(preset, `LIVE_PROVIDER must be one of ${OPENAI_PRESETS.map((p) => p.id).join(", ")}`);
+  assert.ok(
+    preset || presetId === "gemini",
+    `LIVE_PROVIDER must be gemini or one of ${OPENAI_PRESETS.map((p) => p.id).join(", ")}`,
+  );
+  const providerId = preset?.id ?? "gemini";
   const dataDir = mkdtempSync(join(tmpdir(), "grokbot-live-"));
   try {
     const bots = new BotRegistry(dataDir, [
-      { id: "live", name: "Live", provider: preset.id, model, avatar: { shape: "circle", color: "blue" } },
+      { id: "live", name: "Live", provider: providerId, model, avatar: { shape: "circle", color: "blue" } },
     ]);
     const store = new TranscriptStore(dataDir);
-    const provider = openAICompatibleProvider(preset, new SessionStore(dataDir));
-    const gateway = new Gateway(bots, store, new Map([[preset.id, provider]]), new LocalFolderComputers(dataDir));
+    const sessions = new SessionStore(dataDir);
+    const provider = preset ? openAICompatibleProvider(preset, sessions) : geminiProvider(sessions);
+    const gateway = new Gateway(bots, store, new Map([[providerId, provider]]), new LocalFolderComputers(dataDir));
 
     // Approve every card as it appears, and print the transcript as it changes.
     store.subscribe("live", (e) => {

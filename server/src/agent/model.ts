@@ -14,11 +14,13 @@ export interface ToolCall {
   id: string;
   name: string;
   input: Record<string, unknown>;
+  /** Adapter-specific data that must travel with the call in the history (e.g. Gemini's thought signature). */
+  meta?: Record<string, unknown>;
 }
 
 export type ChatMessage =
   | { role: "user"; text: string }
-  | { role: "assistant"; text: string; toolCalls: ToolCall[] }
+  | { role: "assistant"; text: string; toolCalls: ToolCall[]; meta?: Record<string, unknown> }
   | { role: "tool"; toolCallId: string; name: string; output: string; isError: boolean };
 
 export interface ToolSpec {
@@ -42,6 +44,8 @@ export interface ModelUsage {
 export type ModelEvent =
   | { type: "text_delta"; text: string }
   | { type: "tool_call"; call: ToolCall }
+  /** Adapter-specific data about the whole turn, kept on the assistant message in the history. */
+  | { type: "turn_meta"; meta: Record<string, unknown> }
   | { type: "done"; usage?: ModelUsage };
 
 export interface ModelAdapter {
