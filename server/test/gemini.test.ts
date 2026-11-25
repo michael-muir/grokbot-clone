@@ -271,3 +271,61 @@ test("a missing key or model says what to set", async () => {
   assert.equal(geminiProvider(new SessionStore(tempDir()), {}).info().configured, false);
   assert.equal(geminiProvider(new SessionStore(tempDir()), { GOOGLE_API_KEY: "k" }).info().configured, true);
 });
+
+test("finish reasons: thinking-only MAX_TOKENS and a stop after partial text are errors", async () => {
+  mock.setScript(() => ({
+    sse: [parts({ text: "pondering", thought: true }), event({ candidates: [{ finishReason: "MAX_TOKENS" }] })],
+  }));
+  await assert.rejects(collect(adapterFor()), /ran out of output tokens before answering/);
+
+  mock.setScript(() => ({
+    sse: [parts({ text: "Partial answer" }), event({ candidates: [{ finishReason: "MAX_TOKENS" }] })],
+  }));
+  const cut = await collect(adapterFor());
+  assert.equal(cut.at(-1)?.type, "done", "a cut-short answer is still an answer");
+
+  mock.setScript(() => ({
+    sse: [
+      parts({ text: "I'll create the file now." }),
+      event({ candidates: [{ finishReason: "MALFORMED_FUNCTION_CALL" }] }),
+    ],
+  }));
+  await assert.rejects(collect(adapterFor()), /Gemini stopped early \(MALFORMED_FUNCTION_CALL\)/);
+});
+
+test("a model name written as models/… works, and thinking tokens count as output", async () => {
+  mock.setScript(() => ({
+    sse: [
+      parts({ text: "Hi." }),
+      event({
+        candidates: [{ finishReason: "STOP" }],
+        usageMetadata: { promptTokenCount: 50, candidatesTokenCount: 20, thoughtsTokenCount: 900 },
+      }),
+    ],
+  }));
+  const events = await collect(adapterFor(), { model: "models/gemini-2.5-flash" });
+  assert.equal(mock.requests.at(-1)?.path, "/x/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse");
+  assert.deepEqual(events.at(-1), { type: "done", usage: { inputTokens: 50, outputTokens: 920 } });
+});
+
+test("a signature on the text answer is kept and sent back with that text", async () => {
+  mock.setScript((r) =>
+    ((r.body?.contents ?? []) as unknown[]).length > 1
+      ? { sse: textReply("Second answer.") }
+      : { sse: [parts({ text: "First answer." }), parts({ text: "", thoughtSignature: "text-sig" })] },
+  );
+  const sessions = new SessionStore(tempDir());
+  const provider = new LoopProvider({ id: "gemini", adapter: adapterFor(), sessions, tools: [] });
+  const req = {
+    botId: "b",
+    botName: "B",
+    workspaceDir: tempDir(),
+    instructions: "",
+    signal: new AbortController().signal,
+  };
+  const cb = { emit: () => {}, requestApproval: async () => ({ allow: true as const }) };
+  const first = await provider.run({ ...req, prompt: "one" }, cb);
+  await provider.run({ ...req, prompt: "two", sessionId: first.sessionId }, cb);
+  const contents = mock.requests.at(-1)?.body?.contents as { role: string; parts: Record<string, unknown>[] }[];
+  assert.deepEqual(contents[1], { role: "model", parts: [{ text: "First answer.", thoughtSignature: "text-sig" }] });
+});

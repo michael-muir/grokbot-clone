@@ -28,12 +28,12 @@ interface Content {
 interface StreamChunk {
   candidates?: { content?: { parts?: Part[] }; finishReason?: string }[];
   promptFeedback?: { blockReason?: string };
-  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
+  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number };
   error?: { message?: string };
 }
 
-/** Finish reasons that mean the answer is complete (or merely cut short), not refused. */
-const NORMAL_FINISH = new Set(["STOP", "MAX_TOKENS", "FINISH_REASON_UNSPECIFIED"]);
+/** Finish reasons that mean the turn ended normally. MAX_TOKENS is handled on its own. */
+const NORMAL_FINISH = new Set(["STOP", "FINISH_REASON_UNSPECIFIED"]);
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
 
@@ -45,7 +45,11 @@ export function toGeminiContents(messages: ChatMessage[]): Content[] {
     if (m.role === "user") {
       out.push({ role: "user", parts: [{ text: m.text }] });
     } else if (m.role === "assistant") {
-      const parts: Part[] = m.text ? [{ text: m.text }] : [];
+      // A signature Gemini put on its text goes back on that text, unchanged.
+      const textSignature = str(m.meta?.textThoughtSignature);
+      const parts: Part[] = m.text
+        ? [{ text: m.text, ...(textSignature ? { thoughtSignature: textSignature } : {}) }]
+        : [];
       for (const call of m.toolCalls) {
         const geminiId = str(call.meta?.geminiId);
         if (geminiId) geminiIds.set(call.id, geminiId);
@@ -126,7 +130,9 @@ export class GeminiAdapter implements ModelAdapter {
       contents: toGeminiContents(req.messages),
       ...(req.tools.length ? { tools: [{ functionDeclarations: req.tools.map(declaration) }] } : {}),
     };
-    const res = await this.request(`/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
+    // Accept "models/gemini-x" as written in Google's docs, as well as "gemini-x".
+    const name = model.replace(/^models\//, "");
+    const res = await this.request(`/models/${encodeURIComponent(name)}:streamGenerateContent?alt=sse`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -151,13 +157,18 @@ export class GeminiAdapter implements ModelAdapter {
       if (chunk.usageMetadata) {
         usage = {
           inputTokens: chunk.usageMetadata.promptTokenCount ?? 0,
-          outputTokens: chunk.usageMetadata.candidatesTokenCount ?? 0,
+          // Thinking tokens are billed as output too.
+          outputTokens: (chunk.usageMetadata.candidatesTokenCount ?? 0) + (chunk.usageMetadata.thoughtsTokenCount ?? 0),
         };
       }
       const candidate = chunk.candidates?.[0];
       if (candidate?.finishReason) finish = candidate.finishReason;
       for (const part of candidate?.content?.parts ?? []) {
         if (part.thought) continue;
+        // Signatures on text parts often arrive on a final, empty part; keep the last one for the history.
+        if (!part.functionCall && part.thoughtSignature) {
+          yield { type: "turn_meta", meta: { textThoughtSignature: part.thoughtSignature } };
+        }
         if (part.text) {
           produced = true;
           yield { type: "text_delta", text: part.text };
@@ -180,8 +191,12 @@ export class GeminiAdapter implements ModelAdapter {
         }
       }
     }
-    if (!produced && finish && !NORMAL_FINISH.has(finish)) {
-      throw new Error(`Gemini stopped without answering (${finish}).`);
+    if (finish === "MAX_TOKENS") {
+      // A cut-short answer is still an answer; nothing at all (all spent on thinking) is not.
+      if (!produced) throw new Error("Gemini ran out of output tokens before answering.");
+    } else if (finish && !NORMAL_FINISH.has(finish)) {
+      // SAFETY, RECITATION, MALFORMED_FUNCTION_CALL, …: say so, even after partial text (the loop keeps that text).
+      throw new Error(produced ? `Gemini stopped early (${finish}).` : `Gemini stopped without answering (${finish}).`);
     }
     yield { type: "done", usage };
   }
