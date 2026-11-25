@@ -15,8 +15,16 @@ export const DEFAULT_CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5
 /** Tools that only read, so they run without an approval card. Everything else asks. */
 const READ_ONLY_TOOLS = ["Read", "Glob", "Grep", "WebSearch", "WebFetch", "TodoWrite"];
 
+/** The SDK's `query`, or a scripted stand-in for offline tests. */
+export type QueryFn = (params: { prompt: string; options: Options }) => AsyncIterable<SDKMessage>;
+
 export class ClaudeProvider implements AgentProvider {
   readonly id = "claude" as const;
+  private readonly queryFn: QueryFn;
+
+  constructor(queryFn: QueryFn = query) {
+    this.queryFn = queryFn;
+  }
 
   async run(req: RunRequest, cb: RunCallbacks): Promise<RunOutcome> {
     const abortController = new AbortController();
@@ -49,7 +57,7 @@ export class ClaudeProvider implements AgentProvider {
     const text = new TextBlocks();
     let sessionId = req.sessionId;
     try {
-      for await (const msg of query({ prompt: req.prompt, options })) {
+      for await (const msg of this.queryFn({ prompt: req.prompt, options })) {
         const outcome = this.handle(msg, cb, text, (id) => (sessionId = id));
         if (outcome) return { ...outcome, sessionId };
       }
