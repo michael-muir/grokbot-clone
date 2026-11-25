@@ -22,7 +22,7 @@ function setup() {
   const store = new TranscriptStore(dir);
   const providers: ProviderRegistry = new Map<ProviderId, FakeProvider>([["fake", new FakeProvider(1)]]);
   const gateway = new Gateway(bots, store, providers, new LocalFolderComputers(dir));
-  return { dir, bots, store, gateway, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
+  return { dir, bots, store, gateway, providers, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
 const bodies = (entries: TranscriptEntry[]) => entries.map((e) => e.body);
@@ -168,7 +168,13 @@ test("transcript survives a restart", async () => {
 
 test("HTTP: send a message, read it back over SSE, and answer an approval", async () => {
   const t = setup();
-  const server = createHttpServer({ gateway: t.gateway, bots: t.bots, store: t.store, token: "secret" });
+  const server = createHttpServer({
+    gateway: t.gateway,
+    bots: t.bots,
+    store: t.store,
+    providers: t.providers,
+    token: "secret",
+  });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const auth = { authorization: "Bearer secret", "content-type": "application/json" };
@@ -230,6 +236,50 @@ test("HTTP: send a message, read it back over SSE, and answer an approval", asyn
   } finally {
     server.closeAllConnections();
     await new Promise((r) => server.close(r));
+    t.cleanup();
+  }
+});
+
+test("an approval answered the moment its card appears isn't lost", async () => {
+  const t = setup();
+  try {
+    t.store.subscribe("nova", (e) => {
+      if (e.body.kind === "approval" && e.body.state === "pending") {
+        t.gateway.answerApproval("nova", e.id, { allow: true });
+      }
+    });
+    const { done } = await t.gateway.sendMessage("nova", "/tool");
+    await done;
+    const card = ofKind(t.store.list("nova"), "approval")[0];
+    assert.equal(card?.state, "approved");
+    assert.equal(ofKind(t.store.list("nova"), "run")[0]?.state, "finished");
+  } finally {
+    t.cleanup();
+  }
+});
+
+test("an update that changes nothing isn't written or broadcast", async () => {
+  const t = setup();
+  try {
+    const entry = t.store.append("nova", { kind: "error", message: "x" });
+    const seen: TranscriptEntry[] = [];
+    t.store.subscribe("nova", (e) => seen.push(e));
+    const same = t.store.update("nova", entry.id, (b) => b);
+    assert.equal(same.updatedSeq, entry.updatedSeq);
+    assert.equal(seen.length, 0);
+  } finally {
+    t.cleanup();
+  }
+});
+
+test("changing a bot's provider drops its model, unless the same change sets one", () => {
+  const t = setup();
+  try {
+    t.bots.update("nova", { model: "claude-opus-5-5" });
+    assert.equal(t.bots.update("nova", { provider: "ollama" }).model, undefined);
+    assert.equal(t.bots.update("nova", { provider: "openai", model: "gpt-test" }).model, "gpt-test");
+    assert.equal(t.bots.update("nova", { name: "Nova 2" }).model, "gpt-test");
+  } finally {
     t.cleanup();
   }
 });

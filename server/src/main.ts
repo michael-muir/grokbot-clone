@@ -12,8 +12,9 @@ const port = Number(process.env.PORT || 8787);
 
 const bots = new BotRegistry(dataDir);
 const store = new TranscriptStore(dataDir);
-const gateway = new Gateway(bots, store, defaultProviders(), new LocalFolderComputers(dataDir));
-const server = createHttpServer({ gateway, bots, store, token: process.env.GATEWAY_TOKEN || undefined });
+const providers = defaultProviders(dataDir);
+const gateway = new Gateway(bots, store, providers, new LocalFolderComputers(dataDir));
+const server = createHttpServer({ gateway, bots, store, providers, token: process.env.GATEWAY_TOKEN || undefined });
 
 if (!process.env.ANTHROPIC_API_KEY) {
   console.warn(

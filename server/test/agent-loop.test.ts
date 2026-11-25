@@ -372,3 +372,20 @@ test("the system prompt names the shell of the configured shell tool", async () 
   await run("hi");
   assert.match(model.requests[0]?.system ?? "", /The shell tool uses bash/);
 });
+
+test("a tool call whose arguments couldn't be parsed is reported, not run", async () => {
+  const look = fakeTool("look", { readOnly: true });
+  const model = new ScriptedModel([
+    calls([{ id: "c1", name: "look", input: { _invalid_arguments: "Arguments were not valid JSON: {oops" } }]),
+    says("Let me fix that."),
+  ]);
+  const { run } = setup(model, [look]);
+  const { outcome, rec } = await run("look");
+  assert.equal(outcome.status, "finished");
+  assert.equal(look.ran, 0);
+  assert.equal(rec.ofType("tool_end")[0]?.ok, false);
+  assert.equal(
+    lastToolResult(model.requests[1]?.messages ?? [])?.output,
+    "Invalid input: Arguments were not valid JSON: {oops",
+  );
+});

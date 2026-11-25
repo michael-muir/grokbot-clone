@@ -4,6 +4,12 @@
 /** A JSON Schema object describing a tool's input. */
 export type JsonSchema = Record<string, unknown>;
 
+/**
+ * Set on a tool call's input by an adapter when the model's arguments couldn't be parsed. The loop reports it to
+ * the model as invalid input instead of running the tool.
+ */
+export const INVALID_ARGUMENTS = "_invalid_arguments";
+
 export interface ToolCall {
   id: string;
   name: string;
@@ -44,4 +50,6 @@ export interface ModelAdapter {
    * Throws on API errors; the loop turns the error message into a failed run.
    */
   stream(request: ModelRequest, signal: AbortSignal): AsyncIterable<ModelEvent>;
+  /** The models the API offers, when it can list them. */
+  listModels?(signal: AbortSignal): Promise<string[]>;
 }

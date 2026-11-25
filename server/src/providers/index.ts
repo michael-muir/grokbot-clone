@@ -1,15 +1,24 @@
-import type { AgentProvider, ProviderId, RunOutcome } from "../types.ts";
+// Provider registry: every backend a bot can run on, keyed by ProviderId.
+import { SessionStore } from "../agent/sessions.ts";
+import type { AgentProvider, ProviderId, ProviderInfo, RunOutcome } from "../types.ts";
 import { ClaudeProvider } from "./claude.ts";
 import { FakeProvider } from "./fake.ts";
+import { OPENAI_PRESETS, openAICompatibleProvider } from "./openai-compatible.ts";
 
 /** Placeholder until the Codex and Cursor adapters are written. */
 class NotYetAvailable implements AgentProvider {
   readonly id: ProviderId;
+  private readonly label: string;
   private readonly hint: string;
 
-  constructor(id: ProviderId, hint: string) {
+  constructor(id: ProviderId, label: string, hint: string) {
     this.id = id;
+    this.label = label;
     this.hint = hint;
+  }
+
+  info(): ProviderInfo {
+    return { label: this.label, local: false, configured: false };
   }
 
   async run(): Promise<RunOutcome> {
@@ -19,11 +28,14 @@ class NotYetAvailable implements AgentProvider {
 
 export type ProviderRegistry = Map<ProviderId, AgentProvider>;
 
-export function defaultProviders(): ProviderRegistry {
-  return new Map<ProviderId, AgentProvider>([
-    ["claude", new ClaudeProvider()],
-    ["codex", new NotYetAvailable("codex", "Planned: Codex SDK or `codex app-server`.")],
-    ["cursor", new NotYetAvailable("cursor", "Planned: Cursor CLI in print mode with JSON streaming.")],
-    ["fake", new FakeProvider(40)],
-  ]);
+export function defaultProviders(dataDir: string): ProviderRegistry {
+  const sessions = new SessionStore(dataDir);
+  const providers: AgentProvider[] = [
+    new ClaudeProvider(),
+    ...OPENAI_PRESETS.map((preset) => openAICompatibleProvider(preset, sessions)),
+    new NotYetAvailable("codex", "Codex", "Planned: Codex SDK or `codex app-server`."),
+    new NotYetAvailable("cursor", "Cursor", "Planned: Cursor CLI in print mode with JSON streaming."),
+    new FakeProvider(40),
+  ];
+  return new Map(providers.map((p) => [p.id, p]));
 }
