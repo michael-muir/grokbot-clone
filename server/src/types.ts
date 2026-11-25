@@ -15,6 +15,7 @@ export const PROVIDER_IDS = [
   "openrouter",
   "ollama",
   "lmstudio",
+  "gemini",
   "fake",
 ] as const;
 

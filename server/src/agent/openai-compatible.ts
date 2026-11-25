@@ -244,13 +244,13 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
       if ((err as Error).name === "AbortError") throw err;
       throw new Error(`Couldn't reach ${this.opts.baseUrl}: ${(err as Error).message}`);
     }
-    if (!res.ok) throw new ModelApiError(res.status, await errorMessage(res));
+    if (!res.ok) throw new ModelApiError(res.status, await apiErrorMessage(res));
     return res;
   }
 }
 
 /** The API's own error message, never echoing request headers. */
-async function errorMessage(res: Response): Promise<string> {
+export async function apiErrorMessage(res: Response, server = "The model server"): Promise<string> {
   const text = await res.text().catch(() => "");
   let detail = text.slice(0, 500);
   try {
@@ -259,5 +259,5 @@ async function errorMessage(res: Response): Promise<string> {
   } catch {
     // not JSON: keep the raw text
   }
-  return `The model server returned ${res.status}${detail ? `: ${detail}` : ""}`;
+  return `${server} returned ${res.status}${detail ? `: ${detail}` : ""}`;
 }

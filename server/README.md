@@ -72,6 +72,7 @@ Each entry has `seq` (its position, never changes), `updatedSeq` (bumped on ever
 | `claude` | Ready (needs `ANTHROPIC_API_KEY`) | Claude Agent SDK `query()`: streaming text, tool rows, `canUseTool` → approval cards, session resume. Read-only tools run without asking; everything else asks. Ignores the host's own Claude Code settings (`settingSources: []`). Default model `claude-opus-5-5`. |
 | `openai`, `xai`, `openrouter` | Ready (needs `OPENAI_API_KEY`, `XAI_API_KEY` or `OPENROUTER_API_KEY`) | OpenAI-compatible adapter on the built-in agent loop. Set the model per bot, or with `<PREFIX>_MODEL`. Grok is reached only through xAI's public API. |
 | `ollama`, `lmstudio` | Ready (local, no key) | Same adapter, pointed at `127.0.0.1`. Works offline. Uses the bot's model, or the first model the server lists. |
+| `gemini` | Ready (needs `GEMINI_API_KEY`) | Gemini API adapter on the built-in agent loop: streamed text and function calls, thought signatures kept with the history. Set the model per bot or with `GEMINI_MODEL`. |
 | `codex` | Placeholder | Planned: Codex SDK or `codex app-server` |
 | `cursor` | Placeholder | Planned: Cursor CLI in print mode with JSON streaming |
 | `fake` | Ready | Scripted, offline. For UI work and tests |

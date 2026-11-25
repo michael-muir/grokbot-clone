@@ -3,6 +3,7 @@ import { SessionStore } from "../agent/sessions.ts";
 import type { AgentProvider, ProviderId, ProviderInfo, RunOutcome } from "../types.ts";
 import { ClaudeProvider } from "./claude.ts";
 import { FakeProvider } from "./fake.ts";
+import { geminiProvider } from "./gemini.ts";
 import { OPENAI_PRESETS, openAICompatibleProvider } from "./openai-compatible.ts";
 
 /** Placeholder until the Codex and Cursor adapters are written. */
@@ -33,6 +34,7 @@ export function defaultProviders(dataDir: string): ProviderRegistry {
   const providers: AgentProvider[] = [
     new ClaudeProvider(),
     ...OPENAI_PRESETS.map((preset) => openAICompatibleProvider(preset, sessions)),
+    geminiProvider(sessions),
     new NotYetAvailable("codex", "Codex", "Planned: Codex SDK or `codex app-server`."),
     new NotYetAvailable("cursor", "Cursor", "Planned: Cursor CLI in print mode with JSON streaming."),
     new FakeProvider(40),

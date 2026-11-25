@@ -14,6 +14,8 @@ export interface ToolCall {
   id: string;
   name: string;
   input: Record<string, unknown>;
+  /** Adapter-specific data that must travel with the call in the history (e.g. Gemini's thought signature). */
+  meta?: Record<string, unknown>;
 }
 
 export type ChatMessage =
