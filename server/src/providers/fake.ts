@@ -5,7 +5,7 @@
 //   "/slow"   -> streams slowly, so interrupt can be tested
 //   "/fail"   -> the run fails
 // Anything else gets an echo reply, streamed word by word.
-import type { AgentProvider, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
+import type { AgentProvider, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
 
 const sleep = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
@@ -28,6 +28,10 @@ export class FakeProvider implements AgentProvider {
 
   constructor(delayMs = 5) {
     this.delayMs = delayMs;
+  }
+
+  info(): ProviderInfo {
+    return { label: "Fake (testing)", local: true, configured: true };
   }
 
   async run(req: RunRequest, cb: RunCallbacks): Promise<RunOutcome> {

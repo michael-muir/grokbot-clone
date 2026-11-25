@@ -44,4 +44,6 @@ export interface ModelAdapter {
    * Throws on API errors; the loop turns the error message into a failed run.
    */
   stream(request: ModelRequest, signal: AbortSignal): AsyncIterable<ModelEvent>;
+  /** The models the API offers, when it can list them. */
+  listModels?(signal: AbortSignal): Promise<string[]>;
 }

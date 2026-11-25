@@ -3,7 +3,7 @@
 // read-only), feeds the results back, and repeats until the model answers without tools.
 import { randomUUID } from "node:crypto";
 import { platform } from "node:os";
-import type { AgentProvider, ProviderId, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
+import type { AgentProvider, ProviderId, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
 import type { ChatMessage, ModelAdapter, ToolCall } from "./model.ts";
 import type { SessionStore } from "./sessions.ts";
 import { defaultTools, type Tool, ToolInputError } from "./tools.ts";
@@ -13,6 +13,7 @@ const STOPPED_BEFORE_RUNNING = "The run was stopped before this tool ran.";
 
 export interface LoopProviderOptions {
   id: ProviderId;
+  info?: ProviderInfo;
   adapter: ModelAdapter;
   sessions: SessionStore;
   tools?: Tool[];
@@ -25,6 +26,7 @@ export class LoopProvider implements AgentProvider {
   private readonly sessions: SessionStore;
   private readonly tools: Map<string, Tool>;
   private readonly maxSteps: number;
+  private readonly providerInfo?: ProviderInfo;
   private turn = 0;
 
   constructor(opts: LoopProviderOptions) {
@@ -33,6 +35,15 @@ export class LoopProvider implements AgentProvider {
     this.sessions = opts.sessions;
     this.tools = new Map((opts.tools ?? defaultTools()).map((t) => [t.spec.name, t]));
     this.maxSteps = opts.maxSteps ?? DEFAULT_MAX_STEPS;
+    this.providerInfo = opts.info;
+    const adapter = opts.adapter;
+    if (adapter.listModels) this.listModels = (signal) => adapter.listModels?.(signal) ?? Promise.resolve([]);
+  }
+
+  listModels?: (signal: AbortSignal) => Promise<string[]>;
+
+  info(): ProviderInfo {
+    return this.providerInfo ?? { label: this.id, local: false, configured: true };
   }
 
   async run(req: RunRequest, cb: RunCallbacks): Promise<RunOutcome> {

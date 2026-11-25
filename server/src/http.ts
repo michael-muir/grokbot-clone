@@ -1,6 +1,8 @@
 // HTTP API for the desktop client. Binds to localhost only.
 //
 //   GET   /health
+//   GET   /providers                     [{id, label, local, configured}]
+//   GET   /providers/:id/models          {models}  (502 when the provider can't be reached)
 //   GET   /bots
 //   PATCH /bots/:id                      {name?, provider?, model?}
 //   GET   /bots/:id/transcript?since=N   entries changed after updatedSeq N
@@ -13,16 +15,17 @@ import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { BotRegistry } from "./bots.ts";
 import { BotBusyError, BotNotFoundError, type Gateway } from "./gateway.ts";
+import type { ProviderRegistry } from "./providers/index.ts";
 import type { TranscriptStore } from "./transcript.ts";
-import type { Bot, ProviderId } from "./types.ts";
+import { type Bot, isProviderId } from "./types.ts";
 
-const PROVIDERS: ProviderId[] = ["claude", "codex", "cursor", "fake"];
 const MAX_BODY = 1_000_000;
 
 export interface HttpDeps {
   gateway: Gateway;
   bots: BotRegistry;
   store: TranscriptStore;
+  providers: ProviderRegistry;
   token?: string;
 }
 
@@ -43,6 +46,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
   const method = req.method ?? "GET";
 
   if (method === "GET" && url.pathname === "/health") return send(res, 200, { ok: true });
+  if (parts[0] === "providers" && method === "GET") return handleProviders(res, parts, d.providers);
   if (parts[0] !== "bots") return send(res, 404, { error: "Not found" });
   if (parts.length === 1 && method === "GET") return send(res, 200, d.bots.list().map(publicBot));
 
@@ -56,9 +60,11 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
     if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
     if (typeof body.model === "string") patch.model = body.model || undefined;
     if (body.provider !== undefined) {
-      if (!PROVIDERS.includes(body.provider as ProviderId)) return send(res, 400, { error: "Unknown provider" });
+      if (!isProviderId(body.provider) || !d.providers.has(body.provider)) {
+        return send(res, 400, { error: "Unknown provider" });
+      }
       if (d.gateway.isRunning(bot.id)) return send(res, 409, { error: "Can't change provider during a run" });
-      patch.provider = body.provider as ProviderId;
+      patch.provider = body.provider;
     }
     return send(res, 200, publicBot(d.bots.update(bot.id, patch)));
   }
@@ -114,6 +120,24 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
         return ok ? send(res, 200, { ok: true }) : send(res, 404, { error: "No pending approval with that id" });
       }
       return send(res, 404, { error: "Not found" });
+  }
+}
+
+async function handleProviders(res: ServerResponse, parts: string[], providers: ProviderRegistry): Promise<void> {
+  if (parts.length === 1) {
+    const list = [...providers.values()].map((p) => ({
+      id: p.id,
+      ...(p.info?.() ?? { label: p.id, local: false, configured: true }),
+    }));
+    return send(res, 200, list);
+  }
+  const provider = isProviderId(parts[1]) ? providers.get(parts[1]) : undefined;
+  if (!provider || parts.length !== 3 || parts[2] !== "models") return send(res, 404, { error: "Not found" });
+  if (!provider.listModels) return send(res, 404, { error: "This provider doesn't list its models" });
+  try {
+    return send(res, 200, { models: await provider.listModels(AbortSignal.timeout(15_000)) });
+  } catch (err) {
+    return send(res, 502, { error: err instanceof Error ? err.message : String(err) });
   }
 }
 

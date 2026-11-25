@@ -1,7 +1,7 @@
 # GrokBot Clone: agent gateway
 
 A small Node server between the GrokBot Clone desktop UI and the agent backends. The UI only sees
-**transcript entries** (modeled on Grok Bot's own transcript), so each bot can run on Claude, Codex or Cursor
+**transcript entries** (modeled on Grok Bot's own transcript), so each bot can run on Claude, an OpenAI-compatible API (OpenAI, xAI Grok, OpenRouter), a local model (Ollama, LM Studio), and later Codex or Cursor,
 without the UI changing.
 
 ```
@@ -21,6 +21,7 @@ cp .env.example .env      # then set ANTHROPIC_API_KEY
 npm start                 # http://127.0.0.1:8787
 npm test                  # uses the fake provider, so no API key is needed
 npm run typecheck
+LIVE_PROVIDER=ollama LIVE_MODEL=qwen3.5:4b npm run test:live   # live end-to-end check, real model
 ```
 
 Without an API key, switch a bot to the scripted `fake` provider:
@@ -39,6 +40,8 @@ The fake provider also understands `/tool` (an approval card), `/slow` (to test 
 |---|---|---|---|
 | GET | `/health` | | |
 | GET | `/bots` | | |
+| GET | `/providers` | | `[{id, label, local, configured}]` |
+| GET | `/providers/:id/models` | | `{models}`; 404 if the provider can't list, 502 if it can't be reached |
 | PATCH | `/bots/:id` | `{name?, provider?, model?}` | Changing provider drops the old provider's session |
 | GET | `/bots/:id/transcript?since=N` | | Entries whose `updatedSeq` > N |
 | GET | `/bots/:id/events?since=N` | | Server-Sent Events: the backlog, then live updates |
@@ -67,6 +70,8 @@ Each entry has `seq` (its position, never changes), `updatedSeq` (bumped on ever
 | Provider | Status | How |
 |---|---|---|
 | `claude` | Ready (needs `ANTHROPIC_API_KEY`) | Claude Agent SDK `query()`: streaming text, tool rows, `canUseTool` → approval cards, session resume. Read-only tools run without asking; everything else asks. Ignores the host's own Claude Code settings (`settingSources: []`). Default model `claude-opus-5-5`. |
+| `openai`, `xai`, `openrouter` | Ready (needs `OPENAI_API_KEY`, `XAI_API_KEY` or `OPENROUTER_API_KEY`) | OpenAI-compatible adapter on the built-in agent loop. Set the model per bot, or with `<PREFIX>_MODEL`. Grok is reached only through xAI's public API. |
+| `ollama`, `lmstudio` | Ready (local, no key) | Same adapter, pointed at `127.0.0.1`. Works offline. Uses the bot's model, or the first model the server lists. |
 | `codex` | Placeholder | Planned: Codex SDK or `codex app-server` |
 | `cursor` | Placeholder | Planned: Cursor CLI in print mode with JSON streaming |
 | `fake` | Ready | Scripted, offline. For UI work and tests |

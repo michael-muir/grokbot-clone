@@ -8,7 +8,7 @@
 //   result               -> RunOutcome (cost, success or error)
 //   canUseTool           -> approval card in the transcript
 import { type Options, query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { AgentProvider, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
+import type { AgentProvider, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
 
 export const DEFAULT_CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
 
@@ -24,6 +24,10 @@ export class ClaudeProvider implements AgentProvider {
 
   constructor(queryFn: QueryFn = query) {
     this.queryFn = queryFn;
+  }
+
+  info(): ProviderInfo {
+    return { label: "Claude", local: false, configured: Boolean(process.env.ANTHROPIC_API_KEY) };
   }
 
   async run(req: RunRequest, cb: RunCallbacks): Promise<RunOutcome> {

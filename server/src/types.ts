@@ -5,7 +5,22 @@
 // Providers only ever emit ProviderEvent objects. The gateway translates
 // between the two, so the UI never knows which backend a bot runs on.
 
-export type ProviderId = "claude" | "codex" | "cursor" | "fake";
+/** Every provider the gateway knows. One list for the type and for validating input. */
+export const PROVIDER_IDS = [
+  "claude",
+  "codex",
+  "cursor",
+  "openai",
+  "xai",
+  "openrouter",
+  "ollama",
+  "lmstudio",
+  "fake",
+] as const;
+
+export type ProviderId = (typeof PROVIDER_IDS)[number];
+
+export const isProviderId = (v: unknown): v is ProviderId => PROVIDER_IDS.includes(v as ProviderId);
 
 export type EntryBody =
   | { kind: "user_message"; text: string }
@@ -98,7 +113,19 @@ export interface RunOutcome {
   error?: string;
 }
 
+export interface ProviderInfo {
+  label: string;
+  /** Runs on this machine (no account or key needed). */
+  local: boolean;
+  /** Has what it needs to run: a key, or nothing needed. */
+  configured: boolean;
+}
+
 export interface AgentProvider {
   readonly id: ProviderId;
   run(request: RunRequest, callbacks: RunCallbacks): Promise<RunOutcome>;
+  /** For the provider list in Settings. */
+  info?(): ProviderInfo;
+  /** The models this provider can run, when it can list them. */
+  listModels?(signal: AbortSignal): Promise<string[]>;
 }

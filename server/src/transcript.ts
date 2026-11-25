@@ -44,9 +44,12 @@ export class TranscriptStore {
     const log = this.log(botId);
     const current = log.entries.get(id);
     if (!current) throw new Error(`No transcript entry ${id} for bot ${botId}`);
+    const body = change(current.body);
+    // No change, no write: avoids re-sending identical entries to every client and growing the log.
+    if (body === current.body) return current;
     const entry: TranscriptEntry = {
       ...current,
-      body: change(current.body),
+      body,
       updatedSeq: log.nextUpdate++,
       updatedAt: Date.now(),
     };
