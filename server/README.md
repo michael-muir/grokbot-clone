@@ -55,6 +55,16 @@ The fake provider also understands `/tool` (an approval card), `/slow` (to test 
 If `GATEWAY_TOKEN` is set, every request needs `Authorization: Bearer <token>`. The server listens on
 127.0.0.1 only, because agents can run commands on this machine.
 
+### Live updates and resuming
+
+`GET /bots/:id/events` streams the backlog and then live changes, in the order they happened (`updatedSeq`).
+Each event's `id` is its `updatedSeq`, so a browser `EventSource` resumes on its own through `Last-Event-ID`, and
+`?since=<updatedSeq>` does the same for any client. A comment is sent every 15 seconds as a heartbeat.
+
+`src/client/` has what the desktop app uses: `subscribeTranscript()` reconnects with backoff (0.5 s doubling to
+10 s), replaces a connection that's been silent for 45 s, and resumes from the last change it saw;
+`TranscriptView` keeps the latest copy of each entry and lists them in conversation order.
+
 ### Transcript entries
 
 Each entry has `seq` (its position, never changes), `updatedSeq` (bumped on every change) and a `body`:

@@ -201,7 +201,8 @@ test("HTTP: send a message, read it back over SSE, and answer an approval", asyn
         for (let i = buf.indexOf("\n\n"); i >= 0; i = buf.indexOf("\n\n")) {
           const chunk = buf.slice(0, i);
           buf = buf.slice(i + 2);
-          if (chunk.startsWith("data: ")) events.push(JSON.parse(chunk.slice(6)));
+          const data = chunk.split("\n").find((line) => line.startsWith("data: "));
+          if (data) events.push(JSON.parse(data.slice(6)));
         }
       }
     })();
