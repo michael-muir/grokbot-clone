@@ -71,6 +71,25 @@ Each entry has `seq` (its position, never changes), `updatedSeq` (bumped on ever
 | `cursor` | Placeholder | Planned: Cursor CLI in print mode with JSON streaming |
 | `fake` | Ready | Scripted, offline. For UI work and tests |
 
+### Built-in agent loop (`src/agent/`)
+
+For chat models that have no agent runtime of their own (OpenAI-compatible APIs, Gemini, local models),
+`LoopProvider` runs the agent loop itself: it streams the model's reply, runs the tools it asks for, sends the
+results back, and repeats until the model answers without tools (25 steps at most).
+
+| Tool | Asks first? | Does |
+| --- | --- | --- |
+| `read_file`, `list_files`, `search_files` | no | Read inside the bot's workspace |
+| `write_file`, `edit_file` | yes | Change files inside the workspace |
+| `shell` | yes | Run a command in the workspace (PowerShell on Windows, the user's shell elsewhere) |
+
+File tools refuse paths that leave the workspace, including through symlinks. The workspace isn't a sandbox
+yet (#27), so the shell can reach anything the user can; that's why every command needs approval.
+
+A model API only needs a `ModelAdapter` (`src/agent/model.ts`): turn neutral `ChatMessage`s and `ToolSpec`s
+into the API's request, and stream back `text_delta` and `tool_call` events. History is kept per session in
+`<data>/sessions/<id>.json`.
+
 ### Adding a provider
 
 1. Copy `src/providers/_template.ts` to `src/providers/<name>.ts` and add `<name>` to `ProviderId` in `src/types.ts`.
