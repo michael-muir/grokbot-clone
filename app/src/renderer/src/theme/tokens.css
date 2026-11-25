@@ -1,0 +1,252 @@
+/*
+ * Design tokens: the single source for every color, type size, spacing step, radius, shadow and timing in the UI.
+ * Dark values are measured from the reference captures (reference/dom); light values are derived (no light
+ * capture exists yet). Names follow Tailwind v4's theme namespaces. See docs/specs/9-design-tokens.md.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ---- Surfaces ---- */
+  --color-app: #121212; /* window background */
+  --color-sidebar: #0e0e0e;
+  --color-surface: #1f1f1f; /* pills, cards, menus, composer */
+  --color-surface-strong: #3b3b3b; /* toggles off, scrollbar thumbs */
+  --color-contrast: #ffffff; /* high-contrast buttons ("Connect…"), avatar faces */
+  --color-on-contrast: #121212;
+  --color-scrim: rgb(0 0 0 / 0.7);
+
+  /* Translucent fills over any surface, weakest to strongest. */
+  --color-fill-faint: rgb(245 245 245 / 0.02);
+  --color-fill: rgb(245 245 245 / 0.04); /* bubbles, icon buttons */
+  --color-fill-hover: rgb(245 245 245 / 0.06);
+  --color-fill-strong: rgb(245 245 245 / 0.08); /* selected tile, highlighted menu item */
+  --color-fill-stronger: rgb(245 245 245 / 0.1);
+
+  /* ---- Text ---- */
+  --color-text: #f5f5f5;
+  --color-text-soft: rgb(245 245 245 / 0.9);
+  --color-text-secondary: rgb(245 245 245 / 0.66);
+  --color-icon: rgb(245 245 245 / 0.64); /* icon buttons */
+  --color-text-tertiary: rgb(245 245 245 / 0.54); /* placeholders, timestamps, hints */
+  --color-text-disabled: rgb(245 245 245 / 0.3);
+
+  /* ---- Lines ---- */
+  --color-line-faint: rgb(245 245 245 / 0.04);
+  --color-line: rgb(245 245 245 / 0.06);
+  --color-line-strong: rgb(245 245 245 / 0.1); /* menus, modals, composer */
+  --color-line-focus: rgb(245 245 245 / 0.22);
+
+  /* ---- Accents and status ---- */
+  --color-link: #4d9bff;
+  --color-accent: #116dd2; /* filled controls: switches on, primary buttons */
+  --color-focus-ring: #4d9bff;
+  --color-star: #f69412;
+  --color-success: #00ba69;
+  --color-danger: #cf2b35;
+  --color-danger-text: #ff6463;
+
+  /* ---- Bot colors (avatar editor swatches) ---- */
+  --color-bot-white: #ffffff;
+  --color-bot-brown: #a16b39;
+  --color-bot-red: #fc2c3e;
+  --color-bot-orange: #f9670e;
+  --color-bot-amber: #f69412;
+  --color-bot-green: #14c370;
+  --color-bot-teal: #13b8a3;
+  --color-bot-blue: #1884fc;
+  --color-bot-purple: #905afb;
+  --color-bot-pink: #fb3499;
+  --color-bot-gray: #777777;
+  --color-on-bot: #121212; /* initials and faces on a bot-colored avatar, in either theme */
+  --color-on-user-bubble: #ffffff;
+
+  /* ---- Type ---- */
+  --font-sans: "Inter Variable", "Inter", system-ui, sans-serif;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  --text-2xs: 11px;
+  --text-2xs--line-height: 16px;
+  --text-xs: 12px; /* timestamps, footnotes */
+  --text-xs--line-height: 16px;
+  --text-sm: 13px; /* most UI text: menus, settings, lists */
+  --text-sm--line-height: 18px;
+  --text-md: 14px; /* buttons, header */
+  --text-md--line-height: 20px;
+  --text-chat: 15px; /* message bubbles */
+  --text-chat--line-height: 22px;
+  --text-base: 16px;
+  --text-base--line-height: 24px;
+  --text-lg: 17px; /* dialog titles */
+  --text-lg--line-height: 24px;
+  --text-xl: 22px;
+  --text-xl--line-height: 28px;
+  --text-2xl: 28px; /* onboarding headlines */
+  --text-2xl--line-height: 34px;
+
+  --tracking-tight: -0.025em; /* avatar initials */
+  --tracking-title: -0.02em; /* headlines */
+  --tracking-normal: 0.01em;
+  --tracking-wide: 0.015em; /* 13px UI text */
+
+  /* ---- Spacing (2px steps; component sizes below cover the odd measured values) ---- */
+  --space-0-5: 2px;
+  --space-1: 4px;
+  --space-1-5: 6px;
+  --space-2: 8px;
+  --space-2-5: 10px;
+  --space-3: 12px;
+  --space-3-5: 14px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* ---- Radii ---- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-control: 10px; /* menu items */
+  --radius-lg: 12px; /* sidebar tiles */
+  --radius-xl: 14px; /* modals */
+  --radius-bubble: 18px;
+  --radius-bubble-joined: 6px; /* the side where consecutive bubbles meet */
+  --radius-composer: 22px;
+  --radius-card: 24px;
+  --radius-full: 9999px;
+
+  /* ---- Shadows ---- */
+  --shadow-hairline: inset 0 0 0 0.5px rgb(245 245 245 / 0.06);
+  --shadow-bevel:
+    inset 0 0.5px 0 rgb(255 255 255 / 0.03), inset 0 -0.5px 0 rgb(255 255 255 / 0.03),
+    inset 0 0 0 0.5px rgb(245 245 245 / 0.04);
+  --shadow-ring: 0 0 0 0.5px rgb(245 245 245 / 0.1);
+  --shadow-raised: 0 2px 8px -1px rgb(0 0 0 / 0.05), 0 1px 2px rgb(0 0 0 / 0.03), 0 0 0 1px rgb(228 228 228 / 0.04);
+  --shadow-menu: 0 8px 24px rgb(0 0 0 / 0.4);
+  --shadow-modal: 0 24px 64px rgb(0 0 0 / 0.5);
+
+  /* ---- Motion (placeholders until #43 measures the app) ---- */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ---- Component sizes ---- */
+  --size-sidebar: 88px;
+  --size-header: 62px;
+  --size-chat-column: 560px;
+  --size-composer: 44px;
+  --size-control: 36px; /* icon buttons, avatars */
+  --size-control-sm: 28px; /* composer buttons */
+  --size-avatar-sm: 24px; /* the avatar in the header's name pill */
+  --size-tile: 54px; /* sidebar bot tiles */
+  --size-hairline: 1px;
+  --size-focus-ring: 2px;
+  --padding-bubble: 7px 12px;
+  --padding-pill: 7.5px 13.5px 7.5px 7.5px;
+  --padding-button: 8px 16px;
+}
+
+/*
+ * A bot's own color, by name: <div data-bot-color="amber">. Declared here, not on :root alone, because a custom
+ * property that uses var() is resolved where it's declared: the bubble color must be computed inside the bot's
+ * subtree. The user bubble is the bot color darkened (amber gives the captured #c8770c).
+ */
+:root,
+[data-bot-color] {
+  --bot: var(--color-bot-amber);
+  --color-user-bubble: color-mix(in srgb, var(--bot) 81%, black);
+}
+[data-bot-color="white"] {
+  --bot: var(--color-bot-white);
+}
+[data-bot-color="brown"] {
+  --bot: var(--color-bot-brown);
+}
+[data-bot-color="red"] {
+  --bot: var(--color-bot-red);
+}
+[data-bot-color="orange"] {
+  --bot: var(--color-bot-orange);
+}
+[data-bot-color="amber"] {
+  --bot: var(--color-bot-amber);
+}
+[data-bot-color="green"] {
+  --bot: var(--color-bot-green);
+}
+[data-bot-color="teal"] {
+  --bot: var(--color-bot-teal);
+}
+[data-bot-color="blue"] {
+  --bot: var(--color-bot-blue);
+}
+[data-bot-color="purple"] {
+  --bot: var(--color-bot-purple);
+}
+[data-bot-color="pink"] {
+  --bot: var(--color-bot-pink);
+}
+[data-bot-color="gray"] {
+  --bot: var(--color-bot-gray);
+}
+
+/* Derived, not measured: same structure with surfaces and ink swapped. Electron's nativeTheme drives this query. */
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+
+    --color-app: #fafafa;
+    --color-sidebar: #f2f2f2;
+    --color-surface: #ffffff;
+    --color-surface-strong: #d9d9d9;
+    --color-contrast: #121212;
+    --color-on-contrast: #ffffff;
+    --color-scrim: rgb(0 0 0 / 0.4);
+
+    --color-fill-faint: rgb(18 18 18 / 0.02);
+    --color-fill: rgb(18 18 18 / 0.04);
+    --color-fill-hover: rgb(18 18 18 / 0.06);
+    --color-fill-strong: rgb(18 18 18 / 0.08);
+    --color-fill-stronger: rgb(18 18 18 / 0.1);
+
+    --color-text: #121212;
+    --color-text-soft: rgb(18 18 18 / 0.9);
+    --color-text-secondary: rgb(18 18 18 / 0.66);
+    --color-icon: rgb(18 18 18 / 0.64);
+    --color-text-tertiary: rgb(18 18 18 / 0.54);
+    --color-text-disabled: rgb(18 18 18 / 0.3);
+
+    --color-line-faint: rgb(18 18 18 / 0.04);
+    --color-line: rgb(18 18 18 / 0.08);
+    --color-line-strong: rgb(18 18 18 / 0.12);
+    --color-line-focus: rgb(18 18 18 / 0.3);
+
+    --color-link: #116dd2;
+    --color-accent: #116dd2;
+    --color-focus-ring: #116dd2;
+    --color-star: #f69412;
+    --color-success: #00a35c;
+    --color-danger: #cf2b35;
+    --color-danger-text: #cf2b35;
+
+    --shadow-hairline: inset 0 0 0 0.5px rgb(18 18 18 / 0.08);
+    --shadow-bevel: inset 0 0 0 0.5px rgb(18 18 18 / 0.06);
+    --shadow-ring: 0 0 0 0.5px rgb(18 18 18 / 0.12);
+    --shadow-raised: 0 2px 8px -1px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.05);
+    --shadow-menu: 0 8px 24px rgb(0 0 0 / 0.12);
+    --shadow-modal: 0 24px 64px rgb(0 0 0 / 0.18);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+  }
+}
