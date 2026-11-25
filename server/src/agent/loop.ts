@@ -13,7 +13,8 @@ const STOPPED_BEFORE_RUNNING = "The run was stopped before this tool ran.";
 
 export interface LoopProviderOptions {
   id: ProviderId;
-  info?: ProviderInfo;
+  /** Read on every call, so it reflects keys saved while the gateway runs. */
+  info?: () => ProviderInfo;
   adapter: ModelAdapter;
   sessions: SessionStore;
   tools?: Tool[];
@@ -26,7 +27,7 @@ export class LoopProvider implements AgentProvider {
   private readonly sessions: SessionStore;
   private readonly tools: Map<string, Tool>;
   private readonly maxSteps: number;
-  private readonly providerInfo?: ProviderInfo;
+  private readonly providerInfo?: () => ProviderInfo;
   private turn = 0;
 
   constructor(opts: LoopProviderOptions) {
@@ -37,13 +38,15 @@ export class LoopProvider implements AgentProvider {
     this.maxSteps = opts.maxSteps ?? DEFAULT_MAX_STEPS;
     this.providerInfo = opts.info;
     const adapter = opts.adapter;
-    if (adapter.listModels) this.listModels = (signal) => adapter.listModels?.(signal) ?? Promise.resolve([]);
+    if (adapter.listModels) {
+      this.listModels = (signal, baseUrl) => adapter.listModels?.(signal, baseUrl) ?? Promise.resolve([]);
+    }
   }
 
-  listModels?: (signal: AbortSignal) => Promise<string[]>;
+  listModels?: (signal: AbortSignal, baseUrl?: string) => Promise<string[]>;
 
   info(): ProviderInfo {
-    return this.providerInfo ?? { label: this.id, local: false, configured: true };
+    return this.providerInfo?.() ?? { label: this.id, local: false, configured: true };
   }
 
   async run(req: RunRequest, cb: RunCallbacks): Promise<RunOutcome> {
@@ -88,7 +91,10 @@ export class LoopProvider implements AgentProvider {
         const blockId = `${turn}:${step}`;
         partial = { blockId, text: "", calls: [] };
         const current = partial;
-        for await (const ev of this.adapter.stream({ model: req.model, system, messages, tools: specs }, req.signal)) {
+        for await (const ev of this.adapter.stream(
+          { model: req.model, baseUrl: req.baseUrl, system, messages, tools: specs },
+          req.signal,
+        )) {
           if (req.signal.aborted) break;
           if (ev.type === "text_delta" && ev.text) {
             current.text += ev.text;

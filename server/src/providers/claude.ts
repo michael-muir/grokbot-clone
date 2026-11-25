@@ -8,6 +8,7 @@
 //   result               -> RunOutcome (cost, success or error)
 //   canUseTool           -> approval card in the transcript
 import { type Options, query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { apiErrorMessage } from "../agent/openai-compatible.ts";
 import type { AgentProvider, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
 
 export const DEFAULT_CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
@@ -21,13 +22,45 @@ export type QueryFn = (params: { prompt: string; options: Options }) => AsyncIte
 export class ClaudeProvider implements AgentProvider {
   readonly id = "claude" as const;
   private readonly queryFn: QueryFn;
+  private readonly getKey: () => string | undefined;
+  private readonly fetch: typeof fetch;
 
-  constructor(queryFn: QueryFn = query) {
+  /** `getKey` is read on every run, so a key saved in Settings is used by the next message. */
+  constructor(
+    queryFn: QueryFn = query,
+    getKey: () => string | undefined = () => process.env.ANTHROPIC_API_KEY,
+    fetchFn: typeof fetch = fetch,
+  ) {
     this.queryFn = queryFn;
+    this.getKey = getKey;
+    this.fetch = fetchFn;
   }
 
   info(): ProviderInfo {
-    return { label: "Claude", local: false, configured: Boolean(process.env.ANTHROPIC_API_KEY) };
+    return { label: "Claude", local: false, configured: Boolean(this.getKey()) };
+  }
+
+  /** Lists Claude models; also how Settings tests a key. */
+  async listModels(signal: AbortSignal): Promise<string[]> {
+    const key = this.getKey();
+    if (!key) throw new Error("Add an API key in Settings, or set ANTHROPIC_API_KEY.");
+    const base = (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\/+$/, "");
+    let res: Response;
+    try {
+      res = await this.fetch(`${base}/v1/models?limit=1000`, {
+        headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
+        signal,
+      });
+    } catch (err) {
+      if ((err as Error).name === "AbortError") throw err;
+      throw new Error(`Couldn't reach Anthropic: ${(err as Error).message}`);
+    }
+    if (!res.ok) throw new Error(await apiErrorMessage(res, "Anthropic"));
+    const body = (await res.json()) as { data?: { id?: unknown }[] };
+    return (body.data ?? [])
+      .map((m) => m.id)
+      .filter((id): id is string => typeof id === "string")
+      .sort();
   }
 
   async run(req: RunRequest, cb: RunCallbacks): Promise<RunOutcome> {
@@ -46,7 +79,8 @@ export class ClaudeProvider implements AgentProvider {
       allowedTools: READ_ONLY_TOOLS,
       includePartialMessages: true,
       abortController,
-      env: { ...process.env },
+      // The key is read now, so a key saved in Settings works without a restart. Never logged.
+      env: { ...process.env, ...(this.getKey() ? { ANTHROPIC_API_KEY: this.getKey() } : {}) },
       canUseTool: async (toolName, input, { signal }) => {
         const decision = await cb.requestApproval(
           { tool: toolName, summary: summarizeTool(toolName, input), input },

@@ -76,6 +76,28 @@ export class Gateway {
     return { entry, done: run.done };
   }
 
+  /**
+   * Changes a bot's settings. Switching provider is refused during a run; when it happens, the old session and
+   * model are dropped (by the registry) and a notice says so in the transcript.
+   */
+  updateBot(botId: string, patch: Partial<Pick<Bot, "name" | "provider" | "model" | "baseUrl">>): Bot {
+    const bot = this.bots.get(botId);
+    if (!bot) throw new BotNotFoundError(`Unknown bot ${botId}`);
+    const switching = patch.provider !== undefined && patch.provider !== bot.provider;
+    if (switching && this.active.has(botId)) throw new BotBusyError("Can't change provider during a run.");
+    if (patch.provider && !this.providers.has(patch.provider)) throw new Error(`Unknown provider ${patch.provider}`);
+    const next = this.bots.update(botId, patch);
+    if (switching) {
+      const label = this.providers.get(next.provider)?.info?.().label ?? next.provider;
+      const model = next.model ? ` (${next.model})` : "";
+      this.store.append(botId, {
+        kind: "notice",
+        text: `Switched to ${label}${model}. The conversation starts fresh for the new model.`,
+      });
+    }
+    return next;
+  }
+
   /** Stops the bot's current run. Returns false when nothing is running. */
   interrupt(botId: string): boolean {
     const run = this.active.get(botId);
@@ -150,6 +172,7 @@ export class Gateway {
           prompt: text,
           sessionId: resumable,
           model: bot.model,
+          baseUrl: bot.baseUrl,
           workspaceDir: computer.workspaceDir,
           instructions: botInstructions(bot),
           signal: controller.signal,

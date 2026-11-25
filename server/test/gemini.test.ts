@@ -266,7 +266,7 @@ test("models are listed across pages, only those that generate content", async (
 });
 
 test("a missing key or model says what to set", async () => {
-  await assert.rejects(collect(adapterFor({ apiKey: undefined })), /Set GEMINI_API_KEY/);
+  await assert.rejects(collect(adapterFor({ apiKey: undefined })), /Add an API key in Settings, or set GEMINI_API_KEY/);
   await assert.rejects(collect(adapterFor({ defaultModel: undefined })), /Choose a model for this bot/);
   assert.equal(geminiProvider(new SessionStore(tempDir()), {}).info().configured, false);
   assert.equal(geminiProvider(new SessionStore(tempDir()), { GOOGLE_API_KEY: "k" }).info().configured, true);

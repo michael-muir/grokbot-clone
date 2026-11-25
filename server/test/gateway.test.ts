@@ -9,6 +9,7 @@ import { BotRegistry } from "../src/bots.ts";
 import { LocalFolderComputers } from "../src/computer.ts";
 import { BotBusyError, Gateway } from "../src/gateway.ts";
 import { createHttpServer } from "../src/http.ts";
+import { Credentials, MemoryKeyStore } from "../src/keys.ts";
 import { FakeProvider } from "../src/providers/fake.ts";
 import type { ProviderRegistry } from "../src/providers/index.ts";
 import { TranscriptStore } from "../src/transcript.ts";
@@ -173,6 +174,7 @@ test("HTTP: send a message, read it back over SSE, and answer an approval", asyn
     bots: t.bots,
     store: t.store,
     providers: t.providers,
+    credentials: new Credentials(new MemoryKeyStore(), {}),
     token: "secret",
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));

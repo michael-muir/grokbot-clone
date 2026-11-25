@@ -31,6 +31,8 @@ export interface ToolSpec {
 
 export interface ModelRequest {
   model?: string;
+  /** Overrides the adapter's base URL for this request (a bot's own server). */
+  baseUrl?: string;
   system: string;
   messages: ChatMessage[];
   tools: ToolSpec[];
@@ -55,5 +57,9 @@ export interface ModelAdapter {
    */
   stream(request: ModelRequest, signal: AbortSignal): AsyncIterable<ModelEvent>;
   /** The models the API offers, when it can list them. */
-  listModels?(signal: AbortSignal): Promise<string[]>;
+  listModels?(signal: AbortSignal, baseUrl?: string): Promise<string[]>;
 }
+
+/** An API key given directly, or read each time it's needed (so a key saved in Settings works at once). */
+export type KeySource = string | (() => string | undefined) | undefined;
+export const readKey = (k: KeySource): string | undefined => (typeof k === "function" ? k() : k) || undefined;

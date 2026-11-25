@@ -3,6 +3,7 @@
 import { LoopProvider } from "../agent/loop.ts";
 import { OpenAICompatibleAdapter } from "../agent/openai-compatible.ts";
 import type { SessionStore } from "../agent/sessions.ts";
+import { Credentials, MemoryKeyStore } from "../keys.ts";
 import type { ProviderId } from "../types.ts";
 
 export interface OpenAIPreset {
@@ -22,15 +23,19 @@ export const OPENAI_PRESETS: OpenAIPreset[] = [
   { id: "lmstudio", label: "LM Studio", baseUrl: "http://127.0.0.1:1234/v1", env: "LMSTUDIO", local: true },
 ];
 
+/**
+ * A preset as a provider. Its key is read from `credentials` on every request (keychain, then env), so a key
+ * saved in Settings is used by the next message. Base URL and default model come from env.
+ */
 export function openAICompatibleProvider(
   preset: OpenAIPreset,
   sessions: SessionStore,
   env: NodeJS.ProcessEnv = process.env,
+  credentials: Credentials = new Credentials(new MemoryKeyStore(), env),
 ): LoopProvider {
-  const apiKey = env[`${preset.env}_API_KEY`] || undefined;
   const adapter = new OpenAICompatibleAdapter({
     baseUrl: env[`${preset.env}_BASE_URL`] || preset.baseUrl,
-    apiKey,
+    apiKey: () => credentials.key(preset.id),
     keyEnv: `${preset.env}_API_KEY`,
     local: preset.local,
     defaultModel: env[`${preset.env}_MODEL`] || undefined,
@@ -40,6 +45,6 @@ export function openAICompatibleProvider(
     id: preset.id,
     adapter,
     sessions,
-    info: { label: preset.label, local: preset.local, configured: adapter.configured },
+    info: () => ({ label: preset.label, local: preset.local, configured: adapter.configured }),
   });
 }

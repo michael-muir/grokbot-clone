@@ -3,15 +3,17 @@
 import {
   type ChatMessage,
   INVALID_ARGUMENTS,
+  type KeySource,
   type ModelAdapter,
   type ModelEvent,
   type ModelRequest,
+  readKey,
   type ToolCall,
 } from "./model.ts";
 
 export interface OpenAICompatibleOptions {
   baseUrl: string;
-  apiKey?: string;
+  apiKey?: KeySource;
   /** Name of the environment variable the key comes from, for error messages. */
   keyEnv?: string;
   /** Local servers need no key, and fall back to their first model when none is chosen. */
@@ -139,23 +141,23 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
 
   /** Has what it needs to make requests: a key, or a local server. */
   get configured(): boolean {
-    return this.opts.local || Boolean(this.opts.apiKey);
+    return this.opts.local || Boolean(readKey(this.opts.apiKey));
   }
 
   /** Model ids, sorted for display. */
-  async listModels(signal: AbortSignal): Promise<string[]> {
-    return (await this.serverModels(signal)).sort();
+  async listModels(signal: AbortSignal, baseUrl?: string): Promise<string[]> {
+    return (await this.serverModels(signal, baseUrl)).sort();
   }
 
   /** Model ids in the server's own order (a local server usually lists its loaded model first). */
-  private async serverModels(signal: AbortSignal): Promise<string[]> {
-    const res = await this.request("/models", { method: "GET", signal });
+  private async serverModels(signal: AbortSignal, baseUrl?: string): Promise<string[]> {
+    const res = await this.request("/models", { method: "GET", signal }, baseUrl);
     const body = (await res.json()) as { data?: { id?: unknown }[] };
     return (body.data ?? []).map((m) => m.id).filter((id): id is string => typeof id === "string");
   }
 
   async *stream(req: ModelRequest, signal: AbortSignal): AsyncGenerator<ModelEvent> {
-    const model = await this.chooseModel(req.model, signal);
+    const model = await this.chooseModel(req.model, signal, req.baseUrl);
     const body = {
       model,
       stream: true,
@@ -170,12 +172,16 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
           }
         : {}),
     };
-    const res = await this.request("/chat/completions", {
-      method: "POST",
-      headers: { "content-type": "application/json", accept: "text/event-stream" },
-      body: JSON.stringify(body),
-      signal,
-    });
+    const res = await this.request(
+      "/chat/completions",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "text/event-stream" },
+        body: JSON.stringify(body),
+        signal,
+      },
+      req.baseUrl,
+    );
     if (!res.body) throw new Error("The model server sent an empty response.");
 
     const fragments = new Map<number, { id: string; name: string; args: string }>();
@@ -221,28 +227,32 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
     yield { type: "done", usage };
   }
 
-  private async chooseModel(requested: string | undefined, signal: AbortSignal): Promise<string> {
+  private async chooseModel(requested: string | undefined, signal: AbortSignal, baseUrl?: string): Promise<string> {
     const model = requested || this.opts.defaultModel;
     if (model) return model;
     if (!this.opts.local) throw new Error("Choose a model for this bot.");
     // Asked every time, so installing or removing models takes effect without a restart.
-    const first = (await this.serverModels(signal))[0];
+    const first = (await this.serverModels(signal, baseUrl))[0];
     if (!first) throw new Error("The local model server has no models installed.");
     return first;
   }
 
-  private async request(path: string, init: RequestInit): Promise<Response> {
-    if (!this.opts.local && !this.opts.apiKey) {
-      throw new Error(`Set ${this.opts.keyEnv ?? "the API key"} (or switch this bot to another provider).`);
+  private async request(path: string, init: RequestInit, baseUrlOverride?: string): Promise<Response> {
+    const apiKey = readKey(this.opts.apiKey);
+    if (!this.opts.local && !apiKey) {
+      throw new Error(
+        `Add an API key in Settings, or set ${this.opts.keyEnv ?? "the API key"} (or switch this bot to another provider).`,
+      );
     }
+    const baseUrl = baseUrlOverride?.replace(/\/+$/, "") || this.opts.baseUrl;
     const headers = new Headers(init.headers);
-    if (this.opts.apiKey) headers.set("authorization", `Bearer ${this.opts.apiKey}`);
+    if (apiKey) headers.set("authorization", `Bearer ${apiKey}`);
     let res: Response;
     try {
-      res = await this.fetch(`${this.opts.baseUrl}${path}`, { ...init, headers });
+      res = await this.fetch(`${baseUrl}${path}`, { ...init, headers });
     } catch (err) {
       if ((err as Error).name === "AbortError") throw err;
-      throw new Error(`Couldn't reach ${this.opts.baseUrl}: ${(err as Error).message}`);
+      throw new Error(`Couldn't reach ${baseUrl}: ${(err as Error).message}`);
     }
     if (!res.ok) throw new ModelApiError(res.status, await apiErrorMessage(res));
     return res;
