@@ -1,4 +1,5 @@
 // The gateway: runs a bot's chosen provider and turns its events into transcript entries.
+import { randomUUID } from "node:crypto";
 import { ApprovalBroker } from "./approvals.ts";
 import type { BotRegistry } from "./bots.ts";
 import type { ComputerManager } from "./computer.ts";
@@ -162,8 +163,11 @@ export class Gateway {
             }
           },
           requestApproval: async (req, signal) => {
-            const card = this.store.append(bot.id, { kind: "approval", ...req, state: "pending" });
-            const decision = await this.approvals.wait(card.id, anySignal(signal, controller.signal));
+            // Start waiting before the card is posted: a listener may answer it the moment it appears.
+            const cardId = randomUUID();
+            const answer = this.approvals.wait(cardId, anySignal(signal, controller.signal));
+            const card = this.store.append(bot.id, { kind: "approval", ...req, state: "pending" }, cardId);
+            const decision = await answer;
             set(card.id, (b) =>
               b.kind === "approval"
                 ? {

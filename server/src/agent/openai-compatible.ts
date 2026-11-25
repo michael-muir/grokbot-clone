@@ -1,6 +1,13 @@
 // ModelAdapter for the OpenAI Chat Completions API and the many servers that copy it (xAI, OpenRouter, Ollama,
 // LM Studio). Streams text and tool calls over SSE; uses only the subset these servers share.
-import type { ChatMessage, ModelAdapter, ModelEvent, ModelRequest, ToolCall } from "./model.ts";
+import {
+  type ChatMessage,
+  INVALID_ARGUMENTS,
+  type ModelAdapter,
+  type ModelEvent,
+  type ModelRequest,
+  type ToolCall,
+} from "./model.ts";
 
 export interface OpenAICompatibleOptions {
   baseUrl: string;
@@ -32,6 +39,7 @@ interface ToolCallFragment {
 }
 
 interface StreamChunk {
+  error?: { message?: string } | string;
   choices?: { delta?: { content?: string | null; tool_calls?: ToolCallFragment[] } }[];
   usage?: { prompt_tokens?: number; completion_tokens?: number } | null;
 }
@@ -68,15 +76,30 @@ export function toWireMessages(system: string, messages: ChatMessage[]): WireMes
   return out;
 }
 
+/**
+ * Which call a fragment belongs to. Without an index, a fragment continues the last call unless it brings a new id.
+ */
+function fragmentIndex(
+  frag: ToolCallFragment,
+  fragments: Map<number, { id: string }>,
+  lastIndex: number | undefined,
+): number {
+  if (frag.index !== undefined) return frag.index;
+  if (lastIndex === undefined) return 0;
+  const last = fragments.get(lastIndex);
+  if (frag.id && last?.id && frag.id !== last.id) return Math.max(...fragments.keys()) + 1;
+  return lastIndex;
+}
+
 /** Parses a tool call's JSON arguments. Bad JSON becomes an input the tool will reject with a clear message. */
 export function parseArguments(raw: string): Record<string, unknown> {
   if (!raw.trim()) return {};
   try {
     const value: unknown = JSON.parse(raw);
     if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
-    return { _invalid_arguments: `Expected a JSON object, got: ${raw.slice(0, 200)}` };
+    return { [INVALID_ARGUMENTS]: `Expected a JSON object, got: ${raw.slice(0, 200)}` };
   } catch {
-    return { _invalid_arguments: `Arguments were not valid JSON: ${raw.slice(0, 200)}` };
+    return { [INVALID_ARGUMENTS]: `Arguments were not valid JSON: ${raw.slice(0, 200)}` };
   }
 }
 
@@ -108,7 +131,6 @@ export async function* sseData(body: ReadableStream<Uint8Array>): AsyncGenerator
 export class OpenAICompatibleAdapter implements ModelAdapter {
   private readonly opts: OpenAICompatibleOptions;
   private readonly fetch: typeof fetch;
-  private firstLocalModel?: string;
 
   constructor(opts: OpenAICompatibleOptions) {
     this.opts = { ...opts, baseUrl: opts.baseUrl.replace(/\/+$/, "") };
@@ -120,13 +142,16 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
     return this.opts.local || Boolean(this.opts.apiKey);
   }
 
+  /** Model ids, sorted for display. */
   async listModels(signal: AbortSignal): Promise<string[]> {
+    return (await this.serverModels(signal)).sort();
+  }
+
+  /** Model ids in the server's own order (a local server usually lists its loaded model first). */
+  private async serverModels(signal: AbortSignal): Promise<string[]> {
     const res = await this.request("/models", { method: "GET", signal });
     const body = (await res.json()) as { data?: { id?: unknown }[] };
-    return (body.data ?? [])
-      .map((m) => m.id)
-      .filter((id): id is string => typeof id === "string")
-      .sort();
+    return (body.data ?? []).map((m) => m.id).filter((id): id is string => typeof id === "string");
   }
 
   async *stream(req: ModelRequest, signal: AbortSignal): AsyncGenerator<ModelEvent> {
@@ -154,6 +179,7 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
     if (!res.body) throw new Error("The model server sent an empty response.");
 
     const fragments = new Map<number, { id: string; name: string; args: string }>();
+    let lastIndex: number | undefined;
     let usage: { inputTokens: number; outputTokens: number } | undefined;
     for await (const data of sseData(res.body)) {
       if (data === "[DONE]") break;
@@ -164,6 +190,11 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
         console.warn("openai-compatible: skipped a stream event that isn't JSON", data.slice(0, 200));
         continue;
       }
+      if (chunk.error) {
+        // Some servers (OpenRouter among them) report upstream failures inside a 200 stream.
+        const detail = typeof chunk.error === "string" ? chunk.error : chunk.error.message;
+        throw new Error(`The model server reported an error: ${detail || "unknown error"}`);
+      }
       if (chunk.usage) {
         usage = { inputTokens: chunk.usage.prompt_tokens ?? 0, outputTokens: chunk.usage.completion_tokens ?? 0 };
       }
@@ -171,10 +202,13 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
       if (!delta) continue;
       if (delta.content) yield { type: "text_delta", text: delta.content };
       for (const frag of delta.tool_calls ?? []) {
-        const index = frag.index ?? fragments.size;
+        const index = fragmentIndex(frag, fragments, lastIndex);
+        lastIndex = index;
         const call = fragments.get(index) ?? { id: "", name: "", args: "" };
         if (frag.id) call.id = frag.id;
-        if (frag.function?.name) call.name += frag.function.name;
+        // Most servers send the name once; some resend the whole name in every fragment, and a few split it.
+        const name = frag.function?.name;
+        if (name && name !== call.name) call.name += name;
         if (frag.function?.arguments) call.args += frag.function.arguments;
         fragments.set(index, call);
       }
@@ -191,9 +225,10 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
     const model = requested || this.opts.defaultModel;
     if (model) return model;
     if (!this.opts.local) throw new Error("Choose a model for this bot.");
-    this.firstLocalModel ??= (await this.listModels(signal))[0];
-    if (!this.firstLocalModel) throw new Error("The local model server has no models installed.");
-    return this.firstLocalModel;
+    // Asked every time, so installing or removing models takes effect without a restart.
+    const first = (await this.serverModels(signal))[0];
+    if (!first) throw new Error("The local model server has no models installed.");
+    return first;
   }
 
   private async request(path: string, init: RequestInit): Promise<Response> {

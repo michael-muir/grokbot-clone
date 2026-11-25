@@ -271,3 +271,15 @@ test("an update that changes nothing isn't written or broadcast", async () => {
     t.cleanup();
   }
 });
+
+test("changing a bot's provider drops its model, unless the same change sets one", () => {
+  const t = setup();
+  try {
+    t.bots.update("nova", { model: "claude-opus-5-5" });
+    assert.equal(t.bots.update("nova", { provider: "ollama" }).model, undefined);
+    assert.equal(t.bots.update("nova", { provider: "openai", model: "gpt-test" }).model, "gpt-test");
+    assert.equal(t.bots.update("nova", { name: "Nova 2" }).model, "gpt-test");
+  } finally {
+    t.cleanup();
+  }
+});

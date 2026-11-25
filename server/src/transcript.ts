@@ -24,13 +24,15 @@ export class TranscriptStore {
     this.dataDir = dataDir;
   }
 
-  append(botId: string, body: EntryBody): TranscriptEntry {
+  /** Adds an entry. Pass `id` when something must be keyed by the entry before listeners hear about it. */
+  append(botId: string, body: EntryBody, id: string = randomUUID()): TranscriptEntry {
     const log = this.log(botId);
+    if (log.entries.has(id)) throw new Error(`Transcript entry ${id} already exists`);
     const now = Date.now();
     const entry: TranscriptEntry = {
       seq: log.nextSeq++,
       updatedSeq: log.nextUpdate++,
-      id: randomUUID(),
+      id,
       botId,
       body,
       createdAt: now,
@@ -39,7 +41,10 @@ export class TranscriptStore {
     return this.commit(log, entry);
   }
 
-  /** Replace an entry's body, using a function of the current body. */
+  /**
+   * Changes an entry. `change` must return a new object when it changes something (never mutate `body`):
+   * returning the same object means "no change", and nothing is written or broadcast.
+   */
   update(botId: string, id: string, change: (body: EntryBody) => EntryBody): TranscriptEntry {
     const log = this.log(botId);
     const current = log.entries.get(id);

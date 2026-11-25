@@ -236,11 +236,18 @@ test("model choice: bot model, then default, then the first local model; remote 
   assert.equal(model(), "default-m");
   const local = adapterFor({ local: true, apiKey: undefined, streamUsage: false });
   await collect(local);
-  assert.equal(model(), "alpha");
+  assert.equal(model(), "zeta", "the first model in the server's own order");
   assert.equal(mock.requests.at(-1)?.headers.authorization, undefined, "local servers get no key");
   assert.equal(mock.requests.at(-1)?.body?.stream_options, undefined);
   await assert.rejects(collect(adapterFor()), /Choose a model for this bot/);
-  assert.deepEqual(await local.listModels(new AbortController().signal), ["alpha", "zeta"]);
+  assert.deepEqual(await local.listModels(new AbortController().signal), ["alpha", "zeta"], "sorted for display");
+
+  // Models installed or removed later are picked up without a restart.
+  mock.setScript((r) =>
+    r.path.endsWith("/models") ? { status: 200, json: { data: [{ id: "newer" }] } } : { sse: textReply("ok") },
+  );
+  await collect(local);
+  assert.equal(model(), "newer");
 });
 
 test("a remote preset without its key says which variable to set", async () => {
@@ -316,4 +323,40 @@ test("GET /providers lists every provider; GET /providers/:id/models lists model
     server.closeAllConnections();
     await new Promise<void>((r) => server.close(() => r()));
   }
+});
+
+test("an error reported inside the stream fails the turn", async () => {
+  mock.setScript(() => ({
+    sse: [
+      chunk({ content: "Partial" }),
+      `data: ${JSON.stringify({ error: { message: "Provider returned error" } })}\n\n`,
+      done,
+    ],
+  }));
+  await assert.rejects(
+    collect(adapterFor({ defaultModel: "m" })),
+    /The model server reported an error: Provider returned error/,
+  );
+});
+
+test("tool names resent in every fragment aren't doubled, and fragments without an index are joined", async () => {
+  mock.setScript(() => ({
+    sse: [
+      chunk({ tool_calls: [{ index: 0, id: "a", function: { name: "read_file", arguments: '{"pa' } }] }),
+      chunk({ tool_calls: [{ index: 0, function: { name: "read_file", arguments: 'th":"x.md"}' } }] }),
+      chunk({ tool_calls: [{ id: "b", function: { name: "write_file", arguments: '{"path":"y",' } }] }),
+      chunk({ tool_calls: [{ function: { arguments: '"content":"hi"}' } }] }),
+      chunk({ tool_calls: [{ id: "c", function: { name: "list_files", arguments: "{}" } }] }),
+      done,
+    ],
+  }));
+  const calls = (await collect(adapterFor({ defaultModel: "m" }))).filter((e) => e.type === "tool_call");
+  assert.deepEqual(
+    calls.map((e) => (e.type === "tool_call" ? e.call : undefined)),
+    [
+      { id: "a", name: "read_file", input: { path: "x.md" } },
+      { id: "b", name: "write_file", input: { path: "y", content: "hi" } },
+      { id: "c", name: "list_files", input: {} },
+    ],
+  );
 });

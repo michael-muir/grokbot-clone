@@ -4,7 +4,7 @@
 import { randomUUID } from "node:crypto";
 import { platform } from "node:os";
 import type { AgentProvider, ProviderId, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
-import type { ChatMessage, ModelAdapter, ToolCall } from "./model.ts";
+import { type ChatMessage, INVALID_ARGUMENTS, type ModelAdapter, type ToolCall } from "./model.ts";
 import type { SessionStore } from "./sessions.ts";
 import { defaultTools, type Tool, ToolInputError } from "./tools.ts";
 
@@ -143,6 +143,12 @@ export class LoopProvider implements AgentProvider {
         `There is no tool named ${call.name}. Available tools: ${[...this.tools.keys()].join(", ")}.`,
         true,
       );
+    }
+
+    const invalid = call.input[INVALID_ARGUMENTS];
+    if (typeof invalid === "string") {
+      cb.emit({ type: "tool_end", toolUseId: call.id, ok: false });
+      return result(`Invalid input: ${invalid}`, true);
     }
 
     if (!tool.readOnly) {
