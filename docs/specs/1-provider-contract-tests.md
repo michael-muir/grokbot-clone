@@ -46,9 +46,11 @@ Checked by a recorder that wraps `RunCallbacks` and validates the event sequence
 
 1. `run()` resolves with a `RunOutcome`; it never rejects.
 2. A `session` event is emitted, and the outcome's `sessionId` matches it.
-3. A reply produces text: at least one `text_delta` or `text`, and every streamed block ends with a `text` event
-   for the same `blockId`. No `text_delta` for a block after its `text`.
-4. Every `tool_start` has exactly one later `tool_end` with the same `toolUseId`; no `tool_end` without a start.
+3. A reply produces text: at least one `text_delta` or `text`, and in a run that isn't interrupted every streamed
+   block ends with a `text` event for the same `blockId`. No `text_delta` for a block after its `text`.
+4. Every `tool_start` has at most one later `tool_end` with the same `toolUseId`, and no `tool_end` comes without
+   a start. In a run that isn't interrupted, every tool is ended. (On interrupt the gateway closes open blocks and
+   tools itself.)
 5. Approval allowed → `tool_end` `ok: true`, outcome `finished`.
 6. Approval denied → `tool_end` `ok: false`, outcome `finished`, and the denial doesn't fail the run.
 7. Abort during a run → outcome `interrupted` within 2 seconds.
@@ -86,5 +88,6 @@ so the rules can't silently pass.
 
 ## Risks and open questions
 
-- The scripted Claude messages must stay close to the real SDK shapes. They are typed against the SDK's
-  `SDKMessage` so a breaking SDK upgrade shows up as a type error.
+- The scripted Claude messages must stay close to the real SDK shapes. They fill in only the fields the adapter
+  reads and are cast to `SDKMessage`, so an SDK upgrade that renames those fields won't show up as a type error.
+  Re-check the script against the SDK types when upgrading the SDK.
