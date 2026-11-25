@@ -90,6 +90,7 @@ Each entry has `seq` (its position, never changes), `updatedSeq` (bumped on ever
 | tool, approved | ask once, report the tool as ok, finish |
 | tool, denied | report the tool as not ok, still finish |
 | slow, aborted | return `interrupted` within 2 seconds |
+| tool, aborted while the approval is pending | return `interrupted` within 2 seconds |
 | fail | return `failed` with an error message, never throw |
 | resume | reuse the session id it was given |
 

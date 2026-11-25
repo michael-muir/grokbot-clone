@@ -38,6 +38,9 @@ interface ContractHarness {
 | `reply` | Streams a text reply and finishes |
 | `tool` | Calls one tool that needs approval, then replies |
 | `slow` | Streams slowly enough to be interrupted |
+
+A run that hasn't resolved after 10 seconds is reported as hung, so a provider that ignores its abort signal fails
+the suite instead of stalling it.
 | `fail` | The backend reports an error |
 
 ### Rules every provider must follow
@@ -53,7 +56,8 @@ Checked by a recorder that wraps `RunCallbacks` and validates the event sequence
    tools itself.)
 5. Approval allowed → `tool_end` `ok: true`, outcome `finished`.
 6. Approval denied → `tool_end` `ok: false`, outcome `finished`, and the denial doesn't fail the run.
-7. Abort during a run → outcome `interrupted` within 2 seconds.
+7. Abort during a run → outcome `interrupted` within 2 seconds, including while an approval is pending. Each
+   approval is for the tool that started, and is asked before that tool ends.
 8. No events are emitted after `run()` resolves.
 9. A backend failure → outcome `failed` with a non-empty `error`.
 10. A `sessionId` in the request is resumed: the `session` event carries it (when the backend returns the same
@@ -73,7 +77,9 @@ network, no API key. Production code is unchanged apart from the constructor par
 
 ## Interfaces
 
-- `new ClaudeProvider(queryFn?: typeof query)`
+- `new ClaudeProvider(queryFn?: QueryFn)`, with the exported type
+  `type QueryFn = (params: { prompt: string; options: Options }) => AsyncIterable<SDKMessage>`. The SDK's `query`
+  is the default and satisfies it.
 - `describeProviderContract(name: string, harness: ContractHarness): void` (test-only)
 
 ## Test plan

@@ -26,17 +26,23 @@ export interface ContractHarness {
 
 /** How long a provider may take to stop after its run is aborted. */
 export const INTERRUPT_LIMIT_MS = 2000;
+/** A run that hasn't resolved by now is treated as hung, so a broken provider fails instead of stalling the suite. */
+export const RUN_LIMIT_MS = 10_000;
+
+export type Decide = (req: ApprovalRequest, signal: AbortSignal) => ApprovalDecision | Promise<ApprovalDecision>;
 
 /** Records everything a provider does through its callbacks, and flags rule violations as they happen. */
 export class Recorder implements RunCallbacks {
   readonly events: ProviderEvent[] = [];
   readonly approvals: ApprovalRequest[] = [];
+  /** For each approval, how many events had been emitted when it was requested (its position in the stream). */
+  readonly approvalPositions: number[] = [];
   readonly violations: string[] = [];
   resolved = false;
-  private readonly decide: (req: ApprovalRequest) => ApprovalDecision;
+  private readonly decide: Decide;
   private readonly onEvent?: (ev: ProviderEvent) => void;
 
-  constructor(decide: (req: ApprovalRequest) => ApprovalDecision, onEvent?: (ev: ProviderEvent) => void) {
+  constructor(decide: Decide, onEvent?: (ev: ProviderEvent) => void) {
     this.decide = decide;
     this.onEvent = onEvent;
   }
@@ -50,8 +56,9 @@ export class Recorder implements RunCallbacks {
   async requestApproval(request: ApprovalRequest, signal: AbortSignal): Promise<ApprovalDecision> {
     if (this.resolved) this.violations.push("approval requested after run() resolved");
     this.approvals.push(request);
+    this.approvalPositions.push(this.events.length);
     if (signal.aborted) return { allow: false, reason: "The run was stopped." };
-    return this.decide(request);
+    return this.decide(request, signal);
   }
 
   ofType<T extends ProviderEvent["type"]>(type: T): Extract<ProviderEvent, { type: T }>[] {
@@ -102,9 +109,9 @@ export function sequenceViolations(events: ProviderEvent[], interrupted = false)
 }
 
 interface RunOptions {
-  decide?: (req: ApprovalRequest) => ApprovalDecision;
-  /** Abort the run as soon as the first text_delta arrives. */
-  interrupt?: boolean;
+  decide?: Decide;
+  /** Abort the run on the first text_delta, or while the first approval is pending. */
+  interrupt?: "text" | "approval";
   sessionId?: string;
 }
 
@@ -117,6 +124,10 @@ interface RunResult {
 }
 
 const allowAll = (): ApprovalDecision => ({ allow: true });
+const stopped: ApprovalDecision = { allow: false, reason: "The run was stopped." };
+
+/** Resolves after `ms` with `value`; the timer doesn't keep the process alive. */
+const after = <T>(ms: number, value: T) => new Promise<T>((resolve) => setTimeout(resolve, ms, value).unref());
 
 export async function runScenario(
   harness: ContractHarness,
@@ -126,11 +137,22 @@ export async function runScenario(
   const provider = harness.create(scenario);
   const controller = new AbortController();
   let abortedAt: number | undefined;
-  const rec = new Recorder(opts.decide ?? allowAll, (ev) => {
-    if (opts.interrupt && ev.type === "text_delta" && !controller.signal.aborted) {
-      abortedAt = Date.now();
-      controller.abort();
-    }
+  const abort = () => {
+    if (controller.signal.aborted) return;
+    abortedAt = Date.now();
+    controller.abort();
+  };
+  // When interrupting during an approval, the answer only comes when the run is stopped, like the gateway's broker.
+  const decide: Decide =
+    opts.interrupt === "approval"
+      ? (_req, signal) =>
+          new Promise((resolve) => {
+            signal.addEventListener("abort", () => resolve(stopped), { once: true });
+            queueMicrotask(abort);
+          })
+      : (opts.decide ?? allowAll);
+  const rec = new Recorder(decide, (ev) => {
+    if (opts.interrupt === "text" && ev.type === "text_delta") abort();
   });
   const req: RunRequest = {
     botId: "contract-bot",
@@ -144,24 +166,50 @@ export async function runScenario(
 
   let outcome: RunOutcome | undefined;
   let rejected: unknown;
+  // Mark the run resolved in the same tick its promise settles, so events from queued microtasks count as late.
+  const running = provider.run(req, rec).then(
+    (o) => {
+      rec.resolved = true;
+      return o;
+    },
+    (err: unknown) => {
+      rec.resolved = true;
+      throw err;
+    },
+  );
   try {
-    outcome = await provider.run(req, rec);
+    const result = await Promise.race([running, after(RUN_LIMIT_MS, "hung" as const)]);
+    if (result === "hung") rec.violations.push(`run() did not resolve within ${RUN_LIMIT_MS} ms`);
+    else outcome = result;
   } catch (err) {
     rejected = err;
   }
   const stopMs = abortedAt === undefined ? undefined : Date.now() - abortedAt;
   rec.resolved = true;
-  // Give stray timers or unawaited work a chance to emit, so late events are caught.
+  // Give stray microtasks, immediates and timers a chance to emit, so late events are caught.
+  await new Promise((r) => setImmediate(r));
   await new Promise((r) => setTimeout(r, 50));
   return { outcome, rejected, rec, stopMs };
 }
 
 function assertClean(r: RunResult): RunOutcome {
   assert.equal(r.rejected, undefined, `run() must resolve, not reject: ${String(r.rejected)}`);
+  assert.deepEqual(r.rec.violations, []);
   assert.ok(r.outcome, "run() resolved without an outcome");
   const interrupted = r.outcome.status === "interrupted";
   assert.deepEqual([...r.rec.violations, ...sequenceViolations(r.rec.events, interrupted)], []);
   return r.outcome;
+}
+
+/** One tool call, one approval for that same tool, asked before the tool ended. */
+function assertOneApprovedTool(r: RunResult): void {
+  const starts = r.rec.ofType("tool_start");
+  assert.equal(starts.length, 1, "one tool_start");
+  assert.equal(r.rec.approvals.length, 1, "one approval requested");
+  assert.equal(r.rec.approvals[0]?.tool, starts[0]?.tool, "the approval is for the tool that started");
+  const endAt = r.rec.events.findIndex((e) => e.type === "tool_end");
+  const askedAt = r.rec.approvalPositions[0] ?? Number.POSITIVE_INFINITY;
+  assert.ok(endAt >= 0 && askedAt <= endAt, "the approval was requested before the tool ended");
 }
 
 function assertSession(r: RunResult, outcome: RunOutcome): void {
@@ -172,7 +220,8 @@ function assertSession(r: RunResult, outcome: RunOutcome): void {
 
 /** Registers the contract tests for one provider. */
 export function describeProviderContract(name: string, harness: ContractHarness): void {
-  describe(`provider contract: ${name}`, () => {
+  // A per-test timeout as a backstop; runScenario already gives up on a hung run after RUN_LIMIT_MS.
+  describe(`provider contract: ${name}`, { timeout: RUN_LIMIT_MS + 5000 }, () => {
     test("a reply streams text, ends every block with its final text, and finishes", async () => {
       const r = await runScenario(harness, "reply");
       const outcome = assertClean(r);
@@ -190,8 +239,7 @@ export function describeProviderContract(name: string, harness: ContractHarness)
       const r = await runScenario(harness, "tool", { decide: () => ({ allow: true }) });
       const outcome = assertClean(r);
       assert.equal(outcome.status, "finished");
-      assert.equal(r.rec.approvals.length, 1, "one approval requested");
-      assert.ok(r.rec.approvals[0]?.tool, "the approval names the tool");
+      assertOneApprovedTool(r);
       const ends = r.rec.ofType("tool_end");
       assert.equal(ends.length, 1);
       assert.equal(ends[0]?.ok, true);
@@ -201,16 +249,26 @@ export function describeProviderContract(name: string, harness: ContractHarness)
       const r = await runScenario(harness, "tool", { decide: () => ({ allow: false, reason: "Not now" }) });
       const outcome = assertClean(r);
       assert.equal(outcome.status, "finished");
+      assertOneApprovedTool(r);
       const ends = r.rec.ofType("tool_end");
       assert.equal(ends.length, 1);
       assert.equal(ends[0]?.ok, false);
     });
 
     test(`an aborted run ends as interrupted within ${INTERRUPT_LIMIT_MS} ms`, async () => {
-      const r = await runScenario(harness, "slow", { interrupt: true });
+      const r = await runScenario(harness, "slow", { interrupt: "text" });
       const outcome = assertClean(r);
       assert.equal(outcome.status, "interrupted");
       assert.ok(r.stopMs !== undefined, "the run was aborted mid-stream");
+      assert.ok(r.stopMs <= INTERRUPT_LIMIT_MS, `stopped in ${r.stopMs} ms`);
+    });
+
+    test(`a run aborted while an approval is pending ends as interrupted within ${INTERRUPT_LIMIT_MS} ms`, async () => {
+      const r = await runScenario(harness, "tool", { interrupt: "approval" });
+      const outcome = assertClean(r);
+      assert.equal(outcome.status, "interrupted");
+      assert.equal(r.rec.approvals.length, 1, "the approval was requested");
+      assert.ok(r.stopMs !== undefined, "the run was aborted during the approval");
       assert.ok(r.stopMs <= INTERRUPT_LIMIT_MS, `stopped in ${r.stopMs} ms`);
     });
 

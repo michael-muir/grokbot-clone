@@ -44,6 +44,7 @@ export class FakeProvider implements AgentProvider {
         cb.emit({ type: "tool_start", toolUseId, tool: "Bash", summary: "Running echo hello" });
         const decision = await cb.requestApproval({ tool: "Bash", summary: "Running echo hello", input }, req.signal);
         cb.emit({ type: "tool_end", toolUseId, ok: decision.allow });
+        if (req.signal.aborted) return { status: "interrupted", sessionId };
         const reply = decision.allow
           ? "Done. The command printed hello."
           : `Okay, I won't run it (${decision.reason}).`;

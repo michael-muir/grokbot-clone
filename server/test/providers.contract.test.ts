@@ -129,6 +129,10 @@ class BrokenProvider implements AgentProvider {
     cb.emit({ type: "session", sessionId: "s" });
     cb.emit({ type: "text_delta", blockId: "b1", text: "never finalized" });
     cb.emit({ type: "tool_end", toolUseId: "t-unknown", ok: true });
+    void Promise.resolve()
+      .then(() => undefined)
+      .then(() => undefined)
+      .then(() => cb.emit({ type: "text", blockId: "chained", text: "after a promise chain" }));
     setTimeout(() => cb.emit({ type: "text", blockId: "late", text: "too late" }), 5);
     return { status: "finished", sessionId: "s" };
   }
@@ -137,7 +141,8 @@ class BrokenProvider implements AgentProvider {
 test("provider contract: a broken provider is caught", async () => {
   const r = await runScenario({ create: () => new BrokenProvider() }, "reply");
   const problems = [...r.rec.violations, ...sequenceViolations(r.rec.events)];
-  assert.ok(problems.some((p) => p.includes("after run() resolved")));
+  // Both the promise-chain emit and the timer emit are caught.
+  assert.equal(problems.filter((p) => p.includes("after run() resolved")).length, 2);
   assert.ok(problems.some((p) => p.includes("without an open tool_start")));
   assert.ok(problems.some((p) => p.includes("never got its final text")));
 });
