@@ -10,7 +10,8 @@
 //   GET   /bots
 //   PATCH /bots/:id                      {name?, provider?, model?, baseUrl?}
 //   GET   /bots/:id/transcript?since=N   entries changed after updatedSeq N
-//   GET   /bots/:id/events?since=N       Server-Sent Events: backlog, then live entries
+//   GET   /bots/:id/events?since=N       Server-Sent Events: backlog, then live entries, in updatedSeq order;
+//                                        each event's id is its updatedSeq (Last-Event-ID resumes)
 //   POST  /bots/:id/messages             {text}         -> 202, 409 while the bot is busy
 //   POST  /bots/:id/interrupt                           -> 202, 409 when idle
 //   POST  /bots/:id/approvals/:entryId   {allow, reason?}
@@ -23,9 +24,28 @@ import { BotBusyError, BotNotFoundError, type Gateway } from "./gateway.ts";
 import { acceptsKey, type Credentials, KeyStoreUnavailableError, needsKey } from "./keys.ts";
 import type { ProviderRegistry } from "./providers/index.ts";
 import type { TranscriptStore } from "./transcript.ts";
-import { type Bot, isProviderId } from "./types.ts";
+import { type Bot, isProviderId, type TranscriptEntry } from "./types.ts";
 
 const MAX_BODY = 1_000_000;
+const HEARTBEAT_MS = 15_000;
+
+/** One cursor value; missing, empty or unusable means none. */
+function parseCursor(value: string | string[] | undefined | null): number | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === undefined || raw === null || raw.trim() === "") return undefined;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= -1 ? n : undefined;
+}
+
+/**
+ * Where a transcript read resumes. A browser EventSource reconnects to the same URL (same ?since=) but adds
+ * Last-Event-ID, so the further of the two wins; with neither, from the start.
+ */
+function cursorFrom(since: string | null, lastEventId: string | string[] | undefined): number {
+  const a = parseCursor(since);
+  const b = parseCursor(lastEventId);
+  return Math.max(a ?? -1, b ?? -1);
+}
 
 export interface HttpDeps {
   gateway: Gateway;
@@ -34,6 +54,8 @@ export interface HttpDeps {
   providers: ProviderRegistry;
   credentials: Credentials;
   token?: string;
+  /** How often the event stream sends a heartbeat comment. */
+  heartbeatMs?: number;
   /** Extra browser origins allowed to call the API (loopback origins always are). */
   allowedOrigins?: string[];
 }
@@ -63,7 +85,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
 
   const bot = parts[1] ? d.bots.get(parts[1]) : undefined;
   if (!bot) return send(res, 404, { error: "Unknown bot" });
-  const since = Number(url.searchParams.get("since") ?? -1);
+  const since = cursorFrom(url.searchParams.get("since"), req.headers["last-event-id"]);
 
   if (parts.length === 2 && method === "PATCH") {
     const body = await readJson(req);
@@ -98,12 +120,14 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
         "cache-control": "no-cache",
         connection: "keep-alive",
       });
-      // Send something immediately: with an empty backlog the client would otherwise wait for the first heartbeat.
-      res.write(": connected\n\n");
-      const write = (e: unknown) => res.write(`data: ${JSON.stringify(e)}\n\n`);
-      for (const e of d.store.list(bot.id, since)) write(e);
+      // retry: how soon a browser EventSource reconnects. Then something at once, so the client knows it's live.
+      res.write("retry: 2000\n: connected\n\n");
+      // id = updatedSeq: EventSource sends it back as Last-Event-ID, so a plain browser client resumes by itself.
+      const write = (e: TranscriptEntry) => res.write(`id: ${e.updatedSeq}\ndata: ${JSON.stringify(e)}\n\n`);
+      // Backlog and live entries in updatedSeq order, set up in the same tick so nothing falls in between.
+      for (const e of d.store.changedSince(bot.id, since)) write(e);
       const unsubscribe = d.store.subscribe(bot.id, write);
-      const heartbeat = setInterval(() => res.write(": ping\n\n"), 15_000);
+      const heartbeat = setInterval(() => res.write(": ping\n\n"), d.heartbeatMs ?? HEARTBEAT_MS);
       // `res` closes when the client disconnects (req "close" can fire once the request body is read).
       res.on("close", () => {
         unsubscribe();

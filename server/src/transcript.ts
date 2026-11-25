@@ -70,6 +70,16 @@ export class TranscriptStore {
     return [...this.log(botId).entries.values()].filter((e) => e.updatedSeq > since).sort((a, b) => a.seq - b.seq);
   }
 
+  /**
+   * Entries changed after `since`, in the order they changed (updatedSeq). This is the order a stream must use:
+   * a client that resumes from the highest updatedSeq it saw then can't skip anything, wherever it was cut off.
+   */
+  changedSince(botId: string, since = -1): TranscriptEntry[] {
+    return [...this.log(botId).entries.values()]
+      .filter((e) => e.updatedSeq > since)
+      .sort((a, b) => a.updatedSeq - b.updatedSeq);
+  }
+
   subscribe(botId: string, listener: Listener): () => void {
     const log = this.log(botId);
     log.listeners.add(listener);
