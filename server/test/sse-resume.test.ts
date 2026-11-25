@@ -178,7 +178,11 @@ test("Last-Event-ID resumes a plain EventSource-style client", async () => {
     assert.ok(res.body);
     const reader = res.body.getReader();
     let text = "";
-    while (!text.includes("data:")) text += new TextDecoder().decode((await reader.read()).value);
+    while (!text.includes("data:")) {
+      const { value, done } = await reader.read();
+      if (done) assert.fail("the stream ended before any event");
+      text += new TextDecoder().decode(value);
+    }
     controller.abort();
     assert.match(text, /^retry: 2000\n/);
     const firstId = Number(/id: (\d+)/.exec(text)?.[1]);
@@ -244,5 +248,116 @@ test("retries back off, and a permanent refusal stops with an error", async () =
   } finally {
     controller.abort();
     await stop(flaky);
+  }
+});
+
+/** A server that plays fixed SSE text on each connection, chosen by connection number. */
+async function scripted(bodies: string[]) {
+  let n = 0;
+  const server = createServer((_req, res) => {
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    res.write(bodies[Math.min(n++, bodies.length - 1)] ?? "");
+  });
+  return { server, url: await listen(server), connections: () => n };
+}
+
+const entryEvent = (updatedSeq: number, sep = "\n") =>
+  `id: ${updatedSeq}${sep}data: ${JSON.stringify({ id: `e${updatedSeq}`, botId: "nova", seq: updatedSeq, updatedSeq, createdAt: 0, updatedAt: 0, body: { kind: "error", message: String(updatedSeq) } })}${sep}${sep}`;
+
+test("an error thrown by onEntry stops the subscription and nothing is marked delivered", async () => {
+  const s = await scripted([entryEvent(0) + entryEvent(1)]);
+  const controller = new AbortController();
+  try {
+    await assert.rejects(
+      subscribeTranscript(s.url, "nova", {
+        signal: controller.signal,
+        onEntry: (e) => {
+          if (e.updatedSeq === 1) throw new Error("renderer bug");
+        },
+      }),
+      /renderer bug/,
+    );
+    assert.equal(s.connections(), 1, "it didn't quietly reconnect past the entry");
+  } finally {
+    controller.abort();
+    await stop(s.server);
+  }
+});
+
+test("the state turns to reconnecting as soon as a connection drops", async () => {
+  const s = await scripted([entryEvent(0)]);
+  const states: StreamState[] = [];
+  const controller = new AbortController();
+  const done = subscribeTranscript(s.url, "nova", {
+    signal: controller.signal,
+    onEntry: () => s.server.closeAllConnections(),
+    onState: (st) => states.push(st),
+    onError: () => {},
+    backoff: { initialMs: 5000, maxMs: 5000 },
+  });
+  try {
+    await until(() => states.includes("reconnecting"), 1000);
+    assert.deepEqual(states.slice(0, 3), ["connecting", "live", "reconnecting"]);
+  } finally {
+    controller.abort();
+    await done;
+    await stop(s.server);
+  }
+});
+
+test("CRLF line endings work, and a bad event with an id is skipped once", async () => {
+  const bad = "id: 1\r\ndata: {not json\r\n\r\n";
+  const s = await scripted([entryEvent(0, "\r\n") + bad + entryEvent(2, "\r\n")]);
+  const got: number[] = [];
+  const errors: unknown[] = [];
+  const controller = new AbortController();
+  const done = subscribeTranscript(s.url, "nova", {
+    signal: controller.signal,
+    onEntry: (e) => got.push(e.updatedSeq),
+    onError: (err) => errors.push(err),
+  });
+  try {
+    await until(() => got.length === 2, 2000);
+    assert.deepEqual(got, [0, 2]);
+    assert.equal(errors.length, 1);
+  } finally {
+    controller.abort();
+    await done;
+    await stop(s.server);
+  }
+});
+
+test("EventSource-style reconnects with both ?since= and Last-Event-ID resume from the further one", async () => {
+  const t = await setup(1);
+  try {
+    const { done } = await t.gateway.sendMessage("nova", "hello");
+    await done;
+    const all = t.store.changedSince("nova");
+    const firstEventId = async (query: string, lastEventId?: string) => {
+      const controller = new AbortController();
+      const res = await fetch(`${t.url}/bots/nova/events${query}`, {
+        headers: lastEventId ? { "last-event-id": lastEventId } : {},
+        signal: controller.signal,
+      });
+      assert.ok(res.body);
+      const reader = res.body.getReader();
+      let text = "";
+      while (!text.includes("data:")) {
+        const { value, done: ended } = await reader.read();
+        if (ended) assert.fail("no event");
+        text += new TextDecoder().decode(value);
+      }
+      controller.abort();
+      return Number(/id: (\d+)/.exec(text)?.[1]);
+    };
+    assert.ok(all.length >= 3);
+    assert.equal(
+      await firstEventId(`?since=${all[0]?.updatedSeq}`, String(all[1]?.updatedSeq)),
+      all[2]?.updatedSeq,
+      "Last-Event-ID is further than ?since=, so it wins",
+    );
+    assert.equal(await firstEventId("?since="), all[0]?.updatedSeq, "an empty since means from the start");
+  } finally {
+    await stop(t.server);
   }
 });

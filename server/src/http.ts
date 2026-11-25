@@ -29,10 +29,22 @@ import { type Bot, isProviderId, type TranscriptEntry } from "./types.ts";
 const MAX_BODY = 1_000_000;
 const HEARTBEAT_MS = 15_000;
 
-/** A transcript cursor from ?since= or Last-Event-ID; anything unusable means "from the start". */
-function cursorFrom(value: string | string[] | undefined | null): number {
-  const n = Number(Array.isArray(value) ? value[0] : (value ?? -1));
-  return Number.isInteger(n) && n >= -1 ? n : -1;
+/** One cursor value; missing, empty or unusable means none. */
+function parseCursor(value: string | string[] | undefined | null): number | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (raw === undefined || raw === null || raw.trim() === "") return undefined;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= -1 ? n : undefined;
+}
+
+/**
+ * Where a transcript read resumes. A browser EventSource reconnects to the same URL (same ?since=) but adds
+ * Last-Event-ID, so the further of the two wins; with neither, from the start.
+ */
+function cursorFrom(since: string | null, lastEventId: string | string[] | undefined): number {
+  const a = parseCursor(since);
+  const b = parseCursor(lastEventId);
+  return Math.max(a ?? -1, b ?? -1);
 }
 
 export interface HttpDeps {
@@ -73,7 +85,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
 
   const bot = parts[1] ? d.bots.get(parts[1]) : undefined;
   if (!bot) return send(res, 404, { error: "Unknown bot" });
-  const since = cursorFrom(url.searchParams.get("since") ?? req.headers["last-event-id"]);
+  const since = cursorFrom(url.searchParams.get("since"), req.headers["last-event-id"]);
 
   if (parts.length === 2 && method === "PATCH") {
     const body = await readJson(req);
