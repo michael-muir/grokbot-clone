@@ -7,7 +7,7 @@
 //   user tool_result     -> tool_end
 //   result               -> RunOutcome (cost, success or error)
 //   canUseTool           -> approval card in the transcript
-import { type Options, query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import { type Options, query, type SDKAssistantMessage, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { apiErrorMessage } from "../agent/openai-compatible.ts";
 import { childEnv } from "../child-env.ts";
 import { NotConfiguredError } from "../errors.ts";
@@ -96,10 +96,13 @@ export class ClaudeProvider implements AgentProvider {
     };
 
     const text = new TextBlocks();
+    // An API failure (no credits, bad key, overload) arrives as an assistant message flagged with `error`, then a
+    // "success" result with is_error. Its text is the error, not a reply, so it ends the run as failed.
+    const apiError: { message?: string } = {};
     let sessionId = req.sessionId;
     try {
       for await (const msg of this.queryFn({ prompt: req.prompt, options })) {
-        const outcome = this.handle(msg, cb, text, (id) => (sessionId = id));
+        const outcome = this.handle(msg, cb, text, apiError, (id) => (sessionId = id));
         if (outcome) return { ...outcome, sessionId };
       }
       return req.signal.aborted
@@ -117,6 +120,7 @@ export class ClaudeProvider implements AgentProvider {
     msg: SDKMessage,
     cb: RunCallbacks,
     text: TextBlocks,
+    apiError: { message?: string },
     setSession: (id: string) => void,
   ): RunOutcome | undefined {
     switch (msg.type) {
@@ -138,6 +142,11 @@ export class ClaudeProvider implements AgentProvider {
       }
       case "assistant": {
         if (msg.parent_tool_use_id) return;
+        if (msg.error) {
+          const said = msg.message.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join(" ");
+          apiError.message = `Anthropic: ${said || API_ERRORS[msg.error] || msg.error}`;
+          return;
+        }
         for (const block of msg.message.content) {
           if (block.type === "text") {
             cb.emit({ type: "text", blockId: text.claimFinal(msg.message.id), text: block.text });
@@ -165,14 +174,31 @@ export class ClaudeProvider implements AgentProvider {
         return;
       }
       case "result":
-        return msg.subtype === "success"
-          ? { status: "finished", costUsd: msg.total_cost_usd }
-          : { status: "failed", costUsd: msg.total_cost_usd, error: msg.errors.join("\n") || msg.subtype };
+        if (msg.subtype === "success" && !msg.is_error && !apiError.message) {
+          return { status: "finished", costUsd: msg.total_cost_usd };
+        }
+        return {
+          status: "failed",
+          costUsd: msg.total_cost_usd,
+          error:
+            apiError.message ||
+            (msg.subtype === "success" ? msg.result : msg.errors.join("\n")) ||
+            "Claude stopped with an error.",
+        };
       default:
         return;
     }
   }
 }
+
+/** Fallback wording when an API error comes without text of its own. */
+const API_ERRORS: Partial<Record<NonNullable<SDKAssistantMessage["error"]>, string>> = {
+  authentication_failed: "the API key was refused.",
+  billing_error: "the account has no credit left.",
+  rate_limit: "too many requests; try again in a moment.",
+  overloaded: "the service is busy; try again in a moment.",
+  model_not_found: "that model isn't available.",
+};
 
 /**
  * Pairs streamed text blocks with the final text blocks of the same message,
