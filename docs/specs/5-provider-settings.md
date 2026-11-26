@@ -21,7 +21,7 @@ system's keychain, never in files, logs, API responses or the transcript.
 `KeyStore` interface with two implementations:
 
 - `KeychainKeyStore`: `@napi-rs/keyring` (Windows Credential Manager, macOS Keychain, Linux Secret Service),
-  service `grokbot-clone`, account = provider id. New dependency: it's the only maintained keychain binding with
+  service `smarty-prompts` (keys saved under the earlier name `grokbot-clone` move over on first read), account = provider id. New dependency: it's the only maintained keychain binding with
   prebuilt binaries for all three systems (checked: Windows works here).
 - `MemoryKeyStore` for tests.
 

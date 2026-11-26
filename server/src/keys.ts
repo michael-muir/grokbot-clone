@@ -53,8 +53,9 @@ export class KeychainKeyStore implements KeyStore {
   }
 
   get(provider: ProviderId): string | undefined {
+    let current: string | null;
     try {
-      return new Entry(this.service, provider).getPassword() ?? this.moveLegacy(provider);
+      current = new Entry(this.service, provider).getPassword();
     } catch (err) {
       // E.g. no Secret Service on a Linux server, or access denied: fall back to env, and say so (never the key).
       const reason = message(err);
@@ -67,6 +68,7 @@ export class KeychainKeyStore implements KeyStore {
       }
       return undefined;
     }
+    return current ?? this.moveLegacy(provider);
   }
 
   set(provider: ProviderId, key: string): void {
@@ -83,29 +85,47 @@ export class KeychainKeyStore implements KeyStore {
     } catch (err) {
       throw new KeyStoreUnavailableError(`Couldn't remove the key from the OS keychain: ${message(err)}`);
     }
-    // A removed key must not come back from an old name that was never read.
-    for (const old of this.legacy) removeQuietly(old, provider);
+    // A removed key must not come back from an old name that was never read: a failure here is a failed delete.
+    for (const old of this.legacy) {
+      try {
+        if (new Entry(old, provider).getPassword()) new Entry(old, provider).deletePassword();
+      } catch (err) {
+        throw new KeyStoreUnavailableError(`Couldn't remove the key from the OS keychain: ${message(err)}`);
+      }
+    }
+    this.legacyChecked.add(provider);
   }
 
-  /** A key still under an old service name: copied to the current one, then removed from the old. */
+  /** Providers whose old names have been looked at already: checked once per process, not on every request. */
+  private readonly legacyChecked = new Set<ProviderId>();
+
+  /**
+   * A key still under an old service name: copied to the current one, then removed from the old. The key is
+   * returned even if copying or cleaning up fails (that's logged), since the user did save it.
+   */
   private moveLegacy(provider: ProviderId): string | undefined {
+    if (this.legacyChecked.has(provider)) return undefined;
+    this.legacyChecked.add(provider);
     for (const old of this.legacy) {
-      const key = new Entry(old, provider).getPassword();
+      let key: string | null;
+      try {
+        key = new Entry(old, provider).getPassword();
+      } catch (err) {
+        console.warn(`Couldn't check the ${provider} key saved under "${old}" in the OS keychain. (${message(err)})`);
+        continue;
+      }
       if (!key) continue;
-      new Entry(this.service, provider).setPassword(key);
-      removeQuietly(old, provider);
+      try {
+        new Entry(this.service, provider).setPassword(key);
+        new Entry(old, provider).deletePassword();
+      } catch (err) {
+        // Still usable; the move is tried again next time the gateway starts.
+        console.warn(`Couldn't move the ${provider} key from "${old}" in the OS keychain. (${message(err)})`);
+        this.legacyChecked.delete(provider);
+      }
       return key;
     }
     return undefined;
-  }
-}
-
-/** Removes a keychain entry if it's there; a missing one is fine. */
-function removeQuietly(service: string, provider: ProviderId): void {
-  try {
-    new Entry(service, provider).deletePassword();
-  } catch {
-    // Nothing stored under that name (the usual case), or the keychain refused: either way nothing to undo.
   }
 }
 
