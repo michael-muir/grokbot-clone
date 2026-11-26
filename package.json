@@ -1,8 +1,8 @@
 {
-  "name": "grokbot-clone",
+  "name": "smarty-prompts",
   "version": "0.1.0",
   "private": true,
-  "description": "Desktop agent app modeled on the Grok Bot UI, with a swappable model backend",
+  "description": "SmartyPrompts: a desktop agent app with a swappable model backend",
   "scripts": {
     "dev": "npm --prefix app run dev",
     "smoke": "npm --prefix app run smoke",

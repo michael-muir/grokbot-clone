@@ -17,7 +17,7 @@ import { TranscriptStore } from "../src/transcript.ts";
 import type { EntryBody, ProviderId, TranscriptEntry } from "../src/types.ts";
 
 async function setup() {
-  const dir = mkdtempSync(join(tmpdir(), "grokbot-choice-"));
+  const dir = mkdtempSync(join(tmpdir(), "smarty-choice-"));
   const bots = new BotRegistry(dir, [
     { id: "nova", name: "Nova", provider: "fake", avatar: { shape: "circle", color: "amber" } },
   ]);
@@ -191,7 +191,7 @@ test("ask_user: returns the answer, refuses bad options, and says so when nobody
 });
 
 test("restart: runs, cards, text and steps left mid-flight are closed when the gateway starts", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "grokbot-leftover-"));
+  const dir = mkdtempSync(join(tmpdir(), "smarty-leftover-"));
   try {
     const bots = new BotRegistry(dir, [
       { id: "nova", name: "Nova", provider: "fake", avatar: { shape: "circle", color: "amber" } },

@@ -14,7 +14,7 @@ const quiet = () => {};
 const noAttach = { ...process.env, GATEWAY_URL: "" };
 
 test("starts the gateway with a token, attaches to it by URL, and stops it", { timeout: 60_000 }, async () => {
-  const dataDir = mkdtempSync(join(tmpdir(), "grokbot-app-"));
+  const dataDir = mkdtempSync(join(tmpdir(), "smarty-app-"));
   const env = { ...process.env, DATA_DIR: dataDir, GATEWAY_URL: "" };
   const handle = await startGateway({ serverDir, env, log: quiet });
   try {
@@ -48,7 +48,7 @@ test("starts the gateway with a token, attaches to it by URL, and stops it", { t
 test("stopping asks the gateway to finish: a run in progress is recorded as interrupted", {
   timeout: 60_000,
 }, async () => {
-  const dataDir = mkdtempSync(join(tmpdir(), "grokbot-app-"));
+  const dataDir = mkdtempSync(join(tmpdir(), "smarty-app-"));
   try {
     writeFileSync(
       join(dataDir, "bots.json"),
@@ -67,7 +67,7 @@ test("stopping asks the gateway to finish: a run in progress is recorded as inte
 });
 
 test("an aborted start gives up at once and stops the process", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "grokbot-app-"));
+  const dir = mkdtempSync(join(tmpdir(), "smarty-app-"));
   try {
     // Never listens: startup would otherwise wait out the whole timeout.
     writeFileSync(join(dir, "hang.mjs"), "setInterval(() => {}, 1000);\n");
@@ -92,7 +92,7 @@ test("an aborted start gives up at once and stops the process", async () => {
 });
 
 test("a gateway that exits before it's ready is reported at once, with its error output", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "grokbot-app-"));
+  const dir = mkdtempSync(join(tmpdir(), "smarty-app-"));
   try {
     writeFileSync(join(dir, "crash.mjs"), 'console.error("port in use"); process.exit(3);\n');
     const started = Date.now();

@@ -1,9 +1,9 @@
 <img src="assets/icon.svg" width="64" height="64" alt="">
 
-# GrokBot Clone
+# SmartyPrompts
 
-A desktop agent app modeled on the Grok Bot user interface, where each bot can run on a
-different agent backend: Claude, Codex or Cursor.
+A desktop agent app, its interface modeled on Grok Bot's, where each bot can run on a different model
+backend: Claude, OpenAI-compatible APIs (OpenAI, xAI, OpenRouter), local models (Ollama, LM Studio) or Gemini.
 
 Created in [T3 Code](https://t3.codes).
 

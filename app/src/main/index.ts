@@ -9,7 +9,7 @@ import { type GatewayHandle, startGateway } from "./gateway-process.ts";
 import { registerIpc } from "./ipc-main.ts";
 import { ownPageCheck } from "./own-page.ts";
 import { platformFor } from "./platform/index.ts";
-import { SettingsStore } from "./settings.ts";
+import { adoptOldSettings, SettingsStore } from "./settings.ts";
 
 const SMOKE = process.argv.includes("--smoke");
 const SMOKE_TIMEOUT_MS = 30_000;
@@ -19,7 +19,10 @@ const rendererFile = fileURLToPath(new URL("../renderer/index.html", import.meta
 const preloadFile = fileURLToPath(new URL("../preload/index.cjs", import.meta.url));
 
 // Read before the app is ready: hardware acceleration can only be turned off this early.
-const settings = new SettingsStore(join(app.getPath("userData"), "settings.json"));
+const settingsFile = join(app.getPath("userData"), "settings.json");
+// The app was called "grokbot-clone-app" before; bring its settings along once.
+adoptOldSettings(join(app.getPath("appData"), "grokbot-clone-app", "settings.json"), settingsFile);
+const settings = new SettingsStore(settingsFile);
 if (!settings.get().hardwareAcceleration) app.disableHardwareAcceleration();
 
 /** Applies the settings that take effect at once (the theme flows into prefers-color-scheme). */
@@ -74,7 +77,7 @@ function createWindow(): BrowserWindow {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    title: "GrokBot Clone",
+    title: "SmartyPrompts",
     webPreferences: { preload: preloadFile, sandbox: true, contextIsolation: true, nodeIntegration: false },
   });
   win.once("ready-to-show", () => {

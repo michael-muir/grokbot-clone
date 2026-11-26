@@ -29,7 +29,7 @@ const model = process.env.LIVE_MODEL;
 test(`live: ${requested} creates a file through an approved tool call`, { timeout: 300_000 }, async () => {
   assert.ok(isProviderId(requested) && requested !== "fake", `LIVE_PROVIDER must be a real provider id`);
   const presetId = requested;
-  const dataDir = mkdtempSync(join(tmpdir(), "grokbot-live-"));
+  const dataDir = mkdtempSync(join(tmpdir(), "smarty-live-"));
   try {
     const bots = new BotRegistry(dataDir, [
       { id: "live", name: "Live", provider: presetId, model, avatar: { shape: "circle", color: "blue" } },

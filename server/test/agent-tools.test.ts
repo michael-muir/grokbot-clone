@@ -19,7 +19,7 @@ import {
 
 const dirs: string[] = [];
 const tempDir = () => {
-  const d = mkdtempSync(join(tmpdir(), "grokbot-tools-"));
+  const d = mkdtempSync(join(tmpdir(), "smarty-tools-"));
   dirs.push(d);
   return d;
 };

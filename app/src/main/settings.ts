@@ -1,8 +1,19 @@
 // Stores the app settings as JSON in the user-data folder. A missing or damaged file gives the defaults; writes go
 // through a temporary file, so a crash mid-write can't leave half a file.
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { type AppSettings, parseSettings } from "../shared/settings.ts";
+
+/** Copies a settings file saved under the app's old name, if there's one and nothing is saved under the new name. */
+export function adoptOldSettings(oldFile: string, newFile: string): void {
+  if (existsSync(newFile) || !existsSync(oldFile)) return;
+  try {
+    mkdirSync(dirname(newFile), { recursive: true });
+    copyFileSync(oldFile, newFile);
+  } catch (err) {
+    console.warn(`Couldn't bring settings over from ${oldFile}; using defaults`, err);
+  }
+}
 
 export class SettingsStore {
   private readonly file: string;

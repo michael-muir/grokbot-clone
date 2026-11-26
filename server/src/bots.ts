@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { Bot } from "./types.ts";
 
 const DEFAULT_BOTS: Bot[] = [
-  { id: "grok-bot", name: "Grok Bot", provider: "claude", avatar: { shape: "circle", color: "white" } },
+  { id: "smarty", name: "Smarty", provider: "claude", avatar: { shape: "circle", color: "white" } },
 ];
 
 export class BotRegistry {

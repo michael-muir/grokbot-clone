@@ -35,7 +35,7 @@ async function stop(server: Server): Promise<void> {
 }
 
 async function setup(delayMs: number) {
-  const dir = mkdtempSync(join(tmpdir(), "grokbot-sse-"));
+  const dir = mkdtempSync(join(tmpdir(), "smarty-sse-"));
   dirs.push(dir);
   const bots = new BotRegistry(dir, [
     { id: "nova", name: "Nova", provider: "fake", avatar: { shape: "star", color: "violet" } },
@@ -141,7 +141,7 @@ test("a drop while an approval is pending, then an answer: the card and the run 
 });
 
 test("resuming after any point in the backlog loses nothing, even when change order differs from conversation order", () => {
-  const dir = mkdtempSync(join(tmpdir(), "grokbot-sse-"));
+  const dir = mkdtempSync(join(tmpdir(), "smarty-sse-"));
   dirs.push(dir);
   const store = new TranscriptStore(dir);
   const a = store.append("nova", { kind: "assistant_text", text: "A", streaming: true });

@@ -17,7 +17,7 @@ import { TranscriptStore } from "../src/transcript.ts";
 import type { ProviderId, TranscriptEntry } from "../src/types.ts";
 
 async function withGateway(fn: (base: string) => Promise<void>) {
-  const dir = mkdtempSync(join(tmpdir(), "grokbot-client-"));
+  const dir = mkdtempSync(join(tmpdir(), "smarty-client-"));
   const bots = new BotRegistry(dir, [
     { id: "nova", name: "Nova", provider: "fake", avatar: { shape: "star", color: "violet" } },
   ]);

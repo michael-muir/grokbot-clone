@@ -16,7 +16,7 @@ import { TranscriptStore } from "../src/transcript.ts";
 import type { EntryBody, ProviderId, TranscriptEntry } from "../src/types.ts";
 
 function setup() {
-  const dir = mkdtempSync(join(tmpdir(), "grokbot-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "smarty-test-"));
   const bots = new BotRegistry(dir, [
     { id: "nova", name: "Nova", provider: "fake", avatar: { shape: "star", color: "violet" } },
   ]);

@@ -24,7 +24,7 @@ import { MockOpenAI, type Script, textReply } from "./support/mock-openai.ts";
 
 const dirs: string[] = [];
 const tempDir = () => {
-  const d = mkdtempSync(join(tmpdir(), "grokbot-settings-"));
+  const d = mkdtempSync(join(tmpdir(), "smarty-settings-"));
   dirs.push(d);
   return d;
 };
@@ -258,7 +258,7 @@ test("Claude gets the saved key through the SDK's environment, read at run time"
 });
 
 test("the OS keychain store saves, reads and deletes a key", (t) => {
-  const store = new KeychainKeyStore(`grokbot-clone-test-${randomUUID()}`);
+  const store = new KeychainKeyStore(`smarty-prompts-test-${randomUUID()}`);
   try {
     store.set("openai", "sk-keychain-test");
   } catch {
@@ -271,6 +271,38 @@ test("the OS keychain store saves, reads and deletes a key", (t) => {
     store.delete("openai");
   }
   assert.equal(store.get("openai"), undefined);
+});
+
+test("a key saved under the old keychain name moves to the new one on first read, and stays deleted", (t) => {
+  const id = randomUUID();
+  const oldName = `smarty-prompts-test-old-${id}`;
+  const newName = `smarty-prompts-test-new-${id}`;
+  const before = new KeychainKeyStore(oldName); // the app as it was, under its old name
+  try {
+    before.set("gemini", "key-from-before");
+  } catch {
+    t.skip("no OS keychain on this machine");
+    return;
+  }
+  const after = new KeychainKeyStore(newName, [oldName]);
+  try {
+    assert.equal(after.get("gemini"), "key-from-before", "found under the old name");
+    assert.equal(before.get("gemini"), undefined, "and removed from it");
+    assert.equal(new KeychainKeyStore(newName).get("gemini"), "key-from-before", "now stored under the new name");
+
+    // A key deleted under the new name doesn't come back from the old one.
+    before.set("gemini", "stale");
+    after.delete("gemini");
+    assert.equal(after.get("gemini"), undefined);
+  } finally {
+    for (const store of [before, new KeychainKeyStore(newName)]) {
+      try {
+        store.delete("gemini");
+      } catch {
+        // already gone
+      }
+    }
+  }
 });
 
 test("switching provider also drops a server chosen for the old one, so the new key never goes there", async () => {
@@ -307,7 +339,7 @@ test("requests from web pages and other hosts are refused", async () => {
   assert.match(String(refuseForeignRequest(req({ ...json, host: "evil.example:8787" }), [])), /localhost/);
   assert.match(String(refuseForeignRequest(req({ ...json, origin: "https://evil.example" }), [])), /origin/);
   assert.match(String(refuseForeignRequest(req({ ...json, origin: "null" }), [])), /origin/);
-  assert.equal(refuseForeignRequest(req({ ...json, origin: "app://grokbot" }), ["app://grokbot"]), undefined);
+  assert.equal(refuseForeignRequest(req({ ...json, origin: "app://smarty" }), ["app://smarty"]), undefined);
   const textPlain = { "content-type": "text/plain", "content-length": "20" };
   assert.match(String(refuseForeignRequest(req(textPlain), [])), /JSON/);
   assert.equal(refuseForeignRequest(req({}, "POST"), []), undefined, "a POST with no body needs no content type");

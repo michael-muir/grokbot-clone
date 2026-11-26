@@ -16,7 +16,7 @@ import { MockOpenAI, type RecordedRequest } from "./support/mock-openai.ts";
 
 const dirs: string[] = [];
 const tempDir = () => {
-  const d = mkdtempSync(join(tmpdir(), "grokbot-gemini-"));
+  const d = mkdtempSync(join(tmpdir(), "smarty-gemini-"));
   dirs.push(d);
   return d;
 };

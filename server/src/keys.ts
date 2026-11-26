@@ -5,7 +5,9 @@ import type { KeySource, ProviderId } from "./types.ts";
 
 export type { KeySource };
 
-const SERVICE = "grokbot-clone";
+const SERVICE = "smarty-prompts";
+/** Earlier service names. A key found under one is moved to SERVICE the first time it's read. */
+const LEGACY_SERVICES = ["grokbot-clone"];
 
 /** The environment variables each provider's key can come from, in order. Providers not listed take no key. */
 export const KEY_ENV: Partial<Record<ProviderId, string[]>> = {
@@ -39,14 +41,20 @@ export class KeychainKeyStore implements KeyStore {
   private readonly logged = new Set<string>();
   private readonly service: string;
 
-  /** `service` is the keychain entry's service name; tests use their own so they never touch real keys. */
-  constructor(service = SERVICE) {
+  private readonly legacy: readonly string[];
+
+  /**
+   * `service` is the keychain entry's service name; tests use their own so they never touch real keys.
+   * `legacy` lists older service names whose keys are moved over on first read.
+   */
+  constructor(service = SERVICE, legacy: readonly string[] = service === SERVICE ? LEGACY_SERVICES : []) {
     this.service = service;
+    this.legacy = legacy;
   }
 
   get(provider: ProviderId): string | undefined {
     try {
-      return new Entry(this.service, provider).getPassword() ?? undefined;
+      return new Entry(this.service, provider).getPassword() ?? this.moveLegacy(provider);
     } catch (err) {
       // E.g. no Secret Service on a Linux server, or access denied: fall back to env, and say so (never the key).
       const reason = message(err);
@@ -75,6 +83,29 @@ export class KeychainKeyStore implements KeyStore {
     } catch (err) {
       throw new KeyStoreUnavailableError(`Couldn't remove the key from the OS keychain: ${message(err)}`);
     }
+    // A removed key must not come back from an old name that was never read.
+    for (const old of this.legacy) removeQuietly(old, provider);
+  }
+
+  /** A key still under an old service name: copied to the current one, then removed from the old. */
+  private moveLegacy(provider: ProviderId): string | undefined {
+    for (const old of this.legacy) {
+      const key = new Entry(old, provider).getPassword();
+      if (!key) continue;
+      new Entry(this.service, provider).setPassword(key);
+      removeQuietly(old, provider);
+      return key;
+    }
+    return undefined;
+  }
+}
+
+/** Removes a keychain entry if it's there; a missing one is fine. */
+function removeQuietly(service: string, provider: ProviderId): void {
+  try {
+    new Entry(service, provider).deletePassword();
+  } catch {
+    // Nothing stored under that name (the usual case), or the keychain refused: either way nothing to undo.
   }
 }
 
