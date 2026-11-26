@@ -191,6 +191,115 @@ test("claude: an API error that the SDK retries past still finishes the run", as
   assert.deepEqual(texts, ["Done."], "only the real reply is shown");
 });
 
+test("claude: Stop returns at once even while the SDK keeps streaming through its shutdown grace period", async () => {
+  // Like the real SDK: after abort it keeps delivering messages (~2 s grace), then a "success" result.
+  const query: QueryFn = async function* () {
+    yield sdk({ type: "system", subtype: "init", session_id: "s-stop" });
+    yield sdk({
+      type: "stream_event",
+      parent_tool_use_id: null,
+      event: { type: "message_start", message: { id: "m" } },
+    });
+    yield sdk({
+      type: "stream_event",
+      parent_tool_use_id: null,
+      event: { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+    });
+    for (let i = 0; i < 60; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+      yield sdk({
+        type: "stream_event",
+        parent_tool_use_id: null,
+        event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: `${i} ` } },
+      });
+    }
+    yield sdk({ type: "result", subtype: "success", is_error: false, result: "done", total_cost_usd: 0.01 });
+  };
+  const controller = new AbortController();
+  let deltasAfterStop = 0;
+  let stoppedAt = 0;
+  const started = Date.now();
+  const run = new ClaudeProvider(query, () => "test-key").run(
+    { botId: "b", botName: "B", prompt: "count", workspaceDir: ".", instructions: "", signal: controller.signal },
+    {
+      emit: (e) => {
+        if (e.type === "text_delta" && stoppedAt) deltasAfterStop++;
+        if (e.type === "text_delta" && !stoppedAt && Date.now() - started > 300) {
+          stoppedAt = Date.now();
+          controller.abort();
+        }
+      },
+      requestApproval: async () => ({ allow: false, reason: "no" }),
+    },
+  );
+  const outcome = await run;
+  const ms = Date.now() - stoppedAt;
+  assert.equal(outcome.status, "interrupted");
+  assert.ok(ms < 200, `returned ${ms} ms after Stop`);
+  assert.equal(deltasAfterStop, 0, "nothing more reaches the transcript after Stop");
+});
+
+test("claude: a run on a session waits until the stopped run's process has shut down", async () => {
+  const events: string[] = [];
+  let shutDownAt = 0;
+  // Each query streams forever until asked to close; closing takes 300 ms, like Claude Code's graceful exit.
+  const query: QueryFn = ({ options }) => {
+    events.push(`start ${options.resume ?? "new"}`);
+    let i = 0;
+    return {
+      [Symbol.asyncIterator]() {
+        return {
+          next: async () => {
+            await new Promise((r) => setTimeout(r, 20));
+            const msg =
+              i++ === 0
+                ? sdk({ type: "system", subtype: "init", session_id: "s-1" })
+                : sdk({
+                    type: "stream_event",
+                    parent_tool_use_id: null,
+                    event: { type: "message_start", message: { id: `m${i}` } },
+                  });
+            return { done: false, value: msg };
+          },
+          return: async () => {
+            await new Promise((r) => setTimeout(r, 300));
+            shutDownAt = Date.now();
+            events.push("closed");
+            return { done: true, value: undefined };
+          },
+        };
+      },
+    };
+  };
+  const provider = new ClaudeProvider(query, () => "test-key");
+  const callbacks = { emit: () => {}, requestApproval: async () => ({ allow: false, reason: "no" }) as const };
+  const request = (signal: AbortSignal, sessionId?: string) => ({
+    botId: "b",
+    botName: "B",
+    prompt: "go",
+    workspaceDir: ".",
+    instructions: "",
+    signal,
+    ...(sessionId ? { sessionId } : {}),
+  });
+
+  const first = new AbortController();
+  const running = provider.run(request(first.signal), callbacks);
+  await new Promise((r) => setTimeout(r, 100));
+  first.abort();
+  const stopped = await running;
+  assert.equal(stopped.status, "interrupted");
+  assert.equal(stopped.sessionId, "s-1");
+
+  const second = new AbortController();
+  const next = provider.run(request(second.signal, "s-1"), callbacks);
+  await new Promise((r) => setTimeout(r, 450));
+  second.abort();
+  await next;
+  assert.deepEqual(events.slice(0, 3), ["start new", "closed", "start s-1"], "the second run started after the close");
+  assert.ok(shutDownAt > 0);
+});
+
 // ---------- the contract catches broken providers ----------
 
 class BrokenProvider implements AgentProvider {

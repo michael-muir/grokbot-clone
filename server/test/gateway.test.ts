@@ -157,6 +157,39 @@ test("interrupt stops a run, and a second message while busy is refused", async 
   }
 });
 
+test("HTTP: Stop ends a streaming run as interrupted within 2 s", async () => {
+  const t = setup();
+  const server = createHttpServer({
+    gateway: t.gateway,
+    bots: t.bots,
+    store: t.store,
+    providers: t.providers,
+    credentials: new Credentials(new MemoryKeyStore(), {}),
+    token: "secret",
+  });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const auth = { authorization: "Bearer secret", "content-type": "application/json" };
+  try {
+    await t.gateway.sendMessage("nova", "/slow");
+    await waitFor(() => t.store.list("nova").find((e) => e.body.kind === "assistant_text"));
+    const pressed = Date.now();
+    const stopped = await fetch(`${base}/bots/nova/interrupt`, { method: "POST", headers: auth });
+    assert.equal(stopped.status, 202);
+    await waitFor(() => {
+      const run = ofKind(t.store.list("nova"), "run")[0];
+      return run?.state === "interrupted" ? run : undefined;
+    }, 2_000);
+    const ms = Date.now() - pressed;
+    assert.ok(ms < 2_000, `stopped after ${ms} ms`);
+    assert.equal(ofKind(t.store.list("nova"), "assistant_text")[0]?.streaming, false, "the text stops streaming");
+  } finally {
+    server.closeAllConnections();
+    server.close();
+    t.cleanup();
+  }
+});
+
 test("shutdown interrupts every run and waits until each has recorded its end", async () => {
   const t = setup();
   try {

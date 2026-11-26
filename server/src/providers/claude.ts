@@ -26,6 +26,8 @@ export class ClaudeProvider implements AgentProvider {
   private readonly queryFn: QueryFn;
   private readonly getKey: () => string | undefined;
   private readonly fetch: typeof fetch;
+  /** Sessions whose stopped Claude Code process is still shutting down; a new run on them waits for it. */
+  private readonly closing = new Map<string, Promise<void>>();
 
   /** `getKey` is read on every run, so a key saved in Settings is used by the next message. */
   constructor(
@@ -66,6 +68,11 @@ export class ClaudeProvider implements AgentProvider {
   }
 
   async run(req: RunRequest, cb: RunCallbacks): Promise<RunOutcome> {
+    // Two Claude Code processes must never write the same session: wait out a stopped run's shutdown first.
+    const previous = req.sessionId ? this.closing.get(req.sessionId) : undefined;
+    if (previous && (await untilStopped(previous, req.signal)) === STOP) {
+      return { status: "interrupted", sessionId: req.sessionId };
+    }
     const abortController = new AbortController();
     const onAbort = () => abortController.abort();
     req.signal.addEventListener("abort", onAbort, { once: true });
@@ -100,9 +107,19 @@ export class ClaudeProvider implements AgentProvider {
     // "success" result with is_error. Its text is the error, not a reply, so it becomes the run's error message.
     const apiError: { message?: string } = {};
     let sessionId = req.sessionId;
+    // After an abort the SDK closes Claude Code gracefully (~2 s) and keeps delivering messages meanwhile, ending
+    // with a "success" result. Stop must be immediate: stop reading at once, and let the shutdown finish alone.
+    const messages = this.queryFn({ prompt: req.prompt, options })[Symbol.asyncIterator]();
     try {
-      for await (const msg of this.queryFn({ prompt: req.prompt, options })) {
-        const outcome = this.handle(msg, cb, text, apiError, (id) => (sessionId = id));
+      while (true) {
+        // Checked before asking for more: after Stop, the query must not be pulled again.
+        const next = req.signal.aborted ? STOP : await untilStopped(messages.next(), req.signal);
+        if (next === STOP) {
+          this.finishClosing(sessionId, messages);
+          return { status: "interrupted", sessionId };
+        }
+        if (next.done) break;
+        const outcome = this.handle(next.value, cb, text, apiError, (id) => (sessionId = id));
         if (outcome) return { ...outcome, sessionId };
       }
       return req.signal.aborted
@@ -114,6 +131,22 @@ export class ClaudeProvider implements AgentProvider {
     } finally {
       req.signal.removeEventListener("abort", onAbort);
     }
+  }
+
+  /** Lets a stopped query shut down in the background, and marks its session busy until it has (at most 5 s). */
+  private finishClosing(sessionId: string | undefined, messages: AsyncIterator<SDKMessage>): void {
+    const shutdown = Promise.race([
+      Promise.resolve(messages.return?.()).then(
+        () => undefined,
+        (err: unknown) => console.warn("Claude: closing a stopped query failed:", err),
+      ),
+      new Promise<void>((resolve) => setTimeout(resolve, CLOSE_WAIT_MS).unref()),
+    ]);
+    if (!sessionId) return;
+    const done = shutdown.finally(() => {
+      if (this.closing.get(sessionId) === done) this.closing.delete(sessionId);
+    });
+    this.closing.set(sessionId, done);
   }
 
   private handle(
@@ -191,6 +224,36 @@ export class ClaudeProvider implements AgentProvider {
         return;
     }
   }
+}
+
+const STOP = Symbol("stopped");
+/** Longest a new run waits for a stopped run's Claude Code process to exit. */
+const CLOSE_WAIT_MS = 5_000;
+
+/**
+ * Settles with the promise's value, or with STOP as soon as the signal fires. Stop wins whenever it has fired,
+ * even if the value was already waiting. Nothing is left attached to the signal afterwards.
+ */
+function untilStopped<T>(promise: Promise<T>, signal: AbortSignal): Promise<T | typeof STOP> {
+  if (signal.aborted) {
+    promise.catch(() => {}); // its outcome no longer matters, but an unhandled rejection would crash the gateway
+    return Promise.resolve(STOP);
+  }
+  return new Promise((resolve, reject) => {
+    const onStop = () => resolve(STOP);
+    signal.addEventListener("abort", onStop, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onStop);
+        resolve(signal.aborted ? STOP : value);
+      },
+      (err: unknown) => {
+        signal.removeEventListener("abort", onStop);
+        if (signal.aborted) resolve(STOP);
+        else reject(err);
+      },
+    );
+  });
 }
 
 /** Fallback wording when an API error comes without text of its own. */
