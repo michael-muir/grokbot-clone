@@ -23,6 +23,14 @@ test("composer: Enter sends, Shift+Enter and IME confirmation don't", () => {
   assert.equal(shouldSend("a", false, false), false);
 });
 
+test("composer: in Ctrl+Enter mode only Ctrl/⌘+Enter sends, and Enter is a new line", () => {
+  const mode = (modifier: boolean) => ({ ctrlEnter: true, modifier });
+  assert.equal(shouldSend("Enter", false, false, mode(true)), true);
+  assert.equal(shouldSend("Enter", false, false, mode(false)), false);
+  assert.equal(shouldSend("Enter", true, false, mode(false)), false);
+  assert.equal(shouldSend("Enter", false, true, mode(true)), false, "IME confirmation still wins");
+});
+
 test("composer: drafts are kept per bot, and an empty draft is forgotten", () => {
   saveDraft("nova", "half a thought");
   saveDraft("rex", "other");

@@ -22,6 +22,11 @@ export interface OpenAICompatibleOptions {
   defaultModel?: string;
   /** Ask for token usage in the stream. Some local servers reject the option. */
   streamUsage: boolean;
+  /**
+   * A path that only answers with a valid key. For servers whose /models list is public (OpenRouter), so a model
+   * listing (and so Settings' Test) proves the key works rather than just that the server is up.
+   */
+  keyCheckPath?: string;
   fetch?: typeof fetch;
 }
 
@@ -147,6 +152,10 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
 
   /** Model ids, sorted for display. */
   async listModels(signal: AbortSignal, baseUrl?: string): Promise<string[]> {
+    if (this.opts.keyCheckPath) {
+      const check = await this.request(this.opts.keyCheckPath, { method: "GET", signal }, baseUrl);
+      await check.body?.cancel(); // only the status matters; free the connection
+    }
     return (await this.serverModels(signal, baseUrl)).sort();
   }
 

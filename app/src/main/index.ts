@@ -2,13 +2,14 @@
 // `--smoke` check used by CI.
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, Menu, type MenuItemConstructorOptions, shell } from "electron";
+import { app, BrowserWindow, Menu, type MenuItemConstructorOptions, nativeTheme, session, shell } from "electron";
 import type { GatewayClient } from "../../../server/src/client/gateway-client.ts";
-import type { ConnectionInfo } from "../shared/ipc.ts";
+import { CHANNELS, type ConnectionInfo } from "../shared/ipc.ts";
 import { type GatewayHandle, startGateway } from "./gateway-process.ts";
 import { registerIpc } from "./ipc-main.ts";
 import { ownPageCheck } from "./own-page.ts";
 import { platformFor } from "./platform/index.ts";
+import { SettingsStore } from "./settings.ts";
 
 const SMOKE = process.argv.includes("--smoke");
 const SMOKE_TIMEOUT_MS = 30_000;
@@ -16,6 +17,17 @@ const platform = platformFor();
 const rendererUrl = process.env.ELECTRON_RENDERER_URL;
 const rendererFile = fileURLToPath(new URL("../renderer/index.html", import.meta.url));
 const preloadFile = fileURLToPath(new URL("../preload/index.cjs", import.meta.url));
+
+// Read before the app is ready: hardware acceleration can only be turned off this early.
+const settings = new SettingsStore(join(app.getPath("userData"), "settings.json"));
+if (!settings.get().hardwareAcceleration) app.disableHardwareAcceleration();
+
+/** Applies the settings that take effect at once (the theme flows into prefers-color-scheme). */
+function applySettings(): void {
+  const s = settings.get();
+  nativeTheme.themeSource = s.theme;
+  session.defaultSession.setSpellCheckerEnabled(s.spellcheck);
+}
 
 let handle: GatewayHandle | undefined;
 let connection: ConnectionInfo | undefined;
@@ -82,9 +94,36 @@ function createWindow(): BrowserWindow {
 }
 
 function buildMenu(): Menu {
+  const openSettings: MenuItemConstructorOptions = {
+    label: "Settings…",
+    accelerator: "CmdOrCtrl+,",
+    click: () => {
+      const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+      win?.webContents.send(CHANNELS.settingsOpen);
+    },
+  };
   // Roles carry each OS's own shortcuts (CmdOrCtrl+C, Cmd+Q on macOS, and so on).
+  const first: MenuItemConstructorOptions =
+    process.platform === "darwin"
+      ? {
+          label: app.name,
+          submenu: [
+            { role: "about" },
+            { type: "separator" },
+            openSettings,
+            { type: "separator" },
+            { role: "services" },
+            { type: "separator" },
+            { role: "hide" },
+            { role: "hideOthers" },
+            { role: "unhide" },
+            { type: "separator" },
+            { role: "quit" },
+          ],
+        }
+      : { label: "File", submenu: [openSettings, { type: "separator" }, { role: "quit" }] };
   const template: MenuItemConstructorOptions[] = [
-    ...(process.platform === "darwin" ? [{ role: "appMenu" as const }] : [{ role: "fileMenu" as const }]),
+    first,
     { role: "editMenu" },
     { role: "viewMenu" },
     { role: "windowMenu" },
@@ -115,10 +154,20 @@ registerIpc({
   onReady: (botCount) => {
     if (SMOKE) void exitSmoke(0, `smoke: ok ${botCount} bots`);
   },
+  settings: {
+    get: () => settings.get(),
+    set: (patch) => {
+      const next = settings.set(patch);
+      applySettings();
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send(CHANNELS.settingsChanged, next);
+      return next;
+    },
+  },
 });
 
 app.whenReady().then(
   () => {
+    applySettings();
     Menu.setApplicationMenu(buildMenu());
     createWindow();
     if (SMOKE) {

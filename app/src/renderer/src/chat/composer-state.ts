@@ -13,9 +13,18 @@ export function primaryButton(s: { draft: string; busy: boolean; sending: boolea
   return { kind: "send", enabled: s.draft.trim() !== "" && !s.sending, label: "Send message" };
 }
 
-/** Enter sends; Shift+Enter is a new line; the Enter that confirms an IME composition is left to the IME. */
-export function shouldSend(key: string, shift: boolean, composing: boolean): boolean {
-  return key === "Enter" && !shift && !composing;
+/**
+ * Enter sends and Shift+Enter is a new line. In Ctrl+Enter mode (a setting), only Ctrl+Enter (⌘+Enter on macOS)
+ * sends and Enter alone is a new line. The Enter that confirms an IME composition is always left to the IME.
+ */
+export function shouldSend(
+  key: string,
+  shift: boolean,
+  composing: boolean,
+  mode: { ctrlEnter: boolean; modifier: boolean } = { ctrlEnter: false, modifier: false },
+): boolean {
+  if (key !== "Enter" || composing) return false;
+  return mode.ctrlEnter ? mode.modifier : !shift;
 }
 
 /** Unsent text per bot, kept while the app is open so switching bots doesn't lose it. */

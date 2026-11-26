@@ -370,3 +370,20 @@ test("tool names resent in every fragment aren't doubled, and fragments without 
     ],
   );
 });
+
+test("a key check path makes listing models prove the key, for servers whose model list is public", async () => {
+  mock.setScript((r) =>
+    r.path.endsWith("/key")
+      ? r.headers.authorization === "Bearer good-key"
+        ? { status: 200, json: { data: { label: "ok" } } }
+        : { status: 401, json: { error: { message: "No auth credentials found" } } }
+      : { status: 200, json: { data: [{ id: "m1" }] } },
+  );
+  const signal = new AbortController().signal;
+  assert.deepEqual(await adapterFor({ apiKey: "good-key", keyCheckPath: "/key" }).listModels(signal), ["m1"]);
+  await assert.rejects(
+    adapterFor({ apiKey: "bad-key", keyCheckPath: "/key" }).listModels(signal),
+    /No auth credentials/,
+  );
+  assert.deepEqual(await adapterFor({ apiKey: "bad-key" }).listModels(signal), ["m1"], "no check path: no check");
+});

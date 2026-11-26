@@ -13,6 +13,7 @@ import {
   checkStreamOpen,
   type StreamEvent,
 } from "../shared/ipc.ts";
+import { type AppSettings, checkSettingsPatch } from "../shared/settings.ts";
 
 type Handlers = { [K in CallName]: (client: GatewayClient, args: Calls[K]["args"]) => Promise<Calls[K]["result"]> };
 
@@ -46,6 +47,11 @@ export interface IpcDeps {
   /** Only frames showing the app's own page may use the API. */
   isOwnPage(url: string): boolean;
   onReady(botCount: number): void;
+  settings: {
+    get(): AppSettings;
+    /** Saves an already-checked change, applies it, tells every window; returns the full settings. */
+    set(patch: Partial<AppSettings>): AppSettings;
+  };
 }
 
 export function registerIpc(deps: IpcDeps): void {
@@ -146,5 +152,17 @@ export function registerIpc(deps: IpcDeps): void {
 
   ipcMain.on(CHANNELS.ready, (event, botCount: unknown) => {
     if (trusted(event) && Number.isInteger(botCount)) deps.onReady(botCount as number);
+  });
+
+  ipcMain.handle(CHANNELS.settingsGet, (event) => {
+    if (!trusted(event)) throw new Error("Refused: not the app's page");
+    return deps.settings.get();
+  });
+
+  ipcMain.handle(CHANNELS.settingsSet, (event, raw: unknown) => {
+    if (!trusted(event)) throw new Error("Refused: not the app's page");
+    const patch = checkSettingsPatch(raw);
+    if (!patch) throw new Error("Not a valid settings change");
+    return deps.settings.set(patch);
   });
 }

@@ -166,6 +166,19 @@
   --size-badge: 12px; /* the corner badge on a sidebar tile */
   --size-thumb-w: 64px; /* the computer card's thumbnail */
   --size-thumb-h: 40px;
+  --size-settings-w: 898px; /* the Settings window */
+  --size-settings-h: 656px;
+  --size-settings-nav: 197px;
+  --size-nav-item: 32px;
+  --size-settings-row: 48px;
+  --size-settings-input: 220px;
+  --size-control-md: 32px; /* the Settings close button */
+  --size-icon-xs: 12px;
+  --size-switch-w: 32px;
+  --size-switch-h: 20px;
+  --size-switch-knob: 16px;
+  --padding-nav-item: 7px 9px;
+  --padding-select: 4px 22px 4px 7px; /* room on the right for the chevron */
   --size-hairline: 1px;
   --size-focus-ring: 2px;
   --padding-bubble: 7px 12px;

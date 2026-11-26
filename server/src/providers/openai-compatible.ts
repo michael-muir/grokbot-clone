@@ -13,12 +13,22 @@ export interface OpenAIPreset {
   /** Environment variable prefix: <PREFIX>_BASE_URL and <PREFIX>_MODEL (keys: see KEY_ENV in keys.ts). */
   env: string;
   local: boolean;
+  /** See OpenAICompatibleOptions.keyCheckPath. */
+  keyCheckPath?: string;
 }
 
 export const OPENAI_PRESETS: OpenAIPreset[] = [
   { id: "openai", label: "OpenAI", baseUrl: "https://api.openai.com/v1", env: "OPENAI", local: false },
   { id: "xai", label: "xAI Grok", baseUrl: "https://api.x.ai/v1", env: "XAI", local: false },
-  { id: "openrouter", label: "OpenRouter", baseUrl: "https://openrouter.ai/api/v1", env: "OPENROUTER", local: false },
+  {
+    id: "openrouter",
+    label: "OpenRouter",
+    baseUrl: "https://openrouter.ai/api/v1",
+    env: "OPENROUTER",
+    local: false,
+    // Its model list is public; /key answers only with a valid key.
+    keyCheckPath: "/key",
+  },
   { id: "ollama", label: "Ollama", baseUrl: "http://127.0.0.1:11434/v1", env: "OLLAMA", local: true },
   { id: "lmstudio", label: "LM Studio", baseUrl: "http://127.0.0.1:1234/v1", env: "LMSTUDIO", local: true },
 ];
@@ -40,6 +50,7 @@ export function openAICompatibleProvider(
     local: preset.local,
     defaultModel: env[`${preset.env}_MODEL`] || undefined,
     streamUsage: !preset.local,
+    keyCheckPath: preset.keyCheckPath,
   });
   return new LoopProvider({
     id: preset.id,
