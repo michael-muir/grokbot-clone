@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { BotRegistry } from "../src/bots.ts";
 import { LocalFolderComputers } from "../src/computer.ts";
-import { BotBusyError, Gateway } from "../src/gateway.ts";
+import { BotBusyError, DENIED_WITHOUT_REASON, Gateway } from "../src/gateway.ts";
 import { createHttpServer } from "../src/http.ts";
 import { Credentials, MemoryKeyStore } from "../src/keys.ts";
 import { FakeProvider } from "../src/providers/fake.ts";
@@ -98,6 +98,44 @@ test("approval card: allow runs the tool, deny reports the reason", async () => 
     assert.match(texts[0], /printed hello/);
     assert.match(texts[1], /not now/);
   } finally {
+    t.cleanup();
+  }
+});
+
+test("HTTP: a denial without a reason shows plain Denied, and the model gets a default reason", async () => {
+  const t = setup();
+  const server = createHttpServer({
+    gateway: t.gateway,
+    bots: t.bots,
+    store: t.store,
+    providers: t.providers,
+    credentials: new Credentials(new MemoryKeyStore(), {}),
+    token: "secret",
+  });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const auth = { authorization: "Bearer secret", "content-type": "application/json" };
+  try {
+    const { done } = await t.gateway.sendMessage("nova", "/tool");
+    const card = await waitFor(() =>
+      t.store.list("nova").find((e) => e.body.kind === "approval" && e.body.state === "pending"),
+    );
+    // What the desktop app sends when the reason field is left empty.
+    const answered = await fetch(`${base}/bots/nova/approvals/${card.id}`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ allow: false, reason: "  " }),
+    });
+    assert.equal(answered.status, 200);
+    await done;
+    const body = t.store.get("nova", card.id)?.body;
+    assert.equal(body?.kind === "approval" && body.state, "denied");
+    assert.equal(body?.kind === "approval" && body.reason, undefined, "no reason on the card");
+    const reply = ofKind(t.store.list("nova"), "assistant_text").at(-1)?.text ?? "";
+    assert.ok(reply.includes(DENIED_WITHOUT_REASON), "the model was told the user denied it");
+  } finally {
+    server.closeAllConnections();
+    server.close();
     t.cleanup();
   }
 });

@@ -1,11 +1,22 @@
-// The scaffold's one screen: the bot tiles, and a live chat with the selected bot. A working base, styled with the
-// theme tokens, for the real screens that replace it from #10 on.
-import { type FormEvent, type KeyboardEvent, useEffect, useReducer, useRef, useState } from "react";
+// The app's one screen so far: the bot tiles, and a live chat with the selected bot. The sidebar and composer are
+// still the scaffold's (#11, #12 replace them); the transcript is the real chat view (chat/).
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { StreamState } from "../../../../server/src/client/subscribe.ts";
 import { TranscriptView } from "../../../../server/src/client/transcript-view.ts";
 import type { PublicBot, TranscriptEntry } from "../../../../server/src/types.ts";
 import type { ConnectionInfo } from "../../shared/ipc.ts";
 import { botColor, initial } from "./bot-colors.ts";
+import type { RowContext } from "./chat/ChatRow.tsx";
+import { Transcript } from "./chat/Transcript.tsx";
 import { call } from "./gateway.ts";
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -95,23 +106,23 @@ export function App() {
 }
 
 function Chat({ bot }: { bot: PublicBot }) {
-  const view = useRef(new TranscriptView());
-  const [, rerender] = useReducer((n: number) => n + 1, 0);
+  const [view] = useState(() => new TranscriptView());
+  const entries = useSyncExternalStore(
+    useCallback((onChange) => view.subscribe(onChange), [view]),
+    () => view.entries(),
+  );
   const [stream, setStream] = useState<StreamState | "ended">("connecting");
   const [problem, setProblem] = useState<string>();
   const [draft, setDraft] = useState("");
-  const end = useRef<HTMLLIElement>(null);
-  // Follow new output only while the user is at the bottom; scrolling up to read stops the jumping.
-  const atBottom = useRef(true);
   // A ref, not state: a second Enter in the same tick must already see the first send.
   const sending = useRef(false);
   const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     // Resume from what's already held, so a re-subscribe (StrictMode, a reload of this view) repeats nothing.
-    return window.desktop.subscribe(bot.id, view.current.cursor, (event) => {
+    return window.desktop.subscribe(bot.id, view.cursor, (event) => {
       if (event.kind === "entry") {
-        if (view.current.apply(event.entry)) rerender();
+        view.apply(event.entry);
       } else if (event.kind === "state") {
         setStream(event.state);
         if (event.state === "live") setProblem(undefined);
@@ -122,17 +133,24 @@ function Chat({ bot }: { bot: PublicBot }) {
         if (event.error) setProblem(event.error);
       }
     });
-  }, [bot.id]);
+  }, [bot.id, view]);
 
-  const entries = view.current.entries();
   const lastRun = entries.findLast((e) => e.body.kind === "run");
   const busy = lastRun?.body.kind === "run" && lastRun.body.state === "running";
 
-  const cursor = view.current.cursor;
-  useEffect(() => {
-    // Runs when an entry arrives or changes (the cursor moves), not on every keystroke in the composer.
-    if (cursor >= 0 && atBottom.current) end.current?.scrollIntoView({ block: "end" });
-  }, [cursor]);
+  const context = useMemo<RowContext>(
+    () => ({
+      botName: bot.name,
+      answerApproval: (entry: TranscriptEntry, allow: boolean, reason?: string) =>
+        call("answerApproval", bot.id, entry.id, allow ? { allow } : { allow, reason: reason ?? "" }).catch(
+          (err: unknown) => {
+            setProblem(message(err));
+            throw err;
+          },
+        ),
+    }),
+    [bot.id, bot.name],
+  );
 
   const send = async (e?: FormEvent) => {
     e?.preventDefault();
@@ -144,7 +162,6 @@ function Chat({ bot }: { bot: PublicBot }) {
       await call("sendMessage", bot.id, text);
       setDraft("");
       setProblem(undefined);
-      atBottom.current = true;
     } catch (err) {
       setProblem(message(err));
     } finally {
@@ -171,19 +188,7 @@ function Chat({ bot }: { bot: PublicBot }) {
           {bot.model ? ` · ${bot.model}` : ""} · {stream}
         </span>
       </header>
-      <ol
-        className="transcript"
-        aria-live="polite"
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-        }}
-      >
-        {entries.map((entry) => (
-          <Entry key={entry.id} entry={entry} botId={bot.id} onError={setProblem} />
-        ))}
-        <li ref={end} aria-hidden="true" />
-      </ol>
+      <Transcript entries={entries} context={context} label={`Conversation with ${bot.name}`} />
       {problem && (
         <p className="banner" role="alert">
           {problem}
@@ -214,58 +219,4 @@ function Chat({ bot }: { bot: PublicBot }) {
       </form>
     </div>
   );
-}
-
-const APPROVAL_STATE = { pending: "Waiting", approved: "Allowed", denied: "Denied", expired: "Expired" } as const;
-
-function Entry({ entry, botId, onError }: { entry: TranscriptEntry; botId: string; onError(m: string): void }) {
-  const b = entry.body;
-  switch (b.kind) {
-    case "user_message":
-      return <li className="entry user">{b.text}</li>;
-    case "assistant_text":
-      return (
-        <li className="entry assistant">
-          {b.text}
-          {b.streaming && <span className="muted"> …</span>}
-        </li>
-      );
-    case "status":
-      return (
-        <li className="entry status">
-          {b.label} · {b.state}
-        </li>
-      );
-    case "approval": {
-      const answer = (allow: boolean) =>
-        call("answerApproval", botId, entry.id, allow ? { allow } : { allow, reason: "Denied by the user." }).catch(
-          (err) => onError(message(err)),
-        );
-      return (
-        <li className="entry approval">
-          <span className="approval-text">
-            <strong>Allow {b.tool}?</strong> {b.summary}
-          </span>
-          {b.state === "pending" ? (
-            <span className="actions">
-              <button type="button" className="button primary" onClick={() => answer(true)}>
-                Allow
-              </button>
-              <button type="button" className="button secondary" onClick={() => answer(false)}>
-                Deny
-              </button>
-            </span>
-          ) : (
-            <span className="approval-state">{APPROVAL_STATE[b.state]}</span>
-          )}
-        </li>
-      );
-    }
-    case "error":
-      return <li className="entry error">{b.message}</li>;
-    case "notice":
-      return <li className="entry notice">{b.text}</li>;
-    case "run":
-      return b.state === "running" || b.state === "finished" ? null : <li className="entry notice">Run {b.state}</li>;
-  }
 }

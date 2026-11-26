@@ -15,6 +15,9 @@ import type {
   TranscriptEntry,
 } from "./types.ts";
 
+/** What the model is told when the user denies a tool call without giving a reason. */
+export const DENIED_WITHOUT_REASON = "The user denied this action.";
+
 export class BotNotFoundError extends Error {}
 export class BotBusyError extends Error {}
 
@@ -195,19 +198,22 @@ export class Gateway {
           requestApproval: async (req, signal) => {
             // Start waiting before the card is posted: a listener may answer it the moment it appears.
             const cardId = randomUUID();
-            const answer = this.approvals.wait(cardId, anySignal(signal, controller.signal));
+            const cancelled = anySignal(signal, controller.signal);
+            const answer = this.approvals.wait(cardId, cancelled);
             const card = this.store.append(bot.id, { kind: "approval", ...req, state: "pending" }, cardId);
             const decision = await answer;
+            // A denial without a reason shows as plain "Denied"; the model still gets a sentence to act on.
+            const reason = decision.allow ? "" : decision.reason.trim();
             set(card.id, (b) =>
               b.kind === "approval"
                 ? {
                     ...b,
-                    state: decision.allow ? "approved" : controller.signal.aborted ? "expired" : "denied",
-                    ...(decision.allow ? {} : { reason: decision.reason }),
+                    state: decision.allow ? "approved" : cancelled.aborted ? "expired" : "denied",
+                    ...(reason ? { reason } : {}),
                   }
                 : b,
             );
-            return decision;
+            return decision.allow ? decision : { allow: false, reason: reason || DENIED_WITHOUT_REASON };
           },
         },
       );

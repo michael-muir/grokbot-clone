@@ -158,7 +158,8 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
       if (method === "POST" && parts[2] === "approvals" && parts[3] && parts.length === 4) {
         const body = await readJson(req);
         if (typeof body.allow !== "boolean") return send(res, 400, { error: "allow must be true or false" });
-        const reason = typeof body.reason === "string" && body.reason ? body.reason : "Denied by the user.";
+        // An empty reason is passed on as is: the gateway shows a plain "Denied" and gives the model a default.
+        const reason = typeof body.reason === "string" ? body.reason : "";
         const ok = d.gateway.answerApproval(bot.id, parts[3], body.allow ? { allow: true } : { allow: false, reason });
         return ok ? send(res, 200, { ok: true }) : send(res, 404, { error: "No pending approval with that id" });
       }

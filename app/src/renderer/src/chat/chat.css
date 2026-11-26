@@ -1,0 +1,423 @@
+/* Chat transcript: rows, bubbles, Markdown, status lines, cards and notices. Measured from reference/dom
+ * (08-after-name, 36-msg-hover); every value is a theme token. See docs/specs/10-chat-view.md. */
+
+.transcript {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* The list pins itself to the end; the browser's own anchoring would fight it. */
+  overflow-anchor: none;
+  padding: 0 var(--space-4) var(--space-4) 0;
+  scrollbar-color: var(--color-surface-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.transcript:focus-visible {
+  outline-offset: calc(var(--size-focus-ring) * -1);
+}
+
+.transcript-sizer {
+  position: relative;
+  width: 100%;
+  height: var(--list-height);
+}
+
+.transcript-window {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  transform: translateY(var(--list-offset));
+}
+
+/* ---- Rows: spacing above depends on grouping (2px in a group, 10px new group, 14px side change) ---- */
+
+.chat-row {
+  display: flex;
+  align-items: center;
+  padding-bottom: var(--space-0-5);
+}
+
+.chat-row[data-gap="tight"] {
+  padding-top: var(--space-0-5);
+}
+
+.chat-row[data-gap="group"] {
+  padding-top: var(--space-2-5);
+}
+
+.chat-row[data-gap="switch"] {
+  padding-top: var(--space-3-5);
+}
+
+.chat-row[data-side="user"] {
+  flex-direction: row-reverse;
+}
+
+.chat-row[data-side="center"] {
+  justify-content: center;
+}
+
+.row-content {
+  min-width: 0;
+  max-width: var(--size-chat-column);
+}
+
+.chat-row[data-side="center"] .row-content {
+  max-width: none;
+}
+
+/* The time at the row's edge, shown while the row is hovered or holds focus. */
+.row-time {
+  flex-shrink: 0;
+  min-width: var(--size-row-time);
+  margin-left: auto;
+  white-space: nowrap;
+  padding-left: var(--space-2-5);
+  color: var(--color-text-tertiary);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--text-xs);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.chat-row[data-side="user"] .row-time {
+  margin-left: 0;
+  padding-right: var(--space-2-5);
+  padding-left: 0;
+  text-align: right;
+}
+
+/* Keyboard users see every time while the log has keyboard focus. */
+.chat-row:hover .row-time,
+.chat-row:focus-within .row-time,
+.transcript:focus-visible .row-time {
+  opacity: 1;
+}
+
+.time-separator {
+  margin: 0;
+  padding: var(--space-1-5) 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  letter-spacing: var(--tracking-normal);
+}
+
+/* ---- Bubbles ---- */
+
+.bubble {
+  min-width: 0;
+  padding: var(--padding-bubble);
+  border-radius: var(--radius-bubble);
+  font-size: var(--text-chat);
+  line-height: var(--text-chat--line-height);
+  letter-spacing: var(--tracking-normal);
+  overflow-wrap: anywhere;
+}
+
+.bubble[data-side="bot"] {
+  background: var(--color-fill);
+  box-shadow: var(--shadow-bevel);
+}
+
+.bubble[data-side="user"] {
+  background: var(--color-user-bubble);
+  color: var(--color-on-user-bubble);
+  box-shadow: var(--shadow-bevel);
+}
+
+/* Bubbles in a group join on their own side: the bot's on the left, the user's on the right. */
+.bubble[data-side="bot"]:is([data-group="first"], [data-group="middle"]) {
+  border-bottom-left-radius: var(--radius-bubble-joined);
+}
+
+.bubble[data-side="bot"]:is([data-group="middle"], [data-group="last"]) {
+  border-top-left-radius: var(--radius-bubble-joined);
+}
+
+.bubble[data-side="user"]:is([data-group="first"], [data-group="middle"]) {
+  border-bottom-right-radius: var(--radius-bubble-joined);
+}
+
+.bubble[data-side="user"]:is([data-group="middle"], [data-group="last"]) {
+  border-top-right-radius: var(--radius-bubble-joined);
+}
+
+.bubble .plain {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* A soft dot after the last words while the reply is still streaming. */
+.bubble[aria-busy="true"] > p:last-child::after,
+.bubble[aria-busy="true"] > :is(ul, ol):last-child > li:last-child::after {
+  content: "";
+  display: inline-block;
+  width: var(--space-2);
+  height: var(--space-2);
+  margin-left: var(--space-1);
+  border-radius: var(--radius-full);
+  background: var(--color-text-tertiary);
+  animation: pulse var(--duration-slow) var(--ease-in-out) infinite alternate;
+}
+
+/* ---- Markdown inside bot bubbles ---- */
+
+.bubble :is(p, ul, ol, pre, blockquote, table, h1, h2, h3, h4, h5, h6) {
+  margin: var(--space-2-5) 0 0;
+}
+
+.bubble > :first-child {
+  margin-top: 0;
+}
+
+.bubble :is(ul, ol) {
+  padding-left: var(--space-5);
+}
+
+.bubble li + li {
+  margin-top: var(--space-1);
+}
+
+.bubble :is(strong, b, h1, h2, h3, h4, h5, h6) {
+  font-weight: var(--font-weight-semibold);
+}
+
+.bubble :is(h1, h2, h3, h4, h5, h6) {
+  font-size: var(--text-chat);
+  line-height: var(--text-chat--line-height);
+}
+
+.bubble a {
+  color: var(--color-link);
+}
+
+.bubble code {
+  padding: var(--padding-code);
+  border-radius: var(--radius-xs);
+  background: var(--color-fill-faint);
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-code);
+}
+
+.bubble pre {
+  overflow-x: auto;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-fill-faint);
+}
+
+.bubble pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.bubble blockquote {
+  padding-left: var(--space-3);
+  border-left: var(--size-focus-ring) solid var(--color-line-strong);
+  color: var(--color-text-secondary);
+}
+
+.bubble table {
+  border-collapse: collapse;
+}
+
+.bubble :is(th, td) {
+  padding: var(--space-1) var(--space-2);
+  border: var(--size-hairline) solid var(--color-line);
+}
+
+.bubble hr {
+  border: 0;
+  border-top: var(--size-hairline) solid var(--color-line);
+}
+
+/* ---- Status lines ("Reading a file", "Thinking") ---- */
+
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-tertiary);
+  font-size: var(--text-md);
+  line-height: var(--text-chat--line-height);
+}
+
+.status-slot {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: var(--size-status-slot);
+}
+
+.status-line[data-state="running"] .status-label {
+  background: var(--gradient-shimmer);
+  background-size: 200% 100%;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer var(--duration-shimmer) linear infinite;
+}
+
+.status-line[data-state="failed"] .status-label {
+  color: var(--color-danger-text);
+}
+
+/* ---- Cards (approval) ---- */
+
+.card {
+  width: var(--size-chat-column);
+  max-width: 100%;
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-ring);
+}
+
+.card-prompt {
+  margin: 0;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-chat);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--text-chat--line-height);
+  letter-spacing: var(--tracking-normal);
+}
+
+.card-detail {
+  margin: var(--space-1) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.card-code {
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  margin: var(--space-3) calc(var(--space-2) * -1) 0;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2-5);
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  font-size: var(--text-md);
+  line-height: var(--text-md--line-height);
+  letter-spacing: var(--tracking-normal);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.choice:hover:not(:disabled) {
+  background: var(--color-fill-hover);
+}
+
+.choice:disabled {
+  color: var(--color-text-disabled);
+  cursor: default;
+}
+
+.key-cap {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: var(--size-avatar-sm);
+  height: var(--size-avatar-sm);
+  border: var(--size-hairline) solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--text-xs--line-height);
+}
+
+.card-result {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-md);
+  line-height: var(--text-md--line-height);
+}
+
+.deny-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.deny-reason {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--size-hairline) solid var(--color-line-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-fill);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-md);
+  line-height: var(--text-md--line-height);
+}
+
+.deny-reason::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+/* ---- Notices and errors ---- */
+
+.notice {
+  margin: 0;
+  padding: var(--space-1) var(--space-3);
+  color: var(--color-text-tertiary);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  text-align: center;
+}
+
+.notice[data-tone="error"] {
+  color: var(--color-danger-text);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes pulse {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-line[data-state="running"] .status-label {
+    background: none;
+    color: var(--color-text-tertiary);
+    animation: none;
+  }
+
+  .bubble[aria-busy="true"] > p:last-child::after,
+  .bubble[aria-busy="true"] > :is(ul, ol):last-child > li:last-child::after {
+    animation: none;
+  }
+}
