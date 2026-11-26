@@ -11,6 +11,7 @@
   --color-app: #121212; /* window background */
   --color-sidebar: #0e0e0e;
   --color-surface: #1f1f1f; /* pills, cards, menus, composer */
+  --color-surface-hover: #262626; /* a surface control under the pointer */
   --color-surface-strong: #3b3b3b; /* toggles off, scrollbar thumbs */
   --color-contrast: #ffffff; /* high-contrast buttons ("Connect…"), avatar faces */
   --color-on-contrast: #121212;
@@ -131,6 +132,7 @@
   --shadow-raised: 0 2px 8px -1px rgb(0 0 0 / 0.05), 0 1px 2px rgb(0 0 0 / 0.03), 0 0 0 1px rgb(228 228 228 / 0.04);
   --shadow-menu: 0 8px 24px rgb(0 0 0 / 0.4);
   --shadow-modal: 0 24px 64px rgb(0 0 0 / 0.5);
+  --shadow-badge: 0 0 0 2px var(--color-sidebar), inset 0 0 0 0.5px rgb(245 245 245 / 0.04);
 
   /* ---- Motion (placeholders until #43 measures the app) ---- */
   --duration-fast: 120ms;
@@ -139,6 +141,7 @@
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --duration-shimmer: 1600ms; /* one sweep of the running-status shimmer */
+  --duration-spin: 900ms; /* one turn of the working spinner */
   /* The shimmer sweeping across a running status label: dim, bright, dim. */
   --gradient-shimmer: linear-gradient(
     90deg,
@@ -157,6 +160,11 @@
   --size-avatar-sm: 24px; /* the avatar in the header's name pill */
   --size-icon-sm: 16px; /* icons inside 28px buttons */
   --size-tile: 54px; /* sidebar bot tiles */
+  --size-panel: 320px; /* the bot panel on the right */
+  --size-avatar-lg: 64px; /* the avatar at the top of the bot panel */
+  --size-badge: 12px; /* the corner badge on a sidebar tile */
+  --size-thumb-w: 64px; /* the computer card's thumbnail */
+  --size-thumb-h: 40px;
   --size-hairline: 1px;
   --size-focus-ring: 2px;
   --padding-bubble: 7px 12px;
@@ -227,6 +235,7 @@
     --color-app: #fafafa;
     --color-sidebar: #f2f2f2;
     --color-surface: #ffffff;
+    --color-surface-hover: #f2f2f2;
     --color-surface-strong: #d9d9d9;
     --color-contrast: #121212;
     --color-on-contrast: #ffffff;

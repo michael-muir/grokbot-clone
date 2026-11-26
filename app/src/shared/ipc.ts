@@ -4,6 +4,7 @@ import type { BotPatch, ProviderTest } from "../../../server/src/client/gateway-
 import type { StreamState } from "../../../server/src/client/subscribe.ts";
 import {
   type ApprovalDecision,
+  type BotActivity,
   isProviderId,
   type ProviderId,
   type ProviderSummary,
@@ -45,17 +46,19 @@ export type CallResult<T> = { ok: true; value: T } | { ok: false; error: { messa
 
 export type StreamEvent =
   | { kind: "entry"; entry: TranscriptEntry }
+  /** Every bot's activity (activity streams only). */
+  | { kind: "activity"; bots: BotActivity[] }
   | { kind: "state"; state: StreamState }
   /** The connection dropped and will be retried. */
   | { kind: "error"; message: string }
   /** The stream stopped for good (closed, or refused by the gateway). */
   | { kind: "ended"; error?: string };
 
-export interface StreamOpen {
-  id: string;
-  botId: string;
-  since: number;
-}
+/** A stream to open: one bot's transcript, or every bot's activity. */
+export type StreamOpen = { id: string } & (
+  | { topic: "transcript"; botId: string; since: number }
+  | { topic: "activity" }
+);
 
 export type ConnectionInfo = { ok: true; url: string; spawned: boolean } | { ok: false; error: string };
 
@@ -65,6 +68,8 @@ export interface DesktopApi {
   connection(): Promise<ConnectionInfo>;
   /** Streams a bot's transcript from after `since`. Returns a function that stops it. */
   subscribe(botId: string, since: number, onEvent: (event: StreamEvent) => void): () => void;
+  /** Streams which bots are running: a snapshot now and on every change. Returns a function that stops it. */
+  activity(onEvent: (event: StreamEvent) => void): () => void;
   /** The renderer is up and listed the bots; the smoke test waits for this. */
   ready(botCount: number): void;
 }
@@ -122,6 +127,8 @@ export function checkCall(name: unknown, args: unknown): Call | string {
 }
 
 export function checkStreamOpen(v: unknown): StreamOpen | undefined {
-  if (!isRecord(v) || !isId(v.id) || !isId(v.botId) || !isCursor(v.since)) return undefined;
-  return { id: v.id, botId: v.botId, since: v.since };
+  if (!isRecord(v) || !isId(v.id)) return undefined;
+  if (v.topic === "activity") return { id: v.id, topic: "activity" };
+  if (v.topic !== "transcript" || !isId(v.botId) || !isCursor(v.since)) return undefined;
+  return { id: v.id, topic: "transcript", botId: v.botId, since: v.since };
 }

@@ -24,7 +24,14 @@ import { BotBusyError, BotNotFoundError, type Gateway } from "./gateway.ts";
 import { acceptsKey, type Credentials, KeyStoreUnavailableError, needsKey } from "./keys.ts";
 import type { ProviderRegistry } from "./providers/index.ts";
 import type { TranscriptStore } from "./transcript.ts";
-import { type Bot, isProviderId, type ProviderSummary, type PublicBot, type TranscriptEntry } from "./types.ts";
+import {
+  type Bot,
+  type BotActivity,
+  isProviderId,
+  type ProviderSummary,
+  type PublicBot,
+  type TranscriptEntry,
+} from "./types.ts";
 
 const MAX_BODY = 1_000_000;
 const HEARTBEAT_MS = 15_000;
@@ -80,6 +87,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
 
   if (method === "GET" && url.pathname === "/health") return send(res, 200, { ok: true });
   if (parts[0] === "providers") return handleProviders(req, res, parts, method, d);
+  if (parts[0] === "activity" && parts.length === 1 && method === "GET") return streamActivity(res, d);
   if (parts[0] !== "bots") return send(res, 404, { error: "Not found" });
   if (parts.length === 1 && method === "GET") return send(res, 200, d.bots.list().map(publicBot));
 
@@ -270,6 +278,20 @@ function isHttpUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** SSE: a snapshot of every bot's activity now, then a fresh one whenever a run starts or ends. */
+function streamActivity(res: ServerResponse, d: HttpDeps): void {
+  res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+  res.write("retry: 2000\n: connected\n\n");
+  const write = (bots: BotActivity[]) => res.write(`data: ${JSON.stringify(bots)}\n\n`);
+  write(d.gateway.activity());
+  const unsubscribe = d.gateway.subscribeActivity(write);
+  const heartbeat = setInterval(() => res.write(": ping\n\n"), d.heartbeatMs ?? HEARTBEAT_MS);
+  res.on("close", () => {
+    unsubscribe();
+    clearInterval(heartbeat);
+  });
 }
 
 function publicBot(bot: Bot): PublicBot {

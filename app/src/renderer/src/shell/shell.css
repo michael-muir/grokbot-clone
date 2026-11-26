@@ -1,0 +1,297 @@
+/* Sidebar and bot panel. Measured from reference/dom (07-sidebar, 21-sidebar-toggle, 30-panel-activity); every
+ * value is a theme token. See docs/specs/12-sidebar-panel.md. */
+
+/* ---- Sidebar ---- */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 0;
+  padding-bottom: var(--space-4);
+  background: var(--color-sidebar);
+  border-right: var(--size-hairline) solid var(--color-line);
+  overflow-y: auto;
+}
+
+/* The working button's row: 10px from the top, 36px tall, so the first tile lands at y=56. */
+.sidebar-top {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  height: calc(var(--size-control) + var(--space-2-5));
+  padding-top: var(--space-2-5);
+}
+
+.working-button {
+  display: grid;
+  place-items: center;
+  width: var(--size-control);
+  height: var(--size-control);
+  padding: 0;
+  border: var(--size-hairline) solid var(--color-line);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-soft);
+  cursor: pointer;
+}
+
+.working-button:hover {
+  background: var(--color-surface-hover);
+}
+
+.working-spinner {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  border: var(--size-focus-ring) solid var(--color-line-strong);
+  border-top-color: var(--color-accent);
+  border-radius: var(--radius-full);
+  animation: spin var(--duration-spin) linear infinite;
+}
+
+.bot-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: var(--space-2-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 27px between the main bot's tile and the next: 13px, a hairline, 13px. */
+.bot-divider {
+  width: var(--size-control);
+  height: var(--size-hairline);
+  margin: calc(var(--space-3) + var(--size-hairline)) 0;
+  background: var(--color-line-strong);
+}
+
+.bot-list li + li:not(.bot-divider) {
+  margin-top: var(--space-1-5);
+}
+
+.bot-divider + li {
+  margin-top: 0;
+}
+
+.bot-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--size-tile);
+  height: var(--size-tile);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.bot-tile:hover {
+  background: var(--color-fill);
+}
+
+.bot-tile[aria-current="page"] {
+  background: var(--color-fill-strong);
+}
+
+/* The corner badge, 9px in from the tile's bottom-right corner. */
+.tile-badge {
+  position: absolute;
+  right: calc(var(--space-2) + var(--size-hairline));
+  bottom: calc(var(--space-2) + var(--size-hairline));
+  width: var(--size-badge);
+  height: var(--size-badge);
+  border-radius: var(--radius-full);
+  /* A cutout ring, so the badge reads on an avatar of the same color. */
+  box-shadow: var(--shadow-badge);
+}
+
+.tile-badge[data-badge="main"] {
+  background: var(--color-star);
+}
+
+.tile-badge[data-badge="unread"],
+.tile-badge[data-badge="working"] {
+  background: var(--color-accent);
+}
+
+.tile-badge[data-badge="working"] {
+  animation: pulse var(--duration-shimmer) var(--ease-in-out) infinite alternate;
+}
+
+.connection-dot {
+  flex-shrink: 0;
+  margin-top: auto;
+  width: var(--space-2-5);
+  height: var(--space-2-5);
+  border-radius: var(--radius-full);
+  background: var(--color-text-disabled);
+}
+
+.connection-dot[data-state="ok"] {
+  background: var(--color-success);
+}
+
+.connection-dot[data-state="failed"] {
+  background: var(--color-danger);
+}
+
+/* ---- Bot panel ---- */
+
+.bot-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: var(--space-4);
+  border-left: var(--size-hairline) solid var(--color-line);
+  background: var(--color-app);
+  overflow-y: auto;
+}
+
+.panel-top {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-3);
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: var(--size-control);
+  height: var(--size-control);
+  padding: 0;
+  border: var(--size-hairline) solid var(--color-line);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text-soft);
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: var(--color-surface-hover);
+}
+
+.icon-button .icon {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+}
+
+.panel-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-4) var(--space-3);
+}
+
+/* The name looks like text until hovered or focused, then shows it can be edited. */
+.name-field {
+  width: 100%;
+  max-width: 100%;
+  padding: var(--space-0-5) var(--space-2-5);
+  border: var(--size-hairline) solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--text-lg--line-height);
+  letter-spacing: var(--tracking-normal);
+  text-align: center;
+  text-overflow: ellipsis;
+}
+
+.name-field:hover {
+  border-color: var(--color-line-strong);
+}
+
+.name-field:focus {
+  border-color: var(--color-line-focus);
+  background: var(--color-fill);
+}
+
+.panel-section {
+  padding: var(--space-3) var(--space-4) 0;
+}
+
+.panel-heading {
+  margin: 0 0 var(--space-2-5);
+  padding: 0 var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--text-sm--line-height);
+  letter-spacing: var(--tracking-wide);
+}
+
+.panel-card {
+  padding: var(--space-1);
+  border: var(--size-hairline) solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.panel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--size-control);
+  padding: var(--space-1-5) var(--space-2);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  letter-spacing: var(--tracking-wide);
+}
+
+.row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.row-title {
+  color: var(--color-text);
+}
+
+.row-subtitle {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  letter-spacing: var(--tracking-normal);
+}
+
+.row-value {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.computer-thumb {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: var(--size-thumb-w);
+  height: var(--size-thumb-h);
+  border-radius: var(--radius-md);
+  background: var(--color-fill);
+  opacity: 0.6;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .working-spinner,
+  .tile-badge[data-badge="working"] {
+    animation: none;
+  }
+}

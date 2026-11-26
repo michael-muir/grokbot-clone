@@ -1,7 +1,7 @@
 // Typed client for the gateway's HTTP API, with token auth. No Node APIs, so any JavaScript runtime can use it;
 // the desktop app runs it in its main process, which keeps the token out of the renderer.
 import type { ApprovalDecision, ProviderId, ProviderSummary, PublicBot, TranscriptEntry } from "../types.ts";
-import { type SubscribeOptions, subscribeTranscript } from "./subscribe.ts";
+import { type ActivityOptions, type SubscribeOptions, subscribeActivity, subscribeTranscript } from "./subscribe.ts";
 
 export interface GatewayClientOptions {
   baseUrl: string;
@@ -93,6 +93,11 @@ export class GatewayClient {
   /** Streams a bot's transcript until the signal aborts. See subscribeTranscript. */
   subscribe(botId: string, opts: Omit<SubscribeOptions, "token" | "fetch">): Promise<void> {
     return subscribeTranscript(this.baseUrl, botId, { ...opts, token: this.token, fetch: this.fetchFn });
+  }
+
+  /** Streams every bot's activity (running or not) until the signal aborts. See subscribeActivity. */
+  activity(opts: Omit<ActivityOptions, "token" | "fetch">): Promise<void> {
+    return subscribeActivity(this.baseUrl, { ...opts, token: this.token, fetch: this.fetchFn });
   }
 
   private async request<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
