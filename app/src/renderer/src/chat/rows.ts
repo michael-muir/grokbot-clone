@@ -105,7 +105,7 @@ export function buildRows(
   const items: Item[] = [];
   // A run's entry is written when the run starts, so its "Stopped" notice is held back until after everything
   // the run produced: just before the next message or run, or at the end.
-  let stopped: Item | undefined;
+  let stopped: { entry: TranscriptEntry; side: Side } | undefined;
   for (const entry of entries) {
     const side = sideOf(entry);
     const kind = entry.body.kind;
