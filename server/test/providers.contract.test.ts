@@ -121,6 +121,76 @@ describeProviderContract("claude", {
   create: (scenario) => new ClaudeProvider(scriptedQuery(scenario)),
 });
 
+test("claude: an API error (no credit) fails the run instead of posting the error as a reply", async () => {
+  const query: QueryFn = async function* () {
+    yield sdk({ type: "system", subtype: "init", session_id: "s-err" });
+    yield sdk({
+      type: "assistant",
+      parent_tool_use_id: null,
+      error: "billing_error",
+      message: { id: "msg-err", role: "assistant", content: [{ type: "text", text: "Credit balance is too low" }] },
+    });
+    yield sdk({
+      type: "result",
+      subtype: "success",
+      is_error: true,
+      result: "Credit balance is too low",
+      total_cost_usd: 0,
+    });
+  };
+  const emitted: string[] = [];
+  const outcome = await new ClaudeProvider(query, () => "test-key").run(
+    {
+      botId: "b",
+      botName: "B",
+      prompt: "hi",
+      workspaceDir: ".",
+      instructions: "",
+      signal: new AbortController().signal,
+    },
+    {
+      emit: (e) => emitted.push(e.type),
+      requestApproval: async () => ({ allow: false, reason: "no" }),
+    },
+  );
+  assert.equal(outcome.status, "failed");
+  assert.equal(outcome.status === "failed" && outcome.error, "Anthropic: Credit balance is too low");
+  assert.ok(!emitted.includes("text"), "the error text is not shown as the bot's reply");
+});
+
+test("claude: an API error that the SDK retries past still finishes the run", async () => {
+  const query: QueryFn = async function* () {
+    yield sdk({ type: "system", subtype: "init", session_id: "s-retry" });
+    yield sdk({
+      type: "assistant",
+      parent_tool_use_id: null,
+      error: "overloaded",
+      message: { id: "msg-busy", role: "assistant", content: [{ type: "text", text: "Overloaded" }] },
+    });
+    yield* streamedReply("msg-ok", ["Done."], 1);
+    yield sdk({ type: "result", subtype: "success", is_error: false, result: "Done.", total_cost_usd: 0.01 });
+  };
+  const texts: string[] = [];
+  const outcome = await new ClaudeProvider(query, () => "test-key").run(
+    {
+      botId: "b",
+      botName: "B",
+      prompt: "hi",
+      workspaceDir: ".",
+      instructions: "",
+      signal: new AbortController().signal,
+    },
+    {
+      emit: (e) => {
+        if (e.type === "text") texts.push(e.text);
+      },
+      requestApproval: async () => ({ allow: false, reason: "no" }),
+    },
+  );
+  assert.equal(outcome.status, "finished");
+  assert.deepEqual(texts, ["Done."], "only the real reply is shown");
+});
+
 // ---------- the contract catches broken providers ----------
 
 class BrokenProvider implements AgentProvider {

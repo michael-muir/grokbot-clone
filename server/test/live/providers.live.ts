@@ -1,10 +1,12 @@
-// Live end-to-end check of an OpenAI-compatible provider through the gateway. Not part of `npm test`.
+// Live end-to-end check of any real provider through the gateway. Not part of `npm test`.
 //
 //   LIVE_PROVIDER=ollama LIVE_MODEL=qwen3.5:4b npm run test:live
 //   LIVE_PROVIDER=openai LIVE_MODEL=<model> npm run test:live
 //   LIVE_PROVIDER=gemini LIVE_MODEL=<model> npm run test:live
+//   LIVE_PROVIDER=claude LIVE_MODEL=<model> npm run test:live
 //
-// Keys come from the OS keychain (saved through PUT /providers/:id/key), else OPENAI_API_KEY / GEMINI_API_KEY.
+// Providers are built exactly as the gateway builds them, so keys come from the OS keychain (saved through
+// PUT /providers/:id/key), else the provider's env var.
 //
 // The bot is asked to create a file with write_file. The approval is granted automatically, then the test checks
 // the file exists and the run finished.
@@ -13,38 +15,30 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { SessionStore } from "../../src/agent/sessions.ts";
 import { BotRegistry } from "../../src/bots.ts";
 import { LocalFolderComputers } from "../../src/computer.ts";
 import { Gateway } from "../../src/gateway.ts";
 import { Credentials, KeychainKeyStore } from "../../src/keys.ts";
-import { geminiProvider } from "../../src/providers/gemini.ts";
-import { OPENAI_PRESETS, openAICompatibleProvider } from "../../src/providers/openai-compatible.ts";
+import { defaultProviders } from "../../src/providers/index.ts";
 import { TranscriptStore } from "../../src/transcript.ts";
+import { isProviderId } from "../../src/types.ts";
 
-const presetId = process.env.LIVE_PROVIDER ?? "ollama";
+const requested = process.env.LIVE_PROVIDER ?? "ollama";
 const model = process.env.LIVE_MODEL;
 
-test(`live: ${presetId} creates a file through an approved tool call`, { timeout: 300_000 }, async () => {
-  const preset = OPENAI_PRESETS.find((p) => p.id === presetId);
-  assert.ok(
-    preset || presetId === "gemini",
-    `LIVE_PROVIDER must be gemini or one of ${OPENAI_PRESETS.map((p) => p.id).join(", ")}`,
-  );
-  const providerId = preset?.id ?? "gemini";
+test(`live: ${requested} creates a file through an approved tool call`, { timeout: 300_000 }, async () => {
+  assert.ok(isProviderId(requested) && requested !== "fake", `LIVE_PROVIDER must be a real provider id`);
+  const presetId = requested;
   const dataDir = mkdtempSync(join(tmpdir(), "grokbot-live-"));
   try {
     const bots = new BotRegistry(dataDir, [
-      { id: "live", name: "Live", provider: providerId, model, avatar: { shape: "circle", color: "blue" } },
+      { id: "live", name: "Live", provider: presetId, model, avatar: { shape: "circle", color: "blue" } },
     ]);
     const store = new TranscriptStore(dataDir);
-    const sessions = new SessionStore(dataDir);
-    // Same lookup as the gateway: a key saved in Settings (OS keychain) first, then the env var.
-    const credentials = new Credentials(new KeychainKeyStore());
-    const provider = preset
-      ? openAICompatibleProvider(preset, sessions, process.env, credentials)
-      : geminiProvider(sessions, process.env, credentials);
-    const gateway = new Gateway(bots, store, new Map([[providerId, provider]]), new LocalFolderComputers(dataDir));
+    const providers = defaultProviders(dataDir, new Credentials(new KeychainKeyStore()));
+    const provider = providers.get(presetId);
+    assert.ok(provider, `no provider ${presetId}`);
+    const gateway = new Gateway(bots, store, new Map([[presetId, provider]]), new LocalFolderComputers(dataDir));
 
     // Approve every card as it appears, and print the transcript as it changes.
     store.subscribe("live", (e) => {
