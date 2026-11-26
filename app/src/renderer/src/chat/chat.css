@@ -89,8 +89,10 @@
   text-align: right;
 }
 
+/* Keyboard users see every time while the log has keyboard focus. */
 .chat-row:hover .row-time,
-.chat-row:focus-within .row-time {
+.chat-row:focus-within .row-time,
+.transcript:focus-visible .row-time {
   opacity: 1;
 }
 

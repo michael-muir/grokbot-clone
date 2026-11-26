@@ -1,6 +1,6 @@
 // One display row of the chat: a bubble, status line, card, notice or error, or a time separator.
-// Memoized on the row object; rows.ts reuses nothing, but entries that didn't change keep their reference, and
-// the comparison below looks at what actually renders.
+// Memoized: rows are rebuilt on every change, but an unchanged entry keeps its reference, so sameRow() lets
+// only the rows that changed re-render.
 import { memo } from "react";
 import type { TranscriptEntry } from "../../../../../server/src/types.ts";
 import { initial } from "../bot-colors.ts";
@@ -55,8 +55,8 @@ function content(entry: TranscriptEntry, group: string, context: RowContext) {
     case "assistant_text":
       return (
         <div className="bubble" data-side="bot" data-group={group} aria-busy={b.streaming}>
+          {/* While streaming, chat.css draws a pulsing dot after the last paragraph. */}
           <Markdown text={b.text} />
-          {b.streaming && <span className="caret" aria-hidden="true" />}
         </div>
       );
     case "status":

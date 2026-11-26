@@ -78,7 +78,8 @@ Rules:
 - `ApprovalCard.tsx`: card layout from the reference.
   - Prompt: "Allow {tool}?". The summary sits in a code line.
   - Choices: `A` Allow, `B` Deny.
-  - Deny opens an inline reason field (optional) with Send and Cancel. Escape cancels.
+  - Deny opens an inline reason field (optional), with Deny and Cancel buttons. Escape cancels. Both are
+    disabled while the denial is being sent.
   - Once answered, the card shows "Allowed", "Denied: reason" or "Expired" instead of the choices.
   - Every control is a real button with a visible focus ring.
 - `NoticeRow` and `ErrorRow`: centered tertiary text, and danger text.

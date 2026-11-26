@@ -1,7 +1,7 @@
 // The chat transcript as a virtualized list: only the rows near the viewport are in the DOM, so long chats stay
 // smooth. It follows new output while the user is at the bottom, and stops following when they scroll up.
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { type CSSProperties, useLayoutEffect, useMemo, useRef } from "react";
+import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { TranscriptEntry } from "../../../../../server/src/types.ts";
 import { ChatRow, type RowContext } from "./ChatRow.tsx";
 import { buildRows } from "./rows.ts";
@@ -11,6 +11,19 @@ import "./chat.css";
 const FOLLOW_SLACK_PX = 40;
 /** A first guess at a row's height, before it's measured. */
 const ESTIMATED_ROW_PX = 60;
+
+/** Today's date as a string, updated just after each midnight. */
+function useToday(): string {
+  const [today, setToday] = useState(() => new Date().toDateString());
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new day re-arms the timer for the next midnight.
+  useEffect(() => {
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+    const timer = setTimeout(() => setToday(new Date().toDateString()), midnight - now.getTime() + 1_000);
+    return () => clearTimeout(timer);
+  }, [today]);
+  return today;
+}
 
 /** Inline styles carry only computed positions, as custom properties the stylesheet reads. */
 const vars = (values: Record<`--${string}`, string>) => values as CSSProperties;
@@ -25,8 +38,10 @@ export function Transcript({
   /** Accessible name of the log, e.g. "Conversation with Nova". */
   label: string;
 }) {
-  // Rebuilt when entries change (a new array per change); the clock only matters for day labels.
-  const rows = useMemo(() => buildRows(entries, new Date()), [entries]);
+  const today = useToday();
+  // Rebuilt when entries change (a new array per change), and at midnight so "Today" becomes "Yesterday".
+  // biome-ignore lint/correctness/useExhaustiveDependencies: today is a trigger; buildRows reads the clock itself.
+  const rows = useMemo(() => buildRows(entries, new Date()), [entries, today]);
   const scroller = useRef<HTMLDivElement>(null);
   const following = useRef(true);
   const lastSent = useRef<string>(undefined);

@@ -31,6 +31,7 @@ export function ApprovalCard({
   };
 
   const cancelDeny = () => {
+    if (sending) return; // the denial is on its way; keep the reason until it's answered
     setDenying(false);
     setReason("");
     // Put focus back where the user started, not on the page.
@@ -77,7 +78,7 @@ export function ApprovalCard({
           <button type="submit" className="button primary" disabled={sending}>
             Deny
           </button>
-          <button type="button" className="button secondary" onClick={cancelDeny}>
+          <button type="button" className="button secondary" disabled={sending} onClick={cancelDeny}>
             Cancel
           </button>
         </form>

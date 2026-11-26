@@ -5,6 +5,15 @@ import remarkGfm from "remark-gfm";
 
 const components: Components = {
   a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" />,
+  // The page's CSP blocks remote images; show a link to the image instead of a broken picture.
+  img: ({ src, alt }) =>
+    typeof src === "string" && /^https?:\/\//.test(src) ? (
+      <a href={src} target="_blank" rel="noreferrer">
+        {alt || "Image"}
+      </a>
+    ) : (
+      <span>{alt}</span>
+    ),
 };
 
 const plugins = [remarkGfm];

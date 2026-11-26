@@ -106,7 +106,7 @@ export function App() {
 }
 
 function Chat({ bot }: { bot: PublicBot }) {
-  const view = useRef(new TranscriptView()).current;
+  const [view] = useState(() => new TranscriptView());
   const entries = useSyncExternalStore(
     useCallback((onChange) => view.subscribe(onChange), [view]),
     () => view.entries(),
