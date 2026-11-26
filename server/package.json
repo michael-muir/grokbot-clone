@@ -1,8 +1,8 @@
 {
-  "name": "grokbot-clone-server",
+  "name": "smarty-prompts-server",
   "version": "0.1.0",
   "private": true,
-  "description": "Agent gateway for GrokBot Clone: one provider interface, Claude first, then Codex and Cursor",
+  "description": "Agent gateway for SmartyPrompts: one provider interface for Claude, OpenAI-compatible APIs, local models and Gemini",
   "type": "module",
   "engines": {
     "node": ">=23.6"

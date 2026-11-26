@@ -18,7 +18,7 @@ import { calls, fails, ScriptedModel, says } from "./support/scripted-model.ts";
 
 const dirs: string[] = [];
 const tempDir = () => {
-  const d = mkdtempSync(join(tmpdir(), "grokbot-loop-"));
+  const d = mkdtempSync(join(tmpdir(), "smarty-loop-"));
   dirs.push(d);
   return d;
 };

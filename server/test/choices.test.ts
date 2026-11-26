@@ -1,6 +1,6 @@
 // Choice cards, run ids and client nonces: the transcript additions from the Grok Bot capture (#64).
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,7 +17,7 @@ import { TranscriptStore } from "../src/transcript.ts";
 import type { EntryBody, ProviderId, TranscriptEntry } from "../src/types.ts";
 
 async function setup() {
-  const dir = mkdtempSync(join(tmpdir(), "grokbot-choice-"));
+  const dir = mkdtempSync(join(tmpdir(), "smarty-choice-"));
   const bots = new BotRegistry(dir, [
     { id: "nova", name: "Nova", provider: "fake", avatar: { shape: "circle", color: "amber" } },
   ]);
@@ -191,7 +191,7 @@ test("ask_user: returns the answer, refuses bad options, and says so when nobody
 });
 
 test("restart: runs, cards, text and steps left mid-flight are closed when the gateway starts", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "grokbot-leftover-"));
+  const dir = mkdtempSync(join(tmpdir(), "smarty-leftover-"));
   try {
     const bots = new BotRegistry(dir, [
       { id: "nova", name: "Nova", provider: "fake", avatar: { shape: "circle", color: "amber" } },
@@ -243,4 +243,24 @@ test("fake /choice: without a way to ask, the run fails with a reason instead of
     { emit: () => {}, requestApproval: async () => ({ allow: true }) },
   );
   assert.equal(outcome.status, "failed");
+});
+
+test("rename: an existing default bot still named Grok Bot becomes Smarty; a name the user chose stays", () => {
+  const dir = mkdtempSync(join(tmpdir(), "smarty-bots-"));
+  try {
+    const avatar = { shape: "circle", color: "white" } as const;
+    writeFileSync(
+      join(dir, "bots.json"),
+      JSON.stringify([
+        { id: "grok-bot", name: "Grok Bot", provider: "claude", avatar },
+        { id: "other", name: "Grok Bot", provider: "claude", avatar },
+      ]),
+    );
+    const bots = new BotRegistry(dir);
+    assert.equal(bots.get("grok-bot")?.name, "Smarty", "same id kept, so its transcript still belongs to it");
+    assert.equal(bots.get("other")?.name, "Grok Bot", "only the old default is renamed");
+    assert.equal(new BotRegistry(dir).get("grok-bot")?.name, "Smarty", "saved");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

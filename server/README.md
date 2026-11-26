@@ -1,6 +1,6 @@
-# GrokBot Clone: agent gateway
+# SmartyPrompts: agent gateway
 
-A small Node server between the GrokBot Clone desktop UI and the agent backends. The UI only sees
+A small Node server between the SmartyPrompts desktop UI and the agent backends. The UI only sees
 **transcript entries** (modeled on Grok Bot's own transcript), so each bot can run on Claude, an OpenAI-compatible API (OpenAI, xAI Grok, OpenRouter), a local model (Ollama, LM Studio), and later Codex or Cursor,
 without the UI changing.
 
@@ -27,9 +27,9 @@ LIVE_PROVIDER=ollama LIVE_MODEL=qwen3.5:4b npm run test:live   # live end-to-end
 Without an API key, switch a bot to the scripted `fake` provider:
 
 ```bash
-curl -X PATCH localhost:8787/bots/grok-bot -H 'content-type: application/json' -d '{"provider":"fake"}'
-curl -X POST  localhost:8787/bots/grok-bot/messages -H 'content-type: application/json' -d '{"text":"hello"}'
-curl localhost:8787/bots/grok-bot/events      # live stream (SSE)
+curl -X PATCH localhost:8787/bots/smarty -H 'content-type: application/json' -d '{"provider":"fake"}'
+curl -X POST  localhost:8787/bots/smarty/messages -H 'content-type: application/json' -d '{"text":"hello"}'
+curl localhost:8787/bots/smarty/events      # live stream (SSE)
 ```
 
 The fake provider also understands `/tool` (an approval card), `/slow` (to test interrupt) and `/fail`.
@@ -82,7 +82,7 @@ Each entry has `seq` (its position, never changes), `updatedSeq` (bumped on ever
 ## API keys
 
 Keys are saved with `PUT /providers/:id/key` into the OS keychain (Windows Credential Manager, macOS Keychain,
-Linux Secret Service) under the service `grokbot-clone`. They're read on every request, so a new key works on the
+Linux Secret Service) under the service `smarty-prompts` (keys saved under the earlier name `grokbot-clone` move over on first use). They're read on every request, so a new key works on the
 next message. A key in the keychain wins over the provider's environment variable (`ANTHROPIC_API_KEY`,
 `OPENAI_API_KEY`, `XAI_API_KEY`, `OPENROUTER_API_KEY`, `GEMINI_API_KEY`), which still works as a fallback. Keys never
 appear in API responses, logs, the transcript or files on disk.

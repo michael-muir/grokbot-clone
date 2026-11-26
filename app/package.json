@@ -1,8 +1,9 @@
 {
-  "name": "grokbot-clone-app",
+  "name": "smarty-prompts-app",
+  "productName": "SmartyPrompts",
   "version": "0.1.0",
   "private": true,
-  "description": "GrokBot Clone desktop app: Electron + React, talking to the agent gateway",
+  "description": "SmartyPrompts desktop app: Electron + React, talking to the agent gateway",
   "type": "module",
   "main": "out/main/index.js",
   "engines": {

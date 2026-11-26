@@ -26,7 +26,7 @@ import { chunk, done, MockOpenAI, type RecordedRequest, textReply } from "./supp
 
 const dirs: string[] = [];
 const tempDir = () => {
-  const d = mkdtempSync(join(tmpdir(), "grokbot-oai-"));
+  const d = mkdtempSync(join(tmpdir(), "smarty-oai-"));
   dirs.push(d);
   return d;
 };

@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { SettingsStore } from "../src/main/settings.ts";
+import { adoptOldSettings, SettingsStore } from "../src/main/settings.ts";
 import { checkSettingsPatch, DEFAULT_SETTINGS, parseSettings } from "../src/shared/settings.ts";
 
 test("settings: a missing or bad file gives the defaults, field by field", () => {
@@ -32,7 +32,7 @@ test("settings: a change from the renderer must have known keys and valid values
 });
 
 test("settings store: defaults when there's no file, saves changes, reloads them, survives a bad file", () => {
-  const dir = mkdtempSync(join(tmpdir(), "grokbot-settings-"));
+  const dir = mkdtempSync(join(tmpdir(), "smarty-settings-"));
   try {
     const file = join(dir, "nested", "settings.json");
     const store = new SettingsStore(file);
@@ -49,7 +49,7 @@ test("settings store: defaults when there's no file, saves changes, reloads them
 });
 
 test("settings store: a save that fails leaves the settings as they were", () => {
-  const dir = mkdtempSync(join(tmpdir(), "grokbot-settings-"));
+  const dir = mkdtempSync(join(tmpdir(), "smarty-settings-"));
   try {
     // A folder where the file should be: every write fails.
     const file = join(dir, "settings.json");
@@ -57,6 +57,25 @@ test("settings store: a save that fails leaves the settings as they were", () =>
     mkdirSync(`${file}.tmp`);
     assert.throws(() => store.set({ sendWithCtrlEnter: true }));
     assert.equal(store.get().sendWithCtrlEnter, false, "not changed in memory either");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("settings: a file saved under the app's old name is brought over once, never over a newer one", () => {
+  const dir = mkdtempSync(join(tmpdir(), "smarty-settings-"));
+  try {
+    const oldFile = join(dir, "grokbot-clone-app", "settings.json");
+    const newFile = join(dir, "SmartyPrompts", "settings.json");
+    mkdirSync(join(dir, "grokbot-clone-app"));
+    writeFileSync(oldFile, JSON.stringify({ theme: "light" }));
+    adoptOldSettings(oldFile, newFile);
+    assert.equal(new SettingsStore(newFile).get().theme, "light");
+
+    writeFileSync(oldFile, JSON.stringify({ theme: "dark" }));
+    adoptOldSettings(oldFile, newFile);
+    assert.equal(new SettingsStore(newFile).get().theme, "light", "an existing file is never replaced");
+    adoptOldSettings(join(dir, "missing.json"), join(dir, "elsewhere", "settings.json"));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

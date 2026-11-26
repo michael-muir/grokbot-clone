@@ -5,7 +5,9 @@ import type { KeySource, ProviderId } from "./types.ts";
 
 export type { KeySource };
 
-const SERVICE = "grokbot-clone";
+const SERVICE = "smarty-prompts";
+/** Earlier service names. A key found under one is moved to SERVICE the first time it's read. */
+const LEGACY_SERVICES = ["grokbot-clone"];
 
 /** The environment variables each provider's key can come from, in order. Providers not listed take no key. */
 export const KEY_ENV: Partial<Record<ProviderId, string[]>> = {
@@ -39,14 +41,21 @@ export class KeychainKeyStore implements KeyStore {
   private readonly logged = new Set<string>();
   private readonly service: string;
 
-  /** `service` is the keychain entry's service name; tests use their own so they never touch real keys. */
-  constructor(service = SERVICE) {
+  private readonly legacy: readonly string[];
+
+  /**
+   * `service` is the keychain entry's service name; tests use their own so they never touch real keys.
+   * `legacy` lists older service names whose keys are moved over on first read.
+   */
+  constructor(service = SERVICE, legacy: readonly string[] = service === SERVICE ? LEGACY_SERVICES : []) {
     this.service = service;
+    this.legacy = legacy;
   }
 
   get(provider: ProviderId): string | undefined {
+    let current: string | null;
     try {
-      return new Entry(this.service, provider).getPassword() ?? undefined;
+      current = new Entry(this.service, provider).getPassword();
     } catch (err) {
       // E.g. no Secret Service on a Linux server, or access denied: fall back to env, and say so (never the key).
       const reason = message(err);
@@ -59,6 +68,7 @@ export class KeychainKeyStore implements KeyStore {
       }
       return undefined;
     }
+    return current ?? this.moveLegacy(provider);
   }
 
   set(provider: ProviderId, key: string): void {
@@ -75,6 +85,47 @@ export class KeychainKeyStore implements KeyStore {
     } catch (err) {
       throw new KeyStoreUnavailableError(`Couldn't remove the key from the OS keychain: ${message(err)}`);
     }
+    // A removed key must not come back from an old name that was never read: a failure here is a failed delete.
+    for (const old of this.legacy) {
+      try {
+        if (new Entry(old, provider).getPassword()) new Entry(old, provider).deletePassword();
+      } catch (err) {
+        throw new KeyStoreUnavailableError(`Couldn't remove the key from the OS keychain: ${message(err)}`);
+      }
+    }
+    this.legacyChecked.add(provider);
+  }
+
+  /** Providers whose old names have been looked at already: checked once per process, not on every request. */
+  private readonly legacyChecked = new Set<ProviderId>();
+
+  /**
+   * A key still under an old service name: copied to the current one, then removed from the old. The key is
+   * returned even if copying or cleaning up fails (that's logged), since the user did save it.
+   */
+  private moveLegacy(provider: ProviderId): string | undefined {
+    if (this.legacyChecked.has(provider)) return undefined;
+    this.legacyChecked.add(provider);
+    for (const old of this.legacy) {
+      let key: string | null;
+      try {
+        key = new Entry(old, provider).getPassword();
+      } catch (err) {
+        console.warn(`Couldn't check the ${provider} key saved under "${old}" in the OS keychain. (${message(err)})`);
+        continue;
+      }
+      if (!key) continue;
+      try {
+        new Entry(this.service, provider).setPassword(key);
+        new Entry(old, provider).deletePassword();
+      } catch (err) {
+        // Still usable; the move is tried again next time the gateway starts.
+        console.warn(`Couldn't move the ${provider} key from "${old}" in the OS keychain. (${message(err)})`);
+        this.legacyChecked.delete(provider);
+      }
+      return key;
+    }
+    return undefined;
   }
 }
 

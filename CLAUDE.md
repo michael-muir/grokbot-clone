@@ -1,7 +1,7 @@
-# GrokBot Clone
+# SmartyPrompts
 
-A desktop agent app modeled on the Grok Bot interface, keeping its agent behavior, with a swappable model
-backend. Roadmap and issues: GitHub milestones "Phase 1" to "Phase 6".
+A desktop agent app (repository `smarty-prompts`), its interface modeled on Grok Bot's, keeping its agent
+behavior, with a swappable model backend. Roadmap and issues: GitHub milestones "Phase 1" to "Phase 6".
 
 ## How work is done
 

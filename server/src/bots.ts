@@ -4,8 +4,16 @@ import { join } from "node:path";
 import type { Bot } from "./types.ts";
 
 const DEFAULT_BOTS: Bot[] = [
-  { id: "grok-bot", name: "Grok Bot", provider: "claude", avatar: { shape: "circle", color: "white" } },
+  { id: "smarty", name: "Smarty", provider: "claude", avatar: { shape: "circle", color: "white" } },
 ];
+
+/**
+ * The default bot from before the rename kept the reference app's name, which must not ship. Renamed once, only
+ * while it still has that exact name (a name the user chose is left alone). Its id stays: transcripts use it.
+ */
+function renameOldDefault(bot: Bot): Bot {
+  return bot.id === "grok-bot" && bot.name === "Grok Bot" ? { ...bot, name: "Smarty" } : bot;
+}
 
 export class BotRegistry {
   private readonly file: string;
@@ -15,7 +23,7 @@ export class BotRegistry {
     mkdirSync(dataDir, { recursive: true });
     this.file = join(dataDir, "bots.json");
     const initial = existsSync(this.file) ? (JSON.parse(readFileSync(this.file, "utf8")) as Bot[]) : seed;
-    for (const bot of initial) this.bots.set(bot.id, bot);
+    for (const bot of initial) this.bots.set(bot.id, renameOldDefault(bot));
     this.save();
   }
 

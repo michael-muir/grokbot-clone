@@ -37,7 +37,7 @@ if (!credentials.key("claude")) {
 
 // Localhost only: the agent can run commands on this machine.
 server.listen(port, "127.0.0.1", () => {
-  console.log(`GrokBot Clone gateway on http://127.0.0.1:${port} (data: ${dataDir})`);
+  console.log(`SmartyPrompts gateway on http://127.0.0.1:${port} (data: ${dataDir})`);
 });
 
 // Stop cleanly: interrupted runs are recorded as interrupted, and no transcript write is cut off. The desktop app
