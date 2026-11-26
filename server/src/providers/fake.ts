@@ -46,7 +46,10 @@ export class FakeProvider implements AgentProvider {
       if (prompt === "/choice") {
         const toolUseId = `tool-${turn}`;
         cb.emit({ type: "tool_start", toolUseId, tool: "ask_user", summary: "Asking: Pick a color" });
-        const answer = await cb.requestChoice?.(
+        if (!cb.requestChoice) {
+          return { status: "failed", sessionId, error: "This client can't show questions with choices." };
+        }
+        const answer = await cb.requestChoice(
           {
             prompt: "Pick a color",
             options: [

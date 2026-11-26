@@ -1,6 +1,6 @@
 // The choice card: the bot asks a question with lettered choices (the reference's widget card), and with
 // allowCustom the user can type their own answer instead.
-import { type FormEvent, useRef, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import type { EntryBody } from "../../../../../server/src/types.ts";
 
 type Choice = Extract<EntryBody, { kind: "choice" }>;
@@ -16,12 +16,23 @@ export function ChoiceCard({
   answer(value: string): Promise<unknown>;
 }) {
   const [sending, setSending] = useState(false);
+  const card = useRef<HTMLElement>(null);
+  const result = useRef<HTMLParagraphElement>(null);
   const [typing, setTyping] = useState(false);
   const [custom, setCustom] = useState("");
   const otherButton = useRef<HTMLButtonElement>(null);
   const pending = body.state === "pending";
   const chosen = body.answer;
   const pickedListed = body.options.some((o) => o.value === chosen);
+
+  // Once answered, the choice the user pressed is disabled: keep keyboard focus on the card's result line instead
+  // of letting it fall to the page.
+  useEffect(() => {
+    if (pending) return;
+    if (card.current?.contains(document.activeElement) || document.activeElement === document.body) {
+      result.current?.focus();
+    }
+  }, [pending]);
 
   const send = async (value: string) => {
     if (sending || !pending) return;
@@ -49,7 +60,7 @@ export function ChoiceCard({
   };
 
   return (
-    <section className="card" aria-label={`Question: ${body.prompt}`}>
+    <section ref={card} className="card" aria-label={`Question: ${body.prompt}`}>
       <p className="card-prompt">{body.prompt}</p>
       <div className="choices">
         {body.options.map((option, i) => (
@@ -104,8 +115,12 @@ export function ChoiceCard({
         </form>
       )}
       {!pending && (
-        <p className="card-result" data-state={body.state}>
-          {body.state === "expired" ? "No answer" : pickedListed ? "Answered" : `You said: ${chosen ?? ""}`}
+        <p ref={result} className="card-result" data-state={body.state} tabIndex={-1}>
+          {body.state === "expired"
+            ? "No answer"
+            : pickedListed
+              ? `Answered: ${body.options.find((o) => o.value === chosen)?.label ?? chosen}`
+              : `You said: ${chosen ?? ""}`}
         </p>
       )}
     </section>

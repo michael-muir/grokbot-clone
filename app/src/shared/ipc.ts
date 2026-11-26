@@ -35,7 +35,8 @@ export interface Calls {
   listBots: { args: []; result: PublicBot[] };
   updateBot: { args: [botId: string, patch: BotPatch]; result: PublicBot };
   transcript: { args: [botId: string, since: number]; result: TranscriptEntry[] };
-  sendMessage: { args: [botId: string, text: string, clientNonce?: string]; result: undefined };
+  /** Returns the id of the user entry the message became. */
+  sendMessage: { args: [botId: string, text: string, clientNonce?: string]; result: string };
   interrupt: { args: [botId: string]; result: undefined };
   answerApproval: { args: [botId: string, entryId: string, decision: ApprovalDecision]; result: undefined };
   answerChoice: { args: [botId: string, entryId: string, answer: string]; result: undefined };

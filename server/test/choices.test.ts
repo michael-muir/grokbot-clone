@@ -189,3 +189,58 @@ test("ask_user: returns the answer, refuses bad options, and says so when nobody
   assert.deepEqual(stopped, { ok: false, output: "The run was stopped before the user answered." });
   assert.equal(askUserTool.readOnly, true, "asking needs no approval");
 });
+
+test("restart: runs, cards, text and steps left mid-flight are closed when the gateway starts", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "grokbot-leftover-"));
+  try {
+    const bots = new BotRegistry(dir, [
+      { id: "nova", name: "Nova", provider: "fake", avatar: { shape: "circle", color: "amber" } },
+    ]);
+    // What a crash mid-run leaves on disk.
+    const before = new TranscriptStore(dir);
+    before.append("nova", { kind: "run", provider: "fake", state: "running" });
+    before.append("nova", { kind: "assistant_text", text: "Half", streaming: true });
+    before.append("nova", { kind: "status", label: "Reading", tool: "read_file", state: "running" });
+    before.append("nova", { kind: "approval", tool: "shell", summary: "ls", input: {}, state: "pending" });
+    before.append("nova", { kind: "choice", prompt: "Pick", options: [], allowCustom: true, state: "pending" });
+
+    const store = new TranscriptStore(dir);
+    const providers: ProviderRegistry = new Map<ProviderId, FakeProvider>([["fake", new FakeProvider(1)]]);
+    new Gateway(bots, store, providers, new LocalFolderComputers(dir));
+    const states = store.list("nova").map((e) => {
+      const b = e.body;
+      return b.kind === "assistant_text" ? `text:${b.streaming}` : "state" in b ? `${b.kind}:${b.state}` : b.kind;
+    });
+    assert.deepEqual(states, ["run:interrupted", "text:false", "status:failed", "approval:expired", "choice:expired"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("send: the client gets back the id of the user entry", async () => {
+  const t = await setup();
+  try {
+    const res = await t.post("/bots/nova/messages", { text: "hello" });
+    const { entryId } = (await res.json()) as { entryId: string };
+    const user = await until(() => t.store.list("nova").find((e) => e.body.kind === "user_message"));
+    assert.equal(entryId, user.id);
+    await until(() => (t.gateway.isRunning("nova") ? undefined : true)); // let the reply finish before cleanup
+  } finally {
+    t.cleanup();
+  }
+});
+
+test("fake /choice: without a way to ask, the run fails with a reason instead of looking stopped", async () => {
+  const outcome = await new FakeProvider(1).run(
+    {
+      botId: "b",
+      botName: "B",
+      prompt: "/choice",
+      workspaceDir: ".",
+      instructions: "",
+      signal: new AbortController().signal,
+    },
+    { emit: () => {}, requestApproval: async () => ({ allow: true }) },
+  );
+  assert.equal(outcome.status, "failed");
+});

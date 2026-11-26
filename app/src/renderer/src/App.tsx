@@ -9,7 +9,7 @@ import { type AppSettings, DEFAULT_SETTINGS } from "../../shared/settings.ts";
 import { botColor, initial } from "./bot-colors.ts";
 import type { RowContext } from "./chat/ChatRow.tsx";
 import { Composer } from "./chat/Composer.tsx";
-import type { PendingMessage } from "./chat/rows.ts";
+import { isConfirmed, type PendingMessage } from "./chat/rows.ts";
 import { Transcript } from "./chat/Transcript.tsx";
 import { call } from "./gateway.ts";
 import { GeneralPage } from "./settings/GeneralPage.tsx";
@@ -269,10 +269,7 @@ function Chat({
   useEffect(() => {
     setPending((list) => {
       if (list.length === 0) return list;
-      const confirmed = new Set(
-        entries.flatMap((e) => (e.body.kind === "user_message" && e.body.clientNonce ? [e.body.clientNonce] : [])),
-      );
-      const left = list.filter((p) => !confirmed.has(p.nonce));
+      const left = list.filter((p) => !isConfirmed(p, entries));
       return left.length === list.length ? list : left;
     });
   }, [entries]);
@@ -316,7 +313,12 @@ function Chat({
       const nonce = crypto.randomUUID();
       setPending((list) => [...list, { nonce, text, at: Date.now() }]);
       try {
-        await report(() => call("sendMessage", bot.id, text, nonce));
+        let entryId = "";
+        await report(async () => {
+          entryId = await call("sendMessage", bot.id, text, nonce);
+        });
+        // The id matches the entry even if this gateway doesn't echo nonces.
+        if (entryId) setPending((list) => list.map((p) => (p.nonce === nonce ? { ...p, entryId } : p)));
       } catch (err) {
         setPending((list) => list.filter((p) => p.nonce !== nonce)); // the draft is kept instead
         throw err;

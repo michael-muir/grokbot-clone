@@ -223,3 +223,18 @@ test("rows: a Stopped notice stays with its run's output, before notices written
     ["user_message", "assistant_text", "run", "notice"],
   );
 });
+
+test("rows: a pending message is matched by the entry id the send returned, even without an echoed nonce", () => {
+  seq = 0;
+  const pending = [{ nonce: "n2", text: "hi", at: T0, entryId: "e-real" }];
+  const real = { ...e({ kind: "user_message", text: "hi" }), id: "e-real" }; // an older gateway: no clientNonce
+  const rows = buildRows([real], NOW, "en-US", pending);
+  assert.equal(rows.filter((r) => r.type === "entry" && r.pending).length, 0);
+});
+
+test("rows: no Thinking row under a choice card waiting for the user", () => {
+  seq = 0;
+  const choice: EntryBody = { kind: "choice", prompt: "Pick", options: [], allowCustom: true, state: "pending" };
+  const rows = buildRows([user("go"), run("running"), e(choice)], NOW, "en-US");
+  assert.ok(!shape(rows).some((s) => s.startsWith("thinking")));
+});

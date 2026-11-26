@@ -55,6 +55,31 @@ export class Gateway {
     this.store = store;
     this.providers = providers;
     this.computers = computers;
+    this.closeLeftovers();
+  }
+
+  /**
+   * A gateway that stopped mid-run (crash, killed process) leaves entries saying "running" or "pending" with
+   * nothing behind them: cards nobody can answer, runs that never end. On startup they're closed: runs become
+   * interrupted, cards expired, streaming text final, running steps failed.
+   */
+  private closeLeftovers(): void {
+    for (const bot of this.bots.list()) {
+      for (const entry of this.store.list(bot.id)) {
+        const b = entry.body;
+        const closed: EntryBody | undefined =
+          b.kind === "run" && b.state === "running"
+            ? { ...b, state: "interrupted" }
+            : (b.kind === "approval" || b.kind === "choice") && b.state === "pending"
+              ? { ...b, state: "expired" }
+              : b.kind === "assistant_text" && b.streaming
+                ? { ...b, streaming: false }
+                : b.kind === "status" && b.state === "running"
+                  ? { ...b, state: "failed" }
+                  : undefined;
+        if (closed) this.store.update(bot.id, entry.id, () => closed);
+      }
+    }
   }
 
   isRunning(botId: string): boolean {
@@ -254,7 +279,13 @@ export class Gateway {
             const cardId = randomUUID();
             const cancelled = anySignal(signal, controller.signal);
             const answer = this.approvals.wait(cardId, cancelled);
-            const card = append({ kind: "approval", ...req, state: "pending" }, cardId);
+            let card: TranscriptEntry;
+            try {
+              card = append({ kind: "approval", ...req, state: "pending" }, cardId);
+            } catch (err) {
+              this.approvals.answer(cardId, { allow: false, reason: "The card couldn't be shown." }); // drop the waiter
+              throw err;
+            }
             const decision = await answer;
             // A denial without a reason shows as plain "Denied"; the model still gets a sentence to act on.
             const reason = decision.allow ? "" : decision.reason.trim();
@@ -273,7 +304,12 @@ export class Gateway {
             const cardId = randomUUID();
             const cancelled = anySignal(signal, controller.signal);
             const answer = this.choices.wait(cardId, cancelled);
-            append({ kind: "choice", ...req, state: "pending" }, cardId);
+            try {
+              append({ kind: "choice", ...req, state: "pending" }, cardId);
+            } catch (err) {
+              this.choices.answer(cardId, undefined); // drop the waiter
+              throw err;
+            }
             const chosen = await answer;
             set(cardId, (b) =>
               b.kind === "choice"

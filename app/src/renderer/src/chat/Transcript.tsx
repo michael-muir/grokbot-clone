@@ -5,6 +5,9 @@ import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import type { TranscriptEntry } from "../../../../../server/src/types.ts";
 import { ChatRow, type RowContext } from "./ChatRow.tsx";
 import { buildRows, type PendingMessage } from "./rows.ts";
+
+const NO_PENDING: readonly PendingMessage[] = [];
+
 import "./chat.css";
 
 /** Within this many pixels of the end counts as "at the bottom". */
@@ -30,7 +33,7 @@ const vars = (values: Record<`--${string}`, string>) => values as CSSProperties;
 
 export function Transcript({
   entries,
-  pending = [],
+  pending = NO_PENDING,
   context,
   label,
 }: {
@@ -63,8 +66,11 @@ export function Transcript({
   // biome-ignore lint/correctness/useExhaustiveDependencies: total is a trigger (rows measured), not a value used.
   useLayoutEffect(() => {
     // The user's own new message brings them back to the end, even if they had scrolled up.
+    // Keyed by nonce where there is one, so the pending copy and the confirmed entry count as one message.
+    const lastEntry = entries.at(-1);
     const last =
-      pending.at(-1)?.nonce ?? (entries.at(-1)?.body.kind === "user_message" ? entries.at(-1)?.id : undefined);
+      pending.at(-1)?.nonce ??
+      (lastEntry?.body.kind === "user_message" ? (lastEntry.body.clientNonce ?? lastEntry.id) : undefined);
     if (last !== undefined && last !== lastSent.current) {
       lastSent.current = last;
       following.current = true;

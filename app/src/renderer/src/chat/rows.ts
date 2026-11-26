@@ -82,6 +82,7 @@ function isThinking(entries: readonly TranscriptEntry[]): boolean {
     if (b.kind === "assistant_text" && b.streaming && b.text !== "") return false;
     if (b.kind === "status" && b.state === "running") return false;
     if (b.kind === "approval" && b.state === "pending") return false;
+    if (b.kind === "choice" && b.state === "pending") return false;
   }
   return false;
 }
@@ -91,6 +92,17 @@ export interface PendingMessage {
   nonce: string;
   text: string;
   at: number;
+  /** The user entry's id, once the gateway has accepted the send. Matches even if the nonce isn't echoed. */
+  entryId?: string;
+}
+
+/** Whether a pending message's own entry is already in the transcript (by nonce, or by the id the send returned). */
+export function isConfirmed(p: PendingMessage, entries: readonly TranscriptEntry[]): boolean {
+  return entries.some(
+    (e) =>
+      e.body.kind === "user_message" &&
+      (e.body.clientNonce === p.nonce || (p.entryId !== undefined && e.id === p.entryId)),
+  );
 }
 
 const PENDING_PREFIX = "pending-";
@@ -122,11 +134,8 @@ export function buildRows(
   }
   if (stopped) items.push(stopped);
   // Pending messages go at the end until the gateway's copy (same nonce) is in the transcript.
-  const confirmed = new Set(
-    entries.flatMap((e) => (e.body.kind === "user_message" && e.body.clientNonce ? [e.body.clientNonce] : [])),
-  );
   for (const p of pending) {
-    if (confirmed.has(p.nonce)) continue;
+    if (isConfirmed(p, entries)) continue;
     items.push({
       side: "user",
       entry: {
