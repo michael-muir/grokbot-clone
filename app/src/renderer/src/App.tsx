@@ -198,7 +198,10 @@ export function App() {
         <SettingsDialog
           page={settingsOpen.page}
           onPage={(page) => setSettingsOpen((open) => ({ ...open, page }))}
-          onClose={() => setSettingsOpen(undefined)}
+          onClose={() => {
+            setSettingsOpen(undefined);
+            setSettingsError(undefined); // an old failure shouldn't greet the next visit
+          }}
         >
           {settingsError && (
             <p className="banner" role="alert">
@@ -212,6 +215,7 @@ export function App() {
               bots={bots}
               initialBotId={settingsOpen.botId ?? selected}
               onBotChanged={(updated) => setBots((list) => list.map((b) => (b.id === updated.id ? updated : b)))}
+              onProvidersChanged={setProviders}
             />
           )}
         </SettingsDialog>

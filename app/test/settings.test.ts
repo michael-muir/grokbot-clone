@@ -1,6 +1,6 @@
 // App settings: parsing a stored file, checking changes from the renderer, and the store on disk.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -43,6 +43,20 @@ test("settings store: defaults when there's no file, saves changes, reloads them
 
     writeFileSync(file, "{ not json");
     assert.deepEqual(new SettingsStore(file).get(), DEFAULT_SETTINGS);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("settings store: a save that fails leaves the settings as they were", () => {
+  const dir = mkdtempSync(join(tmpdir(), "grokbot-settings-"));
+  try {
+    // A folder where the file should be: every write fails.
+    const file = join(dir, "settings.json");
+    const store = new SettingsStore(file);
+    mkdirSync(`${file}.tmp`);
+    assert.throws(() => store.set({ sendWithCtrlEnter: true }));
+    assert.equal(store.get().sendWithCtrlEnter, false, "not changed in memory either");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

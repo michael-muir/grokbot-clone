@@ -1,6 +1,6 @@
 // Settings › Models & keys: each bot's provider, model and server; each provider's API key. A key typed here goes
 // straight to the gateway (and the OS keychain) and is cleared from the page; it's never shown or read back.
-import { type FormEvent, useCallback, useEffect, useId, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from "react";
 import type { ProviderId, ProviderSummary, PublicBot } from "../../../../../server/src/types.ts";
 import { call } from "../gateway.ts";
 import { Row, Section, Select } from "./controls.tsx";
@@ -22,14 +22,18 @@ export function ModelsPage({
   bots,
   initialBotId,
   onBotChanged,
+  onProvidersChanged,
 }: {
   bots: readonly PublicBot[];
   initialBotId: string | undefined;
   onBotChanged(bot: PublicBot): void;
+  /** A key was saved or removed: the app's own provider list should follow. */
+  onProvidersChanged(providers: ProviderSummary[]): void;
 }) {
   const ids = { bot: useId(), provider: useId(), model: useId(), server: useId(), key: useId() };
-  const [botId, setBotId] = useState(initialBotId ?? bots[0]?.id);
-  const bot = bots.find((b) => b.id === botId);
+  const [botId, setBotId] = useState(initialBotId);
+  // Falls back at render time, so bots that arrive after the page opened still show.
+  const bot = bots.find((b) => b.id === botId) ?? bots[0];
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const [models, setModels] = useState<Models>({ state: "idle" });
   const [note, setNote] = useState<Note>();
@@ -40,29 +44,41 @@ export function ModelsPage({
 
   const refreshProviders = useCallback(async () => {
     try {
-      setProviders(await call("listProviders"));
+      const list = await call("listProviders");
+      setProviders(list);
+      onProvidersChanged(list);
     } catch (err) {
       setNote({ tone: "error", text: `Couldn't list providers: ${message(err)}` });
     }
-  }, []);
-  useEffect(() => void refreshProviders(), [refreshProviders]);
+  }, [onProvidersChanged]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once per page open; later refreshes follow key changes.
+  useEffect(() => void refreshProviders(), []);
 
   const provider = providers.find((p) => p.id === bot?.provider);
 
+  // Only what the list depends on, as plain values: a new bot object after saving a model mustn't reload it.
+  const listProvider = provider ? bot?.provider : undefined;
+  const listBaseUrl = bot?.baseUrl;
+  const keyMissing = provider ? provider.needsKey && !provider.configured : false;
+  /** Bumped by every listing; a reply that isn't the latest is dropped (a slow provider can't overwrite a fast one). */
+  const latest = useRef(0);
+
   const loadModels = useCallback(async () => {
-    if (!bot || !provider) return;
-    if (provider.needsKey && !provider.configured) {
+    const ticket = ++latest.current;
+    if (!listProvider) return;
+    if (keyMissing) {
       setModels({ state: "error", error: "Add a key below to see this provider's models." });
       return;
     }
     setModels({ state: "loading" });
     try {
-      const test = await call("testProvider", bot.provider, bot.baseUrl);
+      const test = await call("testProvider", listProvider, listBaseUrl);
+      if (ticket !== latest.current) return;
       setModels(test.ok ? { state: "ok", models: test.models } : { state: "error", error: test.error });
     } catch (err) {
-      setModels({ state: "error", error: message(err) });
+      if (ticket === latest.current) setModels({ state: "error", error: message(err) });
     }
-  }, [bot, provider]);
+  }, [listProvider, listBaseUrl, keyMissing]);
   useEffect(() => void loadModels(), [loadModels]);
 
   // A different bot or provider: start from what's saved for it.
@@ -129,9 +145,10 @@ export function ModelsPage({
   const testKey = () =>
     run(async () => {
       if (!provider) return undefined;
+      const ticket = ++latest.current;
       const result = await call("testProvider", provider.id, bot.baseUrl);
       if (!result.ok) throw new Error(result.error);
-      setModels({ state: "ok", models: result.models });
+      if (ticket === latest.current) setModels({ state: "ok", models: result.models });
       return `${provider.label} works: ${result.models.length} models available.`;
     });
 
@@ -183,7 +200,8 @@ export function ModelsPage({
               onChange={(e) => setServer(e.target.value)}
               onBlur={saveServer}
               onKeyDown={(e) => {
-                if (e.key === "Enter") saveServer();
+                // Saving happens on blur only, so Enter then a click elsewhere can't save twice.
+                if (e.key === "Enter") e.currentTarget.blur();
               }}
             />
           </Row>

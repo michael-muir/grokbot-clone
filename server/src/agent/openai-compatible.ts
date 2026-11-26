@@ -152,7 +152,10 @@ export class OpenAICompatibleAdapter implements ModelAdapter {
 
   /** Model ids, sorted for display. */
   async listModels(signal: AbortSignal, baseUrl?: string): Promise<string[]> {
-    if (this.opts.keyCheckPath) await this.request(this.opts.keyCheckPath, { method: "GET", signal }, baseUrl);
+    if (this.opts.keyCheckPath) {
+      const check = await this.request(this.opts.keyCheckPath, { method: "GET", signal }, baseUrl);
+      await check.body?.cancel(); // only the status matters; free the connection
+    }
     return (await this.serverModels(signal, baseUrl)).sort();
   }
 

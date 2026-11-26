@@ -19,12 +19,14 @@ export class SettingsStore {
 
   /** Applies an already-checked change and saves it. Returns the full settings. */
   set(patch: Partial<AppSettings>): AppSettings {
-    this.current = { ...this.current, ...patch };
+    const next = { ...this.current, ...patch };
     mkdirSync(dirname(this.file), { recursive: true });
     const temp = `${this.file}.tmp`;
-    writeFileSync(temp, `${JSON.stringify(this.current, null, 2)}\n`);
+    writeFileSync(temp, `${JSON.stringify(next, null, 2)}\n`);
     renameSync(temp, this.file);
-    return this.current;
+    // Only once it's on disk: a failed save mustn't leave a change that's live but not stored.
+    this.current = next;
+    return next;
   }
 
   private static load(file: string): AppSettings {
