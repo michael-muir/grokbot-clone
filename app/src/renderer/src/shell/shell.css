@@ -118,9 +118,40 @@
   animation: pulse var(--duration-shimmer) var(--ease-in-out) infinite alternate;
 }
 
+.sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: auto;
+}
+
+/* The reference's 28px sidebar icon buttons (new bot, apps). */
+.sidebar-icon-button {
+  display: grid;
+  place-items: center;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-icon);
+  cursor: pointer;
+}
+
+.sidebar-icon-button:hover {
+  background: var(--color-fill);
+  color: var(--color-text);
+}
+
+.sidebar-icon-button .icon {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+}
+
 .connection-dot {
   flex-shrink: 0;
-  margin-top: auto;
   width: var(--space-2-5);
   height: var(--space-2-5);
   border-radius: var(--radius-full);
@@ -214,9 +245,34 @@
   padding: var(--space-3) var(--space-4) 0;
 }
 
-.panel-heading {
+.panel-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin: 0 0 var(--space-2-5);
   padding: 0 var(--space-3);
+}
+
+/* Small text button at the end of a heading, like the reference's "Hide". */
+.panel-action {
+  padding: var(--space-1) var(--space-1-5);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  letter-spacing: var(--tracking-normal);
+  cursor: pointer;
+}
+
+.panel-action:hover {
+  background: var(--color-fill);
+  color: var(--color-text);
+}
+
+.panel-heading {
+  margin: 0;
   color: var(--color-text-secondary);
   font-size: var(--text-sm);
   font-weight: var(--font-weight-regular);

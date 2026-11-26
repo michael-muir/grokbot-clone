@@ -1,5 +1,5 @@
 // The right-hand bot panel: the open bot's avatar and name (editable), its computer, and its model.
-import { type KeyboardEvent, type RefObject, useEffect, useRef, useState } from "react";
+import { type KeyboardEvent, type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
 import type { PublicBot } from "../../../../../server/src/types.ts";
 import { botColor, initial } from "../bot-colors.ts";
 import { cleanName, MAX_NAME } from "./sidebar-state.ts";
@@ -11,12 +11,15 @@ export function BotPanel({
   providerLabel,
   onClose,
   onRename,
+  onChangeModel,
 }: {
   bot: PublicBot;
   providerLabel: string;
   onClose(): void;
   /** Rejects when the gateway refuses; the field then goes back to the saved name. */
   onRename(name: string): Promise<void>;
+  /** Opens Settings at Models & keys for this bot. */
+  onChangeModel(): void;
 }) {
   const close = useRef<HTMLButtonElement>(null);
 
@@ -74,7 +77,14 @@ export function BotPanel({
         </div>
       </PanelSection>
 
-      <PanelSection title="Model">
+      <PanelSection
+        title="Model"
+        action={
+          <button type="button" className="panel-action" onClick={onChangeModel}>
+            Change
+          </button>
+        }
+      >
         <div className="panel-row">
           <span className="row-title">Provider</span>
           <span className="row-value">{providerLabel}</span>
@@ -88,10 +98,13 @@ export function BotPanel({
   );
 }
 
-function PanelSection({ title, children }: { title: string; children: React.ReactNode }) {
+function PanelSection({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <section className="panel-section" aria-label={title}>
-      <h3 className="panel-heading">{title}</h3>
+      <div className="panel-heading-row">
+        <h3 className="panel-heading">{title}</h3>
+        {action}
+      </div>
       <div className="panel-card">{children}</div>
     </section>
   );

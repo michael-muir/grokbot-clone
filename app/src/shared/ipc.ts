@@ -11,6 +11,9 @@ import {
   type PublicBot,
   type TranscriptEntry,
 } from "../../../server/src/types.ts";
+import type { AppSettings } from "./settings.ts";
+
+export type { AppSettings } from "./settings.ts";
 
 export const CHANNELS = {
   call: "gateway:call",
@@ -19,6 +22,12 @@ export const CHANNELS = {
   streamClose: "stream:close",
   streamEvent: "stream:event",
   ready: "app:ready",
+  settingsGet: "settings:get",
+  settingsSet: "settings:set",
+  /** main → renderer: the settings changed (in any window). */
+  settingsChanged: "settings:changed",
+  /** main → renderer: the menu asked to open Settings. */
+  settingsOpen: "settings:open",
 } as const;
 
 /** Every gateway call the renderer may make, by name. */
@@ -72,6 +81,14 @@ export interface DesktopApi {
   activity(onEvent: (event: StreamEvent) => void): () => void;
   /** The renderer is up and listed the bots; the smoke test waits for this. */
   ready(botCount: number): void;
+  settings: {
+    get(): Promise<AppSettings>;
+    /** Saves a change and returns the full settings; rejects if the change isn't valid. */
+    set(patch: Partial<AppSettings>): Promise<AppSettings>;
+    onChange(listener: (settings: AppSettings) => void): () => void;
+    /** The menu's Settings… item. */
+    onOpen(listener: () => void): () => void;
+  };
 }
 
 const isString = (v: unknown): v is string => typeof v === "string";

@@ -8,10 +8,15 @@ export function Composer({
   busy,
   onSend,
   onStop,
+  sendWithCtrlEnter = false,
+  spellcheck = true,
 }: {
   botId: string;
   botName: string;
   busy: boolean;
+  /** The "Send with Ctrl+Enter" setting. */
+  sendWithCtrlEnter?: boolean;
+  spellcheck?: boolean;
   /** Rejects when the send fails; the draft is kept so nothing typed is lost. */
   onSend(text: string): Promise<void>;
   onStop(): Promise<void>;
@@ -75,7 +80,8 @@ export function Composer({
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (!shouldSend(e.key, e.shiftKey, e.nativeEvent.isComposing)) return;
+    const mode = { ctrlEnter: sendWithCtrlEnter, modifier: e.ctrlKey || e.metaKey };
+    if (!shouldSend(e.key, e.shiftKey, e.nativeEvent.isComposing, mode)) return;
     e.preventDefault(); // no new line, whether or not this Enter sends
     void send();
   };
@@ -88,6 +94,7 @@ export function Composer({
         placeholder={`Message ${botName}`}
         value={draft}
         rows={1}
+        spellCheck={spellcheck}
         // biome-ignore lint/a11y/noAutofocus: opening a chat is opening it to write in; this is the main input.
         autoFocus
         onChange={(e) => update(e.target.value)}

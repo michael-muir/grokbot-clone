@@ -149,6 +149,17 @@ textarea {
   transition: background var(--duration-fast) var(--ease-out);
 }
 
+.button.small {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: var(--opacity-muted);
+}
+
 .button.primary {
   background: var(--color-contrast);
   color: var(--color-on-contrast);

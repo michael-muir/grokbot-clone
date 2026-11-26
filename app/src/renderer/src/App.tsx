@@ -5,11 +5,15 @@ import type { StreamState } from "../../../../server/src/client/subscribe.ts";
 import { TranscriptView } from "../../../../server/src/client/transcript-view.ts";
 import type { BotActivity, ProviderSummary, PublicBot, TranscriptEntry } from "../../../../server/src/types.ts";
 import type { ConnectionInfo } from "../../shared/ipc.ts";
+import { type AppSettings, DEFAULT_SETTINGS } from "../../shared/settings.ts";
 import { botColor, initial } from "./bot-colors.ts";
 import type { RowContext } from "./chat/ChatRow.tsx";
 import { Composer } from "./chat/Composer.tsx";
 import { Transcript } from "./chat/Transcript.tsx";
 import { call } from "./gateway.ts";
+import { GeneralPage } from "./settings/GeneralPage.tsx";
+import { ModelsPage } from "./settings/ModelsPage.tsx";
+import { SettingsDialog, type SettingsPage } from "./settings/SettingsDialog.tsx";
 import { BotPanel, PANEL_ID } from "./shell/BotPanel.tsx";
 import { Sidebar } from "./shell/Sidebar.tsx";
 import { nextUnread } from "./shell/sidebar-state.ts";
@@ -29,6 +33,10 @@ export function App() {
   const [error, setError] = useState<string>();
   const [renameError, setRenameError] = useState<string>();
   const [activityError, setActivityError] = useState<string>();
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [settingsError, setSettingsError] = useState<string>();
+  /** Open Settings: which page, and for Models & keys, which bot. */
+  const [settingsOpen, setSettingsOpen] = useState<{ page: SettingsPage; botId?: string }>();
   const pill = useRef<HTMLButtonElement>(null);
   // The latest values, for the activity listener, which outlives renders.
   const selectedNow = useRef(selected);
@@ -60,6 +68,25 @@ export function App() {
     return () => {
       live = false;
     };
+  }, []);
+
+  useEffect(() => {
+    window.desktop.settings.get().then(setSettings, (err: unknown) => console.warn("Couldn't read settings:", err));
+    const stopChange = window.desktop.settings.onChange(setSettings);
+    const stopOpen = window.desktop.settings.onOpen(() => setSettingsOpen((open) => open ?? { page: "general" }));
+    return () => {
+      stopChange();
+      stopOpen();
+    };
+  }, []);
+
+  const changeSettings = useCallback(async (patch: Partial<AppSettings>) => {
+    try {
+      setSettings(await window.desktop.settings.set(patch));
+      setSettingsError(undefined);
+    } catch (err) {
+      setSettingsError(`Couldn't save the setting: ${message(err)}`);
+    }
   }, []);
 
   const connected = connection?.ok === true;
@@ -129,6 +156,7 @@ export function App() {
         unread={unread}
         connection={connectionInfo}
         onSelect={select}
+        onOpenSettings={() => setSettingsOpen({ page: "general" })}
       />
       <main className="chat">
         {connection?.ok === false && (
@@ -151,6 +179,7 @@ export function App() {
             pill={pill}
             panelOpen={showPanel}
             onTogglePanel={() => (panelOpen ? closePanel() : setPanelOpen(true))}
+            settings={settings}
           />
         ) : (
           connected && <p className="muted">No bot selected.</p>
@@ -162,7 +191,30 @@ export function App() {
           providerLabel={providers.find((p) => p.id === bot.provider)?.label ?? bot.provider}
           onClose={closePanel}
           onRename={(name) => rename(bot.id, name)}
+          onChangeModel={() => setSettingsOpen({ page: "models", botId: bot.id })}
         />
+      )}
+      {settingsOpen && (
+        <SettingsDialog
+          page={settingsOpen.page}
+          onPage={(page) => setSettingsOpen((open) => ({ ...open, page }))}
+          onClose={() => setSettingsOpen(undefined)}
+        >
+          {settingsError && (
+            <p className="banner" role="alert">
+              {settingsError}
+            </p>
+          )}
+          {settingsOpen.page === "general" ? (
+            <GeneralPage settings={settings} onChange={(patch) => void changeSettings(patch)} />
+          ) : (
+            <ModelsPage
+              bots={bots}
+              initialBotId={settingsOpen.botId ?? selected}
+              onBotChanged={(updated) => setBots((list) => list.map((b) => (b.id === updated.id ? updated : b)))}
+            />
+          )}
+        </SettingsDialog>
       )}
     </div>
   );
@@ -173,11 +225,13 @@ function Chat({
   pill,
   panelOpen,
   onTogglePanel,
+  settings,
 }: {
   bot: PublicBot;
   pill: RefObject<HTMLButtonElement | null>;
   panelOpen: boolean;
   onTogglePanel(): void;
+  settings: AppSettings;
 }) {
   const [view] = useState(() => new TranscriptView());
   const entries = useSyncExternalStore(
@@ -271,6 +325,8 @@ function Chat({
         busy={busy}
         onSend={(text) => report(() => call("sendMessage", bot.id, text))}
         onStop={() => report(() => call("interrupt", bot.id))}
+        sendWithCtrlEnter={settings.sendWithCtrlEnter}
+        spellcheck={settings.spellcheck}
       />
     </div>
   );

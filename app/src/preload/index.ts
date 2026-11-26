@@ -1,6 +1,6 @@
 // The bridge between the sandboxed renderer and main: exposes `window.desktop` and nothing else.
 import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
-import { CHANNELS, type DesktopApi, type StreamEvent } from "../shared/ipc.ts";
+import { type AppSettings, CHANNELS, type DesktopApi, type StreamEvent } from "../shared/ipc.ts";
 
 let nextStream = 0;
 
@@ -27,6 +27,20 @@ const api: DesktopApi = {
   subscribe: (botId, since, onEvent) => openStream({ topic: "transcript", botId, since }, onEvent),
   activity: (onEvent) => openStream({ topic: "activity" }, onEvent),
   ready: (botCount) => ipcRenderer.send(CHANNELS.ready, botCount),
+  settings: {
+    get: () => ipcRenderer.invoke(CHANNELS.settingsGet),
+    set: (patch) => ipcRenderer.invoke(CHANNELS.settingsSet, patch),
+    onChange(listener) {
+      const relay = (_event: IpcRendererEvent, settings: AppSettings) => listener(settings);
+      ipcRenderer.on(CHANNELS.settingsChanged, relay);
+      return () => ipcRenderer.removeListener(CHANNELS.settingsChanged, relay);
+    },
+    onOpen(listener) {
+      const relay = () => listener();
+      ipcRenderer.on(CHANNELS.settingsOpen, relay);
+      return () => ipcRenderer.removeListener(CHANNELS.settingsOpen, relay);
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld("desktop", api);
