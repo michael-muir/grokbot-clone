@@ -4,7 +4,10 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { type CSSProperties, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { TranscriptEntry } from "../../../../../server/src/types.ts";
 import { ChatRow, type RowContext } from "./ChatRow.tsx";
-import { buildRows } from "./rows.ts";
+import { buildRows, type PendingMessage } from "./rows.ts";
+
+const NO_PENDING: readonly PendingMessage[] = [];
+
 import "./chat.css";
 
 /** Within this many pixels of the end counts as "at the bottom". */
@@ -30,10 +33,13 @@ const vars = (values: Record<`--${string}`, string>) => values as CSSProperties;
 
 export function Transcript({
   entries,
+  pending = NO_PENDING,
   context,
   label,
 }: {
   entries: readonly TranscriptEntry[];
+  /** Sent messages the gateway hasn't confirmed yet, shown at the end. */
+  pending?: readonly PendingMessage[];
   context: RowContext;
   /** Accessible name of the log, e.g. "Conversation with Nova". */
   label: string;
@@ -41,7 +47,7 @@ export function Transcript({
   const today = useToday();
   // Rebuilt when entries change (a new array per change), and at midnight so "Today" becomes "Yesterday".
   // biome-ignore lint/correctness/useExhaustiveDependencies: today is a trigger; buildRows reads the clock itself.
-  const rows = useMemo(() => buildRows(entries, new Date()), [entries, today]);
+  const rows = useMemo(() => buildRows(entries, new Date(), undefined, pending), [entries, pending, today]);
   const scroller = useRef<HTMLDivElement>(null);
   const following = useRef(true);
   const lastSent = useRef<string>(undefined);
@@ -60,14 +66,18 @@ export function Transcript({
   // biome-ignore lint/correctness/useExhaustiveDependencies: total is a trigger (rows measured), not a value used.
   useLayoutEffect(() => {
     // The user's own new message brings them back to the end, even if they had scrolled up.
-    const last = entries.at(-1);
-    if (last?.body.kind === "user_message" && last.id !== lastSent.current) {
-      lastSent.current = last.id;
+    // Keyed by nonce where there is one, so the pending copy and the confirmed entry count as one message.
+    const lastEntry = entries.at(-1);
+    const last =
+      pending.at(-1)?.nonce ??
+      (lastEntry?.body.kind === "user_message" ? (lastEntry.body.clientNonce ?? lastEntry.id) : undefined);
+    if (last !== undefined && last !== lastSent.current) {
+      lastSent.current = last;
       following.current = true;
     }
     const el = scroller.current;
     if (el && following.current) el.scrollTop = el.scrollHeight;
-  }, [entries, total]);
+  }, [entries, pending, total]);
 
   return (
     <div

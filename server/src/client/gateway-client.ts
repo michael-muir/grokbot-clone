@@ -57,8 +57,17 @@ export class GatewayClient {
     return this.request("GET", `/bots/${enc(botId)}/transcript?since=${since}`);
   }
 
-  async sendMessage(botId: string, text: string): Promise<void> {
-    await this.request("POST", `/bots/${enc(botId)}/messages`, { text });
+  /**
+   * Sends a message and returns the id of the user entry it became. `clientNonce` comes back on that entry, so a
+   * pending local copy can be matched to it (the id covers gateways that don't echo nonces).
+   */
+  async sendMessage(botId: string, text: string, clientNonce?: string): Promise<string> {
+    const res = await this.request<{ entryId?: unknown }>(
+      "POST",
+      `/bots/${enc(botId)}/messages`,
+      clientNonce ? { text, clientNonce } : { text },
+    );
+    return typeof res?.entryId === "string" ? res.entryId : "";
   }
 
   async interrupt(botId: string): Promise<void> {
@@ -67,6 +76,10 @@ export class GatewayClient {
 
   async answerApproval(botId: string, entryId: string, decision: ApprovalDecision): Promise<void> {
     await this.request("POST", `/bots/${enc(botId)}/approvals/${enc(entryId)}`, decision);
+  }
+
+  async answerChoice(botId: string, entryId: string, answer: string): Promise<void> {
+    await this.request("POST", `/bots/${enc(botId)}/choices/${enc(entryId)}`, { answer });
   }
 
   listProviders(): Promise<ProviderSummary[]> {

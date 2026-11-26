@@ -10,7 +10,17 @@ export type Gap = "none" | "tight" | "group" | "switch";
 
 export type Row =
   | { type: "separator"; key: string; label: string; gap: Gap }
-  | { type: "entry"; key: string; entry: TranscriptEntry; side: Side; group: GroupPos; gap: Gap; time: string }
+  | {
+      type: "entry";
+      key: string;
+      entry: TranscriptEntry;
+      side: Side;
+      group: GroupPos;
+      gap: Gap;
+      time: string;
+      /** A message the user sent that the gateway hasn't confirmed yet. */
+      pending?: boolean;
+    }
   | { type: "thinking"; key: string; side: "bot"; group: GroupPos; gap: Gap };
 
 /** A pause this long between entries starts a new time separator. */
@@ -45,6 +55,7 @@ function sideOf(entry: TranscriptEntry): Side | null {
       return b.text === "" ? null : "bot";
     case "status":
     case "approval":
+    case "choice":
       return "bot";
     case "notice":
     case "error":
@@ -71,20 +82,49 @@ function isThinking(entries: readonly TranscriptEntry[]): boolean {
     if (b.kind === "assistant_text" && b.streaming && b.text !== "") return false;
     if (b.kind === "status" && b.state === "running") return false;
     if (b.kind === "approval" && b.state === "pending") return false;
+    if (b.kind === "choice" && b.state === "pending") return false;
   }
   return false;
 }
 
-export function buildRows(entries: readonly TranscriptEntry[], now: Date, locale?: string): Row[] {
+/** A message sent but not yet back from the gateway, matched by its nonce when it arrives. */
+export interface PendingMessage {
+  nonce: string;
+  text: string;
+  at: number;
+  /** The user entry's id, once the gateway has accepted the send. Matches even if the nonce isn't echoed. */
+  entryId?: string;
+}
+
+/** Whether a pending message's own entry is already in the transcript (by nonce, or by the id the send returned). */
+export function isConfirmed(p: PendingMessage, entries: readonly TranscriptEntry[]): boolean {
+  return entries.some(
+    (e) =>
+      e.body.kind === "user_message" &&
+      (e.body.clientNonce === p.nonce || (p.entryId !== undefined && e.id === p.entryId)),
+  );
+}
+
+const PENDING_PREFIX = "pending-";
+
+export function buildRows(
+  entries: readonly TranscriptEntry[],
+  now: Date,
+  locale?: string,
+  pending: readonly PendingMessage[] = [],
+): Row[] {
   type Item = { entry: TranscriptEntry | "thinking"; side: Side };
   const items: Item[] = [];
   // A run's entry is written when the run starts, so its "Stopped" notice is held back until after everything
   // the run produced: just before the next message or run, or at the end.
-  let stopped: Item | undefined;
+  let stopped: { entry: TranscriptEntry; side: Side } | undefined;
   for (const entry of entries) {
     const side = sideOf(entry);
     const kind = entry.body.kind;
-    if (stopped && (kind === "user_message" || kind === "run")) {
+    // The run's own entries carry its runId; the first entry that doesn't (a notice, the next message) ends it.
+    // Older transcripts have no runIds, so a new message or run ends it there.
+    const endsRun = kind === "user_message" || kind === "run" || entry.runId !== stopped?.entry.runId;
+    if (stopped && endsRun) {
       items.push(stopped);
       stopped = undefined;
     }
@@ -93,6 +133,22 @@ export function buildRows(entries: readonly TranscriptEntry[], now: Date, locale
     else items.push({ entry, side });
   }
   if (stopped) items.push(stopped);
+  // Pending messages go at the end until the gateway's copy (same nonce) is in the transcript.
+  for (const p of pending) {
+    if (isConfirmed(p, entries)) continue;
+    items.push({
+      side: "user",
+      entry: {
+        id: `${PENDING_PREFIX}${p.nonce}`,
+        seq: -1,
+        updatedSeq: -1,
+        botId: "",
+        body: { kind: "user_message", text: p.text, clientNonce: p.nonce },
+        createdAt: p.at,
+        updatedAt: p.at,
+      },
+    });
+  }
   if (isThinking(entries)) items.push({ entry: "thinking", side: "bot" });
 
   const rows: Row[] = [];
@@ -141,6 +197,7 @@ export function buildRows(entries: readonly TranscriptEntry[], now: Date, locale
         group,
         gap,
         time: time(new Date(item.entry.createdAt), locale),
+        ...(item.entry.id.startsWith(PENDING_PREFIX) && item.entry.seq === -1 ? { pending: true } : {}),
       });
     }
     prev = item;

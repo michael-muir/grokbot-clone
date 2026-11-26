@@ -24,8 +24,11 @@ export class TranscriptStore {
     this.dataDir = dataDir;
   }
 
-  /** Adds an entry. Pass `id` when something must be keyed by the entry before listeners hear about it. */
-  append(botId: string, body: EntryBody, id: string = randomUUID()): TranscriptEntry {
+  /**
+   * Adds an entry. Pass `id` when something must be keyed by the entry before listeners hear about it, and
+   * `runId` for entries written during a run.
+   */
+  append(botId: string, body: EntryBody, id: string = randomUUID(), runId?: string): TranscriptEntry {
     const log = this.log(botId);
     if (log.entries.has(id)) throw new Error(`Transcript entry ${id} already exists`);
     const now = Date.now();
@@ -35,6 +38,7 @@ export class TranscriptStore {
       id,
       botId,
       body,
+      ...(runId ? { runId } : {}),
       createdAt: now,
       updatedAt: now,
     };

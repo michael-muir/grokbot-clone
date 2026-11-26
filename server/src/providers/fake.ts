@@ -4,6 +4,7 @@
 //   "/tool"   -> one tool call that needs approval (Bash "echo hello")
 //   "/slow"   -> streams slowly, so interrupt can be tested
 //   "/fail"   -> the run fails
+//   "/choice" -> asks the user to pick a color (Red or Blue, or their own)
 // Anything else gets an echo reply, streamed word by word.
 import type { AgentProvider, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
 
@@ -41,6 +42,29 @@ export class FakeProvider implements AgentProvider {
     const prompt = req.prompt.trim();
     try {
       if (prompt === "/fail") return { status: "failed", sessionId, error: "Scripted failure." };
+
+      if (prompt === "/choice") {
+        const toolUseId = `tool-${turn}`;
+        cb.emit({ type: "tool_start", toolUseId, tool: "ask_user", summary: "Asking: Pick a color" });
+        if (!cb.requestChoice) {
+          return { status: "failed", sessionId, error: "This client can't show questions with choices." };
+        }
+        const answer = await cb.requestChoice(
+          {
+            prompt: "Pick a color",
+            options: [
+              { label: "Red", value: "red" },
+              { label: "Blue", value: "blue" },
+            ],
+            allowCustom: true,
+          },
+          req.signal,
+        );
+        cb.emit({ type: "tool_end", toolUseId, ok: answer !== undefined });
+        if (req.signal.aborted || answer === undefined) return { status: "interrupted", sessionId };
+        cb.emit({ type: "text", blockId: `msg-${turn}:0`, text: `You picked ${answer}.` });
+        return { status: "finished", sessionId, costUsd: 0 };
+      }
 
       if (prompt === "/tool") {
         const toolUseId = `tool-${turn}`;

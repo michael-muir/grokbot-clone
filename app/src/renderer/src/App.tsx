@@ -9,6 +9,7 @@ import { type AppSettings, DEFAULT_SETTINGS } from "../../shared/settings.ts";
 import { botColor, initial } from "./bot-colors.ts";
 import type { RowContext } from "./chat/ChatRow.tsx";
 import { Composer } from "./chat/Composer.tsx";
+import { isConfirmed, type PendingMessage } from "./chat/rows.ts";
 import { Transcript } from "./chat/Transcript.tsx";
 import { call } from "./gateway.ts";
 import { GeneralPage } from "./settings/GeneralPage.tsx";
@@ -244,6 +245,8 @@ function Chat({
   );
   const [stream, setStream] = useState<StreamState | "ended">("connecting");
   const [problem, setProblem] = useState<string>();
+  /** Sent messages not yet back from the gateway. */
+  const [pending, setPending] = useState<PendingMessage[]>([]);
 
   useEffect(() => {
     // Resume from what's already held, so a re-subscribe (StrictMode, a reload of this view) repeats nothing.
@@ -262,6 +265,15 @@ function Chat({
     });
   }, [bot.id, view]);
 
+  // Forget pending messages once the gateway's copy has arrived.
+  useEffect(() => {
+    setPending((list) => {
+      if (list.length === 0) return list;
+      const left = list.filter((p) => !isConfirmed(p, entries));
+      return left.length === list.length ? list : left;
+    });
+  }, [entries]);
+
   const lastRun = entries.findLast((e) => e.body.kind === "run");
   const busy = lastRun?.body.kind === "run" && lastRun.body.state === "running";
 
@@ -275,6 +287,11 @@ function Chat({
             throw err;
           },
         ),
+      answerChoice: (entry: TranscriptEntry, answer: string) =>
+        call("answerChoice", bot.id, entry.id, answer).catch((err: unknown) => {
+          setProblem(message(err));
+          throw err;
+        }),
     }),
     [bot.id, bot.name],
   );
@@ -289,6 +306,26 @@ function Chat({
       throw err;
     }
   }, []);
+
+  /** Shows the message at once (pending), then sends it; the gateway's copy replaces it by nonce. */
+  const send = useCallback(
+    async (text: string) => {
+      const nonce = crypto.randomUUID();
+      setPending((list) => [...list, { nonce, text, at: Date.now() }]);
+      try {
+        let entryId = "";
+        await report(async () => {
+          entryId = await call("sendMessage", bot.id, text, nonce);
+        });
+        // The id matches the entry even if this gateway doesn't echo nonces.
+        if (entryId) setPending((list) => list.map((p) => (p.nonce === nonce ? { ...p, entryId } : p)));
+      } catch (err) {
+        setPending((list) => list.filter((p) => p.nonce !== nonce)); // the draft is kept instead
+        throw err;
+      }
+    },
+    [bot.id, report],
+  );
 
   return (
     <div className="chat-body" data-bot-color={colorOf(bot)}>
@@ -311,7 +348,7 @@ function Chat({
           </button>
         </h2>
       </header>
-      <Transcript entries={entries} context={context} label={`Conversation with ${bot.name}`} />
+      <Transcript entries={entries} pending={pending} context={context} label={`Conversation with ${bot.name}`} />
       {problem ? (
         <p className="banner" role="alert">
           {problem}
@@ -327,7 +364,7 @@ function Chat({
         botId={bot.id}
         botName={bot.name}
         busy={busy}
-        onSend={(text) => report(() => call("sendMessage", bot.id, text))}
+        onSend={send}
         onStop={() => report(() => call("interrupt", bot.id))}
         sendWithCtrlEnter={settings.sendWithCtrlEnter}
         spellcheck={settings.spellcheck}

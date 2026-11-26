@@ -1,37 +1,37 @@
-// Pending approval cards: a provider asks, the user answers through the API.
-import type { ApprovalDecision } from "./types.ts";
+// Cards waiting for the user (approvals, choices): a provider asks, the user answers through the API, and stopping
+// the run settles the wait with a fallback value.
 
-interface Pending {
-  resolve: (decision: ApprovalDecision) => void;
-}
+export class Waiters<T> {
+  private readonly pending = new Map<string, (value: T) => void>();
+  private readonly onAbort: T;
 
-export class ApprovalBroker {
-  private readonly pending = new Map<string, Pending>();
+  /** `onAbort` is what a wait settles with when its run is stopped. */
+  constructor(onAbort: T) {
+    this.onAbort = onAbort;
+  }
 
-  /** Wait for the user's answer to the approval card `entryId`. Aborting denies it. */
-  wait(entryId: string, signal: AbortSignal): Promise<ApprovalDecision> {
+  /** Waits for the answer to the card `entryId`. Aborting settles it with the fallback. */
+  wait(entryId: string, signal: AbortSignal): Promise<T> {
     return new Promise((resolve) => {
-      if (signal.aborted) return resolve({ allow: false, reason: "The run was stopped." });
-      const onAbort = () => {
+      if (signal.aborted) return resolve(this.onAbort);
+      const abort = () => {
         this.pending.delete(entryId);
-        resolve({ allow: false, reason: "The run was stopped." });
+        resolve(this.onAbort);
       };
-      signal.addEventListener("abort", onAbort, { once: true });
-      this.pending.set(entryId, {
-        resolve: (decision) => {
-          signal.removeEventListener("abort", onAbort);
-          this.pending.delete(entryId);
-          resolve(decision);
-        },
+      signal.addEventListener("abort", abort, { once: true });
+      this.pending.set(entryId, (value) => {
+        signal.removeEventListener("abort", abort);
+        this.pending.delete(entryId);
+        resolve(value);
       });
     });
   }
 
   /** Returns false when there's no pending card with that id. */
-  answer(entryId: string, decision: ApprovalDecision): boolean {
-    const p = this.pending.get(entryId);
-    if (!p) return false;
-    p.resolve(decision);
+  answer(entryId: string, value: T): boolean {
+    const settle = this.pending.get(entryId);
+    if (!settle) return false;
+    settle(value);
     return true;
   }
 }

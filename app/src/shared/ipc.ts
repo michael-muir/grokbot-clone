@@ -35,9 +35,11 @@ export interface Calls {
   listBots: { args: []; result: PublicBot[] };
   updateBot: { args: [botId: string, patch: BotPatch]; result: PublicBot };
   transcript: { args: [botId: string, since: number]; result: TranscriptEntry[] };
-  sendMessage: { args: [botId: string, text: string]; result: undefined };
+  /** Returns the id of the user entry the message became. */
+  sendMessage: { args: [botId: string, text: string, clientNonce?: string]; result: string };
   interrupt: { args: [botId: string]; result: undefined };
   answerApproval: { args: [botId: string, entryId: string, decision: ApprovalDecision]; result: undefined };
+  answerChoice: { args: [botId: string, entryId: string, answer: string]; result: undefined };
   listProviders: { args: []; result: ProviderSummary[] };
   listModels: { args: [provider: ProviderId]; result: string[] };
   testProvider: { args: [provider: ProviderId, baseUrl?: string]; result: ProviderTest };
@@ -93,6 +95,8 @@ export interface DesktopApi {
 
 const isString = (v: unknown): v is string => typeof v === "string";
 const isId = (v: unknown): v is string => isString(v) && v.length > 0 && v.length <= 200;
+/** Same limits as the gateway's: 1 to 100 characters. */
+const isNonce = (v: unknown): v is string => isString(v) && v.length > 0 && v.length <= 100;
 const isCursor = (v: unknown): v is number => Number.isInteger(v) && (v as number) >= -1;
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const optional =
@@ -122,10 +126,13 @@ const ARGS: { [K in CallName]: (a: unknown[]) => a is Calls[K]["args"] } = {
   listBots: (a): a is [] => a.length === 0,
   updateBot: (a): a is [string, BotPatch] => a.length === 2 && isId(a[0]) && isPatch(a[1]),
   transcript: (a): a is [string, number] => a.length === 2 && isId(a[0]) && isCursor(a[1]),
-  sendMessage: (a): a is [string, string] => a.length === 2 && isId(a[0]) && isString(a[1]) && a[1].trim() !== "",
+  sendMessage: (a): a is [string, string, string?] =>
+    (a.length === 2 || a.length === 3) && isId(a[0]) && isString(a[1]) && a[1].trim() !== "" && optional(isNonce)(a[2]),
   interrupt: (a): a is [string] => a.length === 1 && isId(a[0]),
   answerApproval: (a): a is [string, string, ApprovalDecision] =>
     a.length === 3 && isId(a[0]) && isId(a[1]) && isDecision(a[2]),
+  answerChoice: (a): a is [string, string, string] =>
+    a.length === 3 && isId(a[0]) && isId(a[1]) && isString(a[2]) && a[2].length <= 1000,
   listProviders: (a): a is [] => a.length === 0,
   listModels: (a): a is [ProviderId] => a.length === 1 && isProviderId(a[0]),
   testProvider: (a): a is [ProviderId, string?] =>

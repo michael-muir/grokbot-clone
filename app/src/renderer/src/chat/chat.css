@@ -63,6 +63,11 @@
   max-width: var(--size-chat-column);
 }
 
+/* Sent, not yet confirmed by the gateway. */
+.row-content[data-pending] {
+  opacity: var(--opacity-muted);
+}
+
 .chat-row[data-side="center"] .row-content {
   max-width: none;
 }
@@ -326,6 +331,12 @@
 .choice:disabled {
   color: var(--color-text-disabled);
   cursor: default;
+}
+
+/* An answered choice card keeps the chosen row readable and dims the rest. */
+.choice[data-chosen]:disabled {
+  background: var(--color-fill);
+  color: var(--color-text);
 }
 
 .key-cap {

@@ -2,12 +2,15 @@
 import { lstatSync, realpathSync } from "node:fs";
 import { glob, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import type { ChoiceRequest } from "../types.ts";
 import type { ToolSpec } from "./model.ts";
 import { defaultShell, runShell, type ShellInfo } from "./shell.ts";
 
 export interface ToolContext {
   workspaceDir: string;
   signal: AbortSignal;
+  /** Asks the user a question with choices; undefined if the run was stopped. Absent where nobody can answer. */
+  ask?(request: ChoiceRequest): Promise<string | undefined>;
 }
 
 export interface ToolResult {
@@ -328,6 +331,57 @@ export function shellTool(shell: ShellInfo = defaultShell()): Tool {
   };
 }
 
+/** Asks the user to pick from a few choices. Read-only: asking needs no approval, and nothing is changed. */
+export const askUserTool: Tool = {
+  spec: {
+    name: "ask_user",
+    description:
+      "Ask the user a question with 2 to 6 short choices, shown as a card they can tap. Use it when a quick pick " +
+      "helps more than an open question. Returns the user's answer.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        question: { type: "string", description: "The question, one short sentence." },
+        options: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 2,
+          maxItems: 6,
+          description: "The choices, a few words each.",
+        },
+        allow_other: { type: "boolean", description: "Let the user type their own answer too." },
+      },
+      required: ["question", "options"],
+    },
+  },
+  readOnly: true,
+  promptNote: "To offer the user a few choices, use ask_user instead of listing them in text.",
+  summarize: (input) => `Asking: ${short(input.question)}`,
+  async run(input, ctx) {
+    const question = str(input, "question");
+    const raw = input.options;
+    if (
+      !Array.isArray(raw) ||
+      raw.length < 2 ||
+      raw.length > 6 ||
+      !raw.every((o) => typeof o === "string" && o.trim())
+    ) {
+      throw new ToolInputError('"options" must be 2 to 6 non-empty strings.');
+    }
+    const labels = [...new Set(raw.map((o: string) => o.trim().slice(0, 100)))];
+    if (labels.length < 2) throw new ToolInputError('"options" must hold at least 2 different choices.');
+    if (!ctx.ask)
+      return { ok: false, output: "Questions with choices can't be shown here. Ask in plain text instead." };
+    const answer = await ctx.ask({
+      prompt: question.slice(0, 300),
+      options: labels.map((label) => ({ label, value: label })),
+      allowCustom: input.allow_other === true,
+    });
+    if (answer === undefined) return { ok: false, output: "The run was stopped before the user answered." };
+    return { ok: true, output: `The user answered: ${answer}` };
+  },
+};
+
 export function defaultTools(): Tool[] {
-  return [readFileTool, listFilesTool, searchFilesTool, writeFileTool, editFileTool, shellTool()];
+  return [readFileTool, listFilesTool, searchFilesTool, writeFileTool, editFileTool, shellTool(), askUserTool];
 }

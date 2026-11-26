@@ -147,8 +147,12 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
     case "POST messages": {
       const body = await readJson(req);
       if (typeof body.text !== "string" || !body.text.trim()) return send(res, 400, { error: "text is required" });
+      const nonce = body.clientNonce;
+      if (nonce !== undefined && !(typeof nonce === "string" && nonce.length > 0 && nonce.length <= 100)) {
+        return send(res, 400, { error: "clientNonce must be a string of 1 to 100 characters" });
+      }
       try {
-        const { entry } = await d.gateway.sendMessage(bot.id, body.text);
+        const { entry } = await d.gateway.sendMessage(bot.id, body.text, nonce);
         return send(res, 202, { entryId: entry.id });
       } catch (err) {
         if (err instanceof BotBusyError) return send(res, 409, { error: err.message });
@@ -163,6 +167,15 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
         : send(res, 409, { error: "Nothing is running" });
 
     default:
+      if (method === "POST" && parts[2] === "choices" && parts[3] && parts.length === 4) {
+        const body = await readJson(req);
+        if (typeof body.answer !== "string") return send(res, 400, { error: "answer must be a string" });
+        const result = d.gateway.answerChoice(bot.id, parts[3], body.answer);
+        if (result === "invalid") return send(res, 400, { error: "That answer isn't one of the choices" });
+        return result === "ok"
+          ? send(res, 200, { ok: true })
+          : send(res, 404, { error: "No pending choice with that id" });
+      }
       if (method === "POST" && parts[2] === "approvals" && parts[3] && parts.length === 4) {
         const body = await readJson(req);
         if (typeof body.allow !== "boolean") return send(res, 400, { error: "allow must be true or false" });
