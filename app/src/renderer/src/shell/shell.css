@@ -66,12 +66,9 @@
   background: var(--color-line-strong);
 }
 
-.bot-list li + li:not(.bot-divider) {
+/* Space between neighbouring tiles; the divider brings its own margins. */
+.bot-list li:not(.bot-divider) + li:not(.bot-divider) {
   margin-top: var(--space-1-5);
-}
-
-.bot-divider + li {
-  margin-top: 0;
 }
 
 .bot-tile {
@@ -280,7 +277,7 @@
   height: var(--size-thumb-h);
   border-radius: var(--radius-md);
   background: var(--color-fill);
-  opacity: 0.6;
+  opacity: var(--opacity-muted);
 }
 
 @keyframes spin {

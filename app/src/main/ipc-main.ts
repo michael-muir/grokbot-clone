@@ -108,7 +108,11 @@ export function registerIpc(deps: IpcDeps): void {
     const common = {
       signal: controller.signal,
       onState: (state: StreamState) => send({ kind: "state", state }),
-      onError: (err: unknown) => send({ kind: "error", message: err instanceof Error ? err.message : String(err) }),
+      onError: (err: unknown) => {
+        // The renderer shows transcript drops; nobody would see activity drops, so they're logged here.
+        if (open.topic === "activity") console.warn("activity stream dropped; reconnecting", err);
+        send({ kind: "error", message: err instanceof Error ? err.message : String(err) });
+      },
     };
     const what = open.topic === "activity" ? "activity stream" : `transcript stream for ${open.botId}`;
     deps.gateway

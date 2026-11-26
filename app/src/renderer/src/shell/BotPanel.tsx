@@ -120,7 +120,8 @@ function NameField({ saved, onRename }: { saved: string; onRename(name: string):
     try {
       await onRename(name);
     } catch {
-      setValue(saved); // the chat shows why
+      // The banner says why. Put the saved name back, unless the user has typed something new since.
+      setValue((current) => (current === name ? saved : current));
     }
   };
 

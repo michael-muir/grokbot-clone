@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { BotRegistry } from "../src/bots.ts";
 import { GatewayClient } from "../src/client/gateway-client.ts";
+import { subscribeActivity } from "../src/client/subscribe.ts";
 import { LocalFolderComputers } from "../src/computer.ts";
 import { Gateway } from "../src/gateway.ts";
 import { createHttpServer } from "../src/http.ts";
@@ -118,4 +119,29 @@ test("GET /activity needs the token", async () => {
   } finally {
     t.cleanup();
   }
+});
+
+test("subscribeActivity drops malformed items and reports them, keeping the good ones", async () => {
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      c.enqueue(new TextEncoder().encode('data: [{"botId":"nova","running":true},null,{"id":"x"}]\n\n'));
+      c.close();
+    },
+  });
+  const fakeFetch = (async () => new Response(body, { status: 200 })) as typeof fetch;
+  const abort = new AbortController();
+  const got: BotActivity[][] = [];
+  const errors: string[] = [];
+  const following = subscribeActivity("http://gateway", {
+    signal: abort.signal,
+    fetch: fakeFetch,
+    onError: (e) => errors.push(e instanceof Error ? e.message : String(e)),
+    onActivity: (bots) => {
+      got.push(bots);
+      abort.abort();
+    },
+  });
+  await following;
+  assert.deepEqual(got, [[{ botId: "nova", running: true }]]);
+  assert.ok(errors.some((e) => e.includes("2 malformed")));
 });

@@ -142,6 +142,7 @@
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --duration-shimmer: 1600ms; /* one sweep of the running-status shimmer */
   --duration-spin: 900ms; /* one turn of the working spinner */
+  --opacity-muted: 0.6; /* placeholders standing in for content that isn't there yet */
   /* The shimmer sweeping across a running status label: dim, bright, dim. */
   --gradient-shimmer: linear-gradient(
     90deg,

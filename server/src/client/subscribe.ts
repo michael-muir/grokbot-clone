@@ -96,8 +96,11 @@ export async function subscribeActivity(baseUrl: string, opts: ActivityOptions):
         return; // the next snapshot replaces it anyway
       }
       if (!Array.isArray(bots)) return reportError(new Error("Skipped an activity event that isn't a list"));
+      const valid = bots.filter(isBotActivity);
+      if (valid.length < bots.length)
+        reportError(new Error(`Skipped ${bots.length - valid.length} malformed activity items`));
       try {
-        opts.onActivity(bots as BotActivity[]);
+        opts.onActivity(valid);
       } catch (err) {
         throw new ConsumerError(err);
       }
@@ -106,6 +109,12 @@ export async function subscribeActivity(baseUrl: string, opts: ActivityOptions):
 }
 
 const trimSlash = (url: string) => url.replace(/\/+$/, "");
+
+function isBotActivity(v: unknown): v is BotActivity {
+  if (typeof v !== "object" || v === null) return false;
+  const a = v as Record<string, unknown>;
+  return typeof a.botId === "string" && typeof a.running === "boolean";
+}
 
 type StreamOptions = Pick<SubscribeOptions, "onState" | "signal" | "token" | "backoff" | "staleAfterMs" | "fetch">;
 

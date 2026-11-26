@@ -27,6 +27,8 @@ export function App() {
   const [unread, setUnread] = useState<ReadonlySet<string>>(() => new Set());
   const [panelOpen, setPanelOpen] = useState(false);
   const [error, setError] = useState<string>();
+  const [renameError, setRenameError] = useState<string>();
+  const [activityError, setActivityError] = useState<string>();
   const pill = useRef<HTMLButtonElement>(null);
   // The latest values, for the activity listener, which outlives renders.
   const selectedNow = useRef(selected);
@@ -64,11 +66,18 @@ export function App() {
   useEffect(() => {
     if (!connected) return;
     return window.desktop.activity((event) => {
-      if (event.kind !== "activity") return;
-      const before = activityNow.current;
-      activityNow.current = event.bots;
-      setActivity(event.bots);
-      setUnread((u) => nextUnread(u, before, event.bots, selectedNow.current));
+      if (event.kind === "activity") {
+        const before = activityNow.current;
+        activityNow.current = event.bots;
+        setActivity(event.bots);
+        setUnread((u) => nextUnread(u, before, event.bots, selectedNow.current));
+        setActivityError(undefined);
+      } else if (event.kind === "ended") {
+        // No more updates: show nothing rather than a state that may be stale ("working" forever).
+        activityNow.current = [];
+        setActivity([]);
+        if (event.error) setActivityError(`Bot status stopped updating: ${event.error}`);
+      }
     });
   }, [connected]);
 
@@ -92,9 +101,9 @@ export function App() {
     try {
       const updated = await call("updateBot", botId, { name });
       setBots((list) => list.map((b) => (b.id === updated.id ? updated : b)));
-      setError(undefined);
+      setRenameError(undefined);
     } catch (err) {
-      setError(message(err));
+      setRenameError(`Couldn't rename: ${message(err)}`);
       throw err;
     }
   }, []);
@@ -127,10 +136,13 @@ export function App() {
             {connection.error}
           </p>
         )}
-        {error && (
-          <p className="banner" role="alert">
-            {error}
-          </p>
+        {[error, activityError, renameError].map(
+          (text) =>
+            text && (
+              <p key={text} className="banner" role="alert">
+                {text}
+              </p>
+            ),
         )}
         {bot ? (
           <Chat
