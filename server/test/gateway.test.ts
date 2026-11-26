@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { BotRegistry } from "../src/bots.ts";
 import { LocalFolderComputers } from "../src/computer.ts";
-import { BotBusyError, Gateway } from "../src/gateway.ts";
+import { BotBusyError, DENIED_WITHOUT_REASON, Gateway } from "../src/gateway.ts";
 import { createHttpServer } from "../src/http.ts";
 import { Credentials, MemoryKeyStore } from "../src/keys.ts";
 import { FakeProvider } from "../src/providers/fake.ts";
@@ -97,6 +97,25 @@ test("approval card: allow runs the tool, deny reports the reason", async () => 
     const texts = ofKind(t.store.list("nova"), "assistant_text").map((a) => a.text);
     assert.match(texts[0], /printed hello/);
     assert.match(texts[1], /not now/);
+  } finally {
+    t.cleanup();
+  }
+});
+
+test("approval card: a denial without a reason shows plain Denied, and the model gets a default reason", async () => {
+  const t = setup();
+  try {
+    const { done } = await t.gateway.sendMessage("nova", "/tool");
+    const card = await waitFor(() =>
+      t.store.list("nova").find((e) => e.body.kind === "approval" && e.body.state === "pending"),
+    );
+    t.gateway.answerApproval("nova", card.id, { allow: false, reason: "   " });
+    await done;
+    const answered = t.store.get("nova", card.id)?.body;
+    assert.equal(answered?.kind === "approval" && answered.state, "denied");
+    assert.equal(answered?.kind === "approval" && answered.reason, undefined, "no empty reason on the card");
+    const reply = ofKind(t.store.list("nova"), "assistant_text").at(-1)?.text ?? "";
+    assert.ok(reply.includes(DENIED_WITHOUT_REASON), "the model was told the user denied it");
   } finally {
     t.cleanup();
   }

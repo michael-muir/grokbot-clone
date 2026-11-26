@@ -39,7 +39,8 @@
 
   /* ---- Accents and status ---- */
   --color-link: #4d9bff;
-  --color-accent: #116dd2; /* filled controls: switches on, primary buttons */
+  --color-accent: #116dd2; /* filled controls: switches on, primary buttons, choice key caps */
+  --color-on-accent: #f5f5f5;
   --color-focus-ring: #4d9bff;
   --color-star: #f69412;
   --color-success: #00ba69;
@@ -63,6 +64,9 @@
 
   /* ---- Type ---- */
   --font-sans: "Inter Variable", "Inter", system-ui, sans-serif;
+  /* The reference uses "XVF Mono"; these are the platforms' own monospace fonts. */
+  --font-mono: "Cascadia Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-size-code: 0.93em; /* inline code inside chat text (13.95px at 15px) */
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
@@ -134,6 +138,14 @@
   --duration-slow: 320ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-shimmer: 1600ms; /* one sweep of the running-status shimmer */
+  /* The shimmer sweeping across a running status label: dim, bright, dim. */
+  --gradient-shimmer: linear-gradient(
+    90deg,
+    var(--color-text-tertiary) 35%,
+    var(--color-text) 50%,
+    var(--color-text-tertiary) 65%
+  );
 
   /* ---- Component sizes ---- */
   --size-sidebar: 88px;
@@ -149,6 +161,9 @@
   --padding-bubble: 7px 12px;
   --padding-pill: 7.5px 13.5px 7.5px 7.5px;
   --padding-button: 8px 16px;
+  --padding-code: 0 4px;
+  --size-row-time: 58px; /* the time at the far edge of a chat row */
+  --size-status-slot: 36px; /* avatar column of status rows */
 }
 
 /*
@@ -230,6 +245,7 @@
 
     --color-link: #116dd2;
     --color-accent: #116dd2;
+    --color-on-accent: #ffffff;
     --color-focus-ring: #116dd2;
     --color-star: #f69412;
     --color-success: #00a35c;

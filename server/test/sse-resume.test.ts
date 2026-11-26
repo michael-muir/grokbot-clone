@@ -76,7 +76,7 @@ async function until(check: () => boolean, ms = 8000): Promise<void> {
   }
 }
 
-const runState = (entries: TranscriptEntry[]) => {
+const runState = (entries: readonly TranscriptEntry[]) => {
   const run = entries.filter((e) => e.body.kind === "run").at(-1);
   return run?.body.kind === "run" ? run.body.state : undefined;
 };

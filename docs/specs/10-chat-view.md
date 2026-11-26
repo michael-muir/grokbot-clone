@@ -62,8 +62,9 @@ Rules:
 - Consecutive bot bubbles and status rows form one group. Cards, notices, errors and user messages break groups.
 - A time separator goes before the first entry, and before any entry 60 minutes or more after the previous one.
   Labels are "Today 3:19 PM", "Yesterday …", or "Mon, Nov 23 3:28 PM".
-- `run` entries in state running or finished are hidden. Interrupted and failed runs show as a notice: "Stopped"
-  or "Run failed".
+- `run` entries are hidden, except interrupted runs, which show a "Stopped" notice. A failed run already has its own
+  error entry, so it doesn't add a second line.
+- An empty streaming reply isn't shown; the Thinking row stands in for it.
 - A trailing "Thinking" row appears while the last run is running and nothing in it is streaming or running yet.
 
 **Components** (`app/src/renderer/src/chat/`):
@@ -114,7 +115,16 @@ function buildRows(entries: readonly TranscriptEntry[], now: Date): Row[];
 function separatorLabel(at: Date, now: Date): string;
 ```
 
-New tokens: `--font-mono`, `--space-0-5` (exists), `--padding-code: 0 4px`, `--size-row-time: 58px`.
+New tokens:
+- `--font-mono` and `--font-size-code: 0.93em`
+- `--color-on-accent` (both themes)
+- `--gradient-shimmer` and `--duration-shimmer`
+- `--padding-code`, `--size-row-time` and `--size-status-slot`
+
+Inline `style` carries only computed list positions, as custom properties (`--list-height`, `--list-offset`).
+
+**Gateway change:** a denial with an empty reason is stored without a reason, so the card reads "Denied". The
+model is told "The user denied this action." (`DENIED_WITHOUT_REASON`).
 
 New dependencies (pinned):
 - `react-markdown@10.1.0` and `remark-gfm@4.0.1`. Bot replies are Markdown. Writing our own parser would be
