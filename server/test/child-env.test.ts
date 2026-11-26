@@ -1,4 +1,5 @@
-// Child process environment: commands a bot runs never see the gateway token or provider API keys.
+// Child process environment: commands a bot runs never see the gateway token, provider API keys, or a host
+// Claude Code session.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runShell } from "../src/agent/shell.ts";
@@ -16,6 +17,20 @@ test("the gateway token and every provider key variable are removed; the rest is
     OLLAMA_API_KEY: "k5",
   });
   assert.deepEqual(env, { PATH: "/bin", HOME: "/home/me" });
+});
+
+test("a host Claude Code session's variables and auth token are removed", () => {
+  const env = childEnv({
+    PATH: "/bin",
+    CLAUDECODE: "1",
+    CLAUDE_CODE_SESSION_ID: "s",
+    CLAUDE_CODE_MESSAGING_TOKEN: "m",
+    claude_code_entrypoint: "sdk",
+    CLAUDE_AGENT_SDK_VERSION: "1",
+    ANTHROPIC_AUTH_TOKEN: "t",
+    ANTHROPIC_BASE_URL: "https://proxy.example",
+  });
+  assert.deepEqual(env, { PATH: "/bin", ANTHROPIC_BASE_URL: "https://proxy.example" });
 });
 
 test("a shell command can't read the gateway token", async () => {
