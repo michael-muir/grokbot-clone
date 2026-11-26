@@ -74,6 +74,27 @@ test("rows: notices and errors sit in the center; running, finished and failed r
   assert.ok(rows.every((r) => r.type !== "entry" || r.side !== "center" || r.group === "single"));
 });
 
+test("rows: a Stopped notice comes after what the run produced, not where the run began", () => {
+  seq = 0;
+  const rows = buildRows(
+    [user("go"), run("interrupted"), status("done"), bot("Partial"), user("next"), run("finished"), bot("ok")],
+    NOW,
+    "en-US",
+  );
+  assert.deepEqual(shape(rows), [
+    "sep",
+    "user_message:single:none",
+    "status:first:switch",
+    "assistant_text:last:tight",
+    "run:single:switch",
+    "user_message:single:switch",
+    "assistant_text:single:switch",
+  ]);
+  seq = 0;
+  const atEnd = buildRows([user("go"), run("interrupted"), bot("Nova")], NOW, "en-US");
+  assert.deepEqual(shape(atEnd).slice(-2), ["assistant_text:single:switch", "run:single:switch"]);
+});
+
 test("rows: separators before the first entry and after an hour's pause", () => {
   seq = 0;
   const rows = buildRows([bot("a", 0), bot("b", 59), bot("c", 59 + 60)], NOW, "en-US");

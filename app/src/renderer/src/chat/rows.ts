@@ -78,10 +78,21 @@ function isThinking(entries: readonly TranscriptEntry[]): boolean {
 export function buildRows(entries: readonly TranscriptEntry[], now: Date, locale?: string): Row[] {
   type Item = { entry: TranscriptEntry | "thinking"; side: Side };
   const items: Item[] = [];
+  // A run's entry is written when the run starts, so its "Stopped" notice is held back until after everything
+  // the run produced: just before the next message or run, or at the end.
+  let stopped: Item | undefined;
   for (const entry of entries) {
     const side = sideOf(entry);
-    if (side) items.push({ entry, side });
+    const kind = entry.body.kind;
+    if (stopped && (kind === "user_message" || kind === "run")) {
+      items.push(stopped);
+      stopped = undefined;
+    }
+    if (!side) continue;
+    if (kind === "run") stopped = { entry, side };
+    else items.push({ entry, side });
   }
+  if (stopped) items.push(stopped);
   if (isThinking(entries)) items.push({ entry: "thinking", side: "bot" });
 
   const rows: Row[] = [];

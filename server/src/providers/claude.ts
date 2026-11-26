@@ -100,9 +100,22 @@ export class ClaudeProvider implements AgentProvider {
     // "success" result with is_error. Its text is the error, not a reply, so it becomes the run's error message.
     const apiError: { message?: string } = {};
     let sessionId = req.sessionId;
+    // After an abort the SDK closes Claude Code gracefully (~2 s) and keeps delivering messages meanwhile, ending
+    // with a "success" result. Stop must be immediate, so stop reading at once and let that cleanup finish alone.
+    const stopped = new Promise<"stopped">((resolve) => {
+      if (req.signal.aborted) resolve("stopped");
+      else req.signal.addEventListener("abort", () => resolve("stopped"), { once: true });
+    });
+    const messages = this.queryFn({ prompt: req.prompt, options })[Symbol.asyncIterator]();
     try {
-      for await (const msg of this.queryFn({ prompt: req.prompt, options })) {
-        const outcome = this.handle(msg, cb, text, apiError, (id) => (sessionId = id));
+      while (true) {
+        const next = await Promise.race([messages.next(), stopped]);
+        if (next === "stopped") {
+          messages.return?.().catch((err: unknown) => console.warn("Claude: closing the stopped query failed:", err));
+          return { status: "interrupted", sessionId };
+        }
+        if (next.done) break;
+        const outcome = this.handle(next.value, cb, text, apiError, (id) => (sessionId = id));
         if (outcome) return { ...outcome, sessionId };
       }
       return req.signal.aborted

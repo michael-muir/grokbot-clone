@@ -1,21 +1,13 @@
-// The app's one screen so far: the bot tiles, and a live chat with the selected bot. The sidebar and composer are
-// still the scaffold's (#11, #12 replace them); the transcript is the real chat view (chat/).
-import {
-  type FormEvent,
-  type KeyboardEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from "react";
+// The app's one screen so far: the bot tiles, and a live chat with the selected bot. The sidebar is
+// still the scaffold's (#12 replaces it); the transcript and composer are the real ones (chat/).
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { StreamState } from "../../../../server/src/client/subscribe.ts";
 import { TranscriptView } from "../../../../server/src/client/transcript-view.ts";
 import type { PublicBot, TranscriptEntry } from "../../../../server/src/types.ts";
 import type { ConnectionInfo } from "../../shared/ipc.ts";
 import { botColor, initial } from "./bot-colors.ts";
 import type { RowContext } from "./chat/ChatRow.tsx";
+import { Composer } from "./chat/Composer.tsx";
 import { Transcript } from "./chat/Transcript.tsx";
 import { call } from "./gateway.ts";
 
@@ -113,10 +105,6 @@ function Chat({ bot }: { bot: PublicBot }) {
   );
   const [stream, setStream] = useState<StreamState | "ended">("connecting");
   const [problem, setProblem] = useState<string>();
-  const [draft, setDraft] = useState("");
-  // A ref, not state: a second Enter in the same tick must already see the first send.
-  const sending = useRef(false);
-  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     // Resume from what's already held, so a re-subscribe (StrictMode, a reload of this view) repeats nothing.
@@ -152,27 +140,16 @@ function Chat({ bot }: { bot: PublicBot }) {
     [bot.id, bot.name],
   );
 
-  const send = async (e?: FormEvent) => {
-    e?.preventDefault();
-    const text = draft.trim();
-    if (!text || sending.current) return;
-    sending.current = true;
-    setIsSending(true);
+  /** Runs a gateway call; a failure shows in the banner and is re-thrown so the caller keeps its state. */
+  const report = useCallback(async (run: () => Promise<unknown>) => {
     try {
-      await call("sendMessage", bot.id, text);
-      setDraft("");
+      await run();
       setProblem(undefined);
     } catch (err) {
       setProblem(message(err));
-    } finally {
-      sending.current = false;
-      setIsSending(false);
+      throw err;
     }
-  };
-
-  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) void send(e);
-  };
+  }, []);
 
   return (
     <div className="chat-body" data-bot-color={colorOf(bot)}>
@@ -194,29 +171,13 @@ function Chat({ bot }: { bot: PublicBot }) {
           {problem}
         </p>
       )}
-      <form className="composer" onSubmit={send}>
-        <textarea
-          aria-label={`Message ${bot.name}`}
-          placeholder={`Message ${bot.name}`}
-          value={draft}
-          rows={1}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={onKeyDown}
-        />
-        {busy ? (
-          <button
-            type="button"
-            className="send"
-            onClick={() => call("interrupt", bot.id).catch((err) => setProblem(message(err)))}
-          >
-            Stop
-          </button>
-        ) : (
-          <button type="submit" className="send" disabled={!draft.trim() || isSending}>
-            Send
-          </button>
-        )}
-      </form>
+      <Composer
+        botId={bot.id}
+        botName={bot.name}
+        busy={busy}
+        onSend={(text) => report(() => call("sendMessage", bot.id, text))}
+        onStop={() => report(() => call("interrupt", bot.id))}
+      />
     </div>
   );
 }

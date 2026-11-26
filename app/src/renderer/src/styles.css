@@ -219,10 +219,12 @@ textarea {
   gap: var(--space-2);
   min-height: var(--size-composer);
   margin-right: var(--space-4);
+  /* 6px + the 1px border puts the 28px button 7px from the edge, as measured. */
   padding: var(--space-1-5) var(--space-1-5) var(--space-1-5) var(--space-4);
   border: var(--size-hairline) solid var(--color-line-strong);
   border-radius: var(--radius-composer);
   background: var(--color-surface);
+  box-shadow: var(--shadow-raised);
 }
 
 /* The textarea draws no outline of its own; the whole composer shows the focus ring instead. */
@@ -251,23 +253,34 @@ textarea {
   color: var(--color-text-tertiary);
 }
 
-.send {
+/* The round Send / Stop button, in the bot's color. */
+.composer-action {
+  display: grid;
   flex-shrink: 0;
+  place-items: center;
+  width: var(--size-control-sm);
   height: var(--size-control-sm);
-  padding: 0 var(--space-3);
+  padding: 0;
   border: 0;
   border-radius: var(--radius-full);
-  background: var(--color-contrast);
-  color: var(--color-on-contrast);
-  font-size: var(--text-sm);
-  font-weight: var(--font-weight-medium);
+  background: var(--color-bot-action);
+  color: var(--color-on-bot-action);
   cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
-.send:disabled {
+.composer-action:disabled {
   background: var(--color-fill-strong);
+  box-shadow: var(--shadow-hairline);
   color: var(--color-text-disabled);
   cursor: default;
+}
+
+.composer-action .icon {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
 }
 
 .muted {
