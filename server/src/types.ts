@@ -24,7 +24,8 @@ export type ProviderId = (typeof PROVIDER_IDS)[number];
 export const isProviderId = (v: unknown): v is ProviderId => PROVIDER_IDS.includes(v as ProviderId);
 
 export type EntryBody =
-  | { kind: "user_message"; text: string }
+  /** clientNonce: echoed from the sender, so a client can match its pending copy to this entry. */
+  | { kind: "user_message"; text: string; clientNonce?: string }
   | { kind: "assistant_text"; text: string; streaming: boolean }
   | { kind: "status"; label: string; tool: string; state: "running" | "done" | "failed" }
   | {
@@ -34,6 +35,15 @@ export type EntryBody =
       input: Record<string, unknown>;
       state: "pending" | "approved" | "denied" | "expired";
       reason?: string;
+    }
+  /** A question with lettered choices; with allowCustom the user may type their own answer. */
+  | {
+      kind: "choice";
+      prompt: string;
+      options: ChoiceOption[];
+      allowCustom: boolean;
+      state: "pending" | "answered" | "expired";
+      answer?: string;
     }
   | { kind: "error"; message: string }
   /** A note from the app itself, such as "Switched to Ollama". */
@@ -47,6 +57,17 @@ export type EntryBody =
 
 export type EntryKind = EntryBody["kind"];
 
+export interface ChoiceOption {
+  label: string;
+  value: string;
+}
+
+export interface ChoiceRequest {
+  prompt: string;
+  options: ChoiceOption[];
+  allowCustom: boolean;
+}
+
 export interface TranscriptEntry {
   /** Position of the entry in the conversation. Never changes. */
   seq: number;
@@ -55,6 +76,8 @@ export interface TranscriptEntry {
   id: string;
   botId: string;
   body: EntryBody;
+  /** The id of the run (its run entry) this entry was written in. Absent outside runs. */
+  runId?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -129,6 +152,8 @@ export interface RunCallbacks {
   emit(event: ProviderEvent): void;
   /** Ask the user to approve a tool call. Resolves when they answer, or denies if the run is aborted. */
   requestApproval(request: ApprovalRequest, signal: AbortSignal): Promise<ApprovalDecision>;
+  /** Ask the user a question with choices. Resolves with the answer, or undefined if the run is stopped. */
+  requestChoice?(request: ChoiceRequest, signal: AbortSignal): Promise<string | undefined>;
 }
 
 export interface RunOutcome {

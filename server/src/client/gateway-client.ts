@@ -57,8 +57,9 @@ export class GatewayClient {
     return this.request("GET", `/bots/${enc(botId)}/transcript?since=${since}`);
   }
 
-  async sendMessage(botId: string, text: string): Promise<void> {
-    await this.request("POST", `/bots/${enc(botId)}/messages`, { text });
+  /** `clientNonce` comes back on the user entry, so a pending local copy can be matched to it. */
+  async sendMessage(botId: string, text: string, clientNonce?: string): Promise<void> {
+    await this.request("POST", `/bots/${enc(botId)}/messages`, clientNonce ? { text, clientNonce } : { text });
   }
 
   async interrupt(botId: string): Promise<void> {
@@ -67,6 +68,10 @@ export class GatewayClient {
 
   async answerApproval(botId: string, entryId: string, decision: ApprovalDecision): Promise<void> {
     await this.request("POST", `/bots/${enc(botId)}/approvals/${enc(entryId)}`, decision);
+  }
+
+  async answerChoice(botId: string, entryId: string, answer: string): Promise<void> {
+    await this.request("POST", `/bots/${enc(botId)}/choices/${enc(entryId)}`, { answer });
   }
 
   listProviders(): Promise<ProviderSummary[]> {

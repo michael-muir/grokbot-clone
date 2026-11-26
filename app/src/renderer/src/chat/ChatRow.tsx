@@ -5,12 +5,14 @@ import { memo } from "react";
 import type { TranscriptEntry } from "../../../../../server/src/types.ts";
 import { initial } from "../bot-colors.ts";
 import { ApprovalCard } from "./ApprovalCard.tsx";
+import { ChoiceCard } from "./ChoiceCard.tsx";
 import { Markdown } from "./Markdown.tsx";
 import type { Row } from "./rows.ts";
 
 export interface RowContext {
   botName: string;
   answerApproval(entry: TranscriptEntry, allow: boolean, reason?: string): Promise<unknown>;
+  answerChoice(entry: TranscriptEntry, answer: string): Promise<unknown>;
 }
 
 function ChatRowView({ row, context }: { row: Row; context: RowContext }) {
@@ -33,7 +35,9 @@ function ChatRowView({ row, context }: { row: Row; context: RowContext }) {
   const time = new Date(entry.createdAt).toISOString();
   return (
     <div className="chat-row" data-side={row.side} data-gap={row.gap}>
-      <div className="row-content">{content(row.entry, row.group, context)}</div>
+      <div className="row-content" data-pending={row.pending || undefined}>
+        {content(row.entry, row.group, context)}
+      </div>
       {row.side !== "center" && (
         <time className="row-time" dateTime={time}>
           {row.time}
@@ -63,6 +67,8 @@ function content(entry: TranscriptEntry, group: string, context: RowContext) {
       return <StatusLine botName={context.botName} label={b.label} state={b.state} />;
     case "approval":
       return <ApprovalCard body={b} answer={(allow, reason) => context.answerApproval(entry, allow, reason)} />;
+    case "choice":
+      return <ChoiceCard body={b} answer={(value) => context.answerChoice(entry, value)} />;
     case "notice":
       return <p className="notice">{b.text}</p>;
     case "error":
@@ -98,7 +104,9 @@ function sameRow(a: { row: Row; context: RowContext }, b: { row: Row; context: R
   if (x.type === "separator" && y.type === "separator") return x.label === y.label;
   if (x.type === "thinking" && y.type === "thinking") return true;
   if (x.type === "entry" && y.type === "entry") {
-    return x.entry === y.entry && x.group === y.group && x.time === y.time && x.side === y.side;
+    return (
+      x.entry === y.entry && x.group === y.group && x.time === y.time && x.side === y.side && x.pending === y.pending
+    );
   }
   return false;
 }

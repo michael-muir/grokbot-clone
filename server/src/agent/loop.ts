@@ -3,7 +3,15 @@
 // read-only), feeds the results back, and repeats until the model answers without tools.
 import { randomUUID } from "node:crypto";
 import { platform } from "node:os";
-import type { AgentProvider, ProviderId, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
+import type {
+  AgentProvider,
+  ChoiceRequest,
+  ProviderId,
+  ProviderInfo,
+  RunCallbacks,
+  RunOutcome,
+  RunRequest,
+} from "../types.ts";
 import { type ChatMessage, INVALID_ARGUMENTS, type ModelAdapter, type ToolCall } from "./model.ts";
 import type { SessionStore } from "./sessions.ts";
 import { defaultTools, type Tool, ToolInputError } from "./tools.ts";
@@ -177,7 +185,12 @@ export class LoopProvider implements AgentProvider {
     }
 
     try {
-      const r = await tool.run(call.input, { workspaceDir: req.workspaceDir, signal: req.signal });
+      const ask = cb.requestChoice;
+      const r = await tool.run(call.input, {
+        workspaceDir: req.workspaceDir,
+        signal: req.signal,
+        ...(ask ? { ask: (q: ChoiceRequest) => ask(q, req.signal) } : {}),
+      });
       cb.emit({ type: "tool_end", toolUseId: call.id, ok: r.ok });
       return result(r.output, !r.ok);
     } catch (err) {

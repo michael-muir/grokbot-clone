@@ -1,6 +1,6 @@
 // The gateway: runs a bot's chosen provider and turns its events into transcript entries.
 import { randomUUID } from "node:crypto";
-import { ApprovalBroker } from "./approvals.ts";
+import { Waiters } from "./approvals.ts";
 import type { BotRegistry } from "./bots.ts";
 import type { ComputerManager } from "./computer.ts";
 import type { ProviderRegistry } from "./providers/index.ts";
@@ -18,6 +18,9 @@ import type {
 
 /** What the model is told when the user denies a tool call without giving a reason. */
 export const DENIED_WITHOUT_REASON = "The user denied this action.";
+
+/** Longest answer the user may type into a choice card. */
+export const MAX_CUSTOM_ANSWER = 500;
 
 export class BotNotFoundError extends Error {}
 export class BotBusyError extends Error {}
@@ -41,7 +44,9 @@ export class Gateway {
   private readonly store: TranscriptStore;
   private readonly providers: ProviderRegistry;
   private readonly computers: ComputerManager;
-  private readonly approvals = new ApprovalBroker();
+  private readonly approvals = new Waiters<ApprovalDecision>({ allow: false, reason: "The run was stopped." });
+  /** A stopped run settles a pending choice with undefined (no answer). */
+  private readonly choices = new Waiters<string | undefined>(undefined);
   private readonly active = new Map<string, ActiveRun>();
   private readonly activityListeners = new Set<(bots: BotActivity[]) => void>();
 
@@ -79,7 +84,11 @@ export class Gateway {
   }
 
   /** Records the user's message and starts a run. Resolves once the run has started, not finished. */
-  async sendMessage(botId: string, text: string): Promise<{ entry: TranscriptEntry; done: Promise<void> }> {
+  async sendMessage(
+    botId: string,
+    text: string,
+    clientNonce?: string,
+  ): Promise<{ entry: TranscriptEntry; done: Promise<void> }> {
     const bot = this.bots.get(botId);
     if (!bot) throw new BotNotFoundError(`Unknown bot ${botId}`);
     if (this.active.has(botId)) throw new BotBusyError(`${bot.name} is still working on the last message.`);
@@ -93,7 +102,7 @@ export class Gateway {
 
     let entry: TranscriptEntry;
     try {
-      entry = this.store.append(botId, { kind: "user_message", text });
+      entry = this.store.append(botId, { kind: "user_message", text, ...(clientNonce ? { clientNonce } : {}) });
     } catch (err) {
       // Release the claim, or the bot would look busy until the gateway restarts.
       this.active.delete(botId);
@@ -151,8 +160,25 @@ export class Gateway {
     return this.approvals.answer(entryId, decision);
   }
 
+  /**
+   * Answers a choice card. The answer must be one of its options' values, or (when the card allows it) the user's
+   * own text. Returns "not-pending" when the card isn't waiting, "invalid" when the answer doesn't fit.
+   */
+  answerChoice(botId: string, entryId: string, answer: string): "ok" | "not-pending" | "invalid" {
+    const entry = this.store.get(botId, entryId);
+    if (entry?.body.kind !== "choice" || entry.body.state !== "pending") return "not-pending";
+    const card = entry.body;
+    const text = answer.trim();
+    const listed = card.options.some((o) => o.value === answer);
+    if (!listed && !(card.allowCustom && text.length > 0 && text.length <= MAX_CUSTOM_ANSWER)) return "invalid";
+    return this.choices.answer(entryId, listed ? answer : text) ? "ok" : "not-pending";
+  }
+
   private async execute(bot: Bot, provider: AgentProvider, text: string, controller: AbortController): Promise<void> {
-    const runEntry = this.store.append(bot.id, { kind: "run", provider: provider.id, state: "running" });
+    const runId = randomUUID();
+    // Everything written during this run carries its id, the run entry included.
+    const append = (body: EntryBody, id?: string) => this.store.append(bot.id, body, id, runId);
+    const runEntry = append({ kind: "run", provider: provider.id, state: "running" }, runId);
     const textEntries = new Map<string, string>(); // provider blockId -> entry id
     const toolEntries = new Map<string, string>(); // toolUseId -> entry id
 
@@ -168,7 +194,7 @@ export class Gateway {
         case "text_delta": {
           const id = textEntries.get(ev.blockId);
           if (!id) {
-            const e = this.store.append(bot.id, { kind: "assistant_text", text: ev.text, streaming: true });
+            const e = append({ kind: "assistant_text", text: ev.text, streaming: true });
             textEntries.set(ev.blockId, e.id);
           } else {
             set(id, (b) => (b.kind === "assistant_text" ? { ...b, text: b.text + ev.text } : b));
@@ -179,7 +205,7 @@ export class Gateway {
           if (!ev.text.trim()) return;
           const id = textEntries.get(ev.blockId);
           if (!id) {
-            const e = this.store.append(bot.id, { kind: "assistant_text", text: ev.text, streaming: false });
+            const e = append({ kind: "assistant_text", text: ev.text, streaming: false });
             textEntries.set(ev.blockId, e.id);
           } else {
             set(id, () => ({ kind: "assistant_text", text: ev.text, streaming: false }));
@@ -187,7 +213,7 @@ export class Gateway {
           return;
         }
         case "tool_start": {
-          const e = this.store.append(bot.id, { kind: "status", label: ev.summary, tool: ev.tool, state: "running" });
+          const e = append({ kind: "status", label: ev.summary, tool: ev.tool, state: "running" });
           toolEntries.set(ev.toolUseId, e.id);
           return;
         }
@@ -228,7 +254,7 @@ export class Gateway {
             const cardId = randomUUID();
             const cancelled = anySignal(signal, controller.signal);
             const answer = this.approvals.wait(cardId, cancelled);
-            const card = this.store.append(bot.id, { kind: "approval", ...req, state: "pending" }, cardId);
+            const card = append({ kind: "approval", ...req, state: "pending" }, cardId);
             const decision = await answer;
             // A denial without a reason shows as plain "Denied"; the model still gets a sentence to act on.
             const reason = decision.allow ? "" : decision.reason.trim();
@@ -242,6 +268,21 @@ export class Gateway {
                 : b,
             );
             return decision.allow ? decision : { allow: false, reason: reason || DENIED_WITHOUT_REASON };
+          },
+          requestChoice: async (req, signal) => {
+            const cardId = randomUUID();
+            const cancelled = anySignal(signal, controller.signal);
+            const answer = this.choices.wait(cardId, cancelled);
+            append({ kind: "choice", ...req, state: "pending" }, cardId);
+            const chosen = await answer;
+            set(cardId, (b) =>
+              b.kind === "choice"
+                ? chosen === undefined
+                  ? { ...b, state: "expired" }
+                  : { ...b, state: "answered", answer: chosen }
+                : b,
+            );
+            return chosen;
           },
         },
       );
@@ -259,7 +300,7 @@ export class Gateway {
       set(id, (b) => (b.kind === "status" && b.state === "running" ? { ...b, state: "failed" } : b));
     }
     if (outcome.status === "failed") {
-      this.store.append(bot.id, { kind: "error", message: outcome.error ?? "Something went wrong." });
+      append({ kind: "error", message: outcome.error ?? "Something went wrong." });
     }
     set(runEntry.id, (b) =>
       b.kind === "run"

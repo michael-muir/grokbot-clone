@@ -30,6 +30,18 @@ test("wrong argument types or counts are refused", () => {
   refused("sendMessage", ["nova"]);
   refused("sendMessage", ["nova", "   "]);
   refused("sendMessage", ["", "hi"]);
+  assert.deepEqual(checkCall("sendMessage", ["nova", "hi", "n-1"]), {
+    name: "sendMessage",
+    args: ["nova", "hi", "n-1"],
+  });
+  refused("sendMessage", ["nova", "hi", ""]);
+  refused("sendMessage", ["nova", "hi", "x".repeat(101)]);
+  assert.deepEqual(checkCall("answerChoice", ["nova", "card-1", "red"]), {
+    name: "answerChoice",
+    args: ["nova", "card-1", "red"],
+  });
+  refused("answerChoice", ["nova", "card-1", 3]);
+  refused("answerChoice", ["nova", "card-1", "x".repeat(1001)]);
   refused("sendMessage", ["nova", 5]);
   refused("updateBot", ["nova", { provider: "gpt" }]);
   refused("updateBot", ["nova", { sessionId: "steal" }]);

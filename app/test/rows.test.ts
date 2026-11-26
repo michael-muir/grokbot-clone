@@ -172,3 +172,54 @@ test("rows: a streaming entry keeps its key and position as it updates", () => {
   const shown = after[row];
   assert.equal(shown?.type === "entry" && shown.entry.body.kind === "assistant_text" && shown.entry.body.text, "Hello");
 });
+
+test("rows: a pending message shows at the end until an entry with its nonce arrives", () => {
+  seq = 0;
+  const pending = [{ nonce: "n1", text: "on its way", at: T0 + 5 * MIN }];
+  const before = buildRows([bot("hello", 0)], NOW, "en-US", pending);
+  const last = before.at(-1);
+  assert.ok(last?.type === "entry" && last.pending === true && last.side === "user");
+  assert.equal(last?.type === "entry" && last.entry.body.kind === "user_message" && last.entry.body.text, "on its way");
+
+  const confirmed = e({ kind: "user_message", text: "on its way", clientNonce: "n1" }, 5);
+  const after = buildRows([bot("hello", 0), confirmed], NOW, "en-US", pending);
+  assert.equal(after.filter((r) => r.type === "entry" && r.pending).length, 0, "replaced by the real entry");
+  assert.equal(after.filter((r) => r.type === "entry" && r.entry.body.kind === "user_message").length, 1);
+});
+
+test("rows: a choice card sits on the bot's side as a card of its own", () => {
+  seq = 0;
+  const choice: EntryBody = {
+    kind: "choice",
+    prompt: "Pick",
+    options: [{ label: "A", value: "a" }],
+    allowCustom: false,
+    state: "pending",
+  };
+  assert.deepEqual(shape(buildRows([bot("one"), e(choice), bot("two")], NOW, "en-US")), [
+    "sep",
+    "assistant_text:single:none",
+    "choice:single:group",
+    "assistant_text:single:group",
+  ]);
+});
+
+test("rows: a Stopped notice stays with its run's output, before notices written after the run", () => {
+  seq = 0;
+  const inRun = (body: EntryBody, runId: string) => ({ ...e(body), runId });
+  const run = inRun({ kind: "run", provider: "fake", state: "interrupted" }, "r1");
+  const rows = buildRows(
+    [
+      user("go"),
+      { ...run, id: "r1" },
+      inRun({ kind: "assistant_text", text: "Partial", streaming: false }, "r1"),
+      e({ kind: "notice", text: "Switched to Ollama" }),
+    ],
+    NOW,
+    "en-US",
+  );
+  assert.deepEqual(
+    rows.flatMap((r) => (r.type === "entry" ? [r.entry.body.kind] : [])),
+    ["user_message", "assistant_text", "run", "notice"],
+  );
+});
