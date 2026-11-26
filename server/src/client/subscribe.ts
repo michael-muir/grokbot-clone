@@ -1,6 +1,6 @@
-// Live transcript subscription for clients: reads the gateway's event stream, reconnects with backoff, and resumes
-// from the last entry it saw, so nothing is lost or repeated. No Node APIs, so the desktop renderer can use it.
-import type { TranscriptEntry } from "../types.ts";
+// Live subscriptions for clients: a bot's transcript (resumes from the last entry it saw, so nothing is lost or
+// repeated) and every bot's activity. Both reconnect with backoff. No Node APIs, so the desktop renderer can use it.
+import type { BotActivity, TranscriptEntry } from "../types.ts";
 
 export type StreamState = "connecting" | "live" | "reconnecting";
 
@@ -48,13 +48,89 @@ const DEFAULT_STALE_MS = 45_000;
  * changes happened, across any number of reconnects. Rejects with a SubscriptionError, or with what onEntry threw.
  */
 export async function subscribeTranscript(baseUrl: string, botId: string, opts: SubscribeOptions): Promise<void> {
+  let cursor = opts.since ?? -1;
+  const reportError =
+    opts.onError ?? ((err: unknown) => console.warn(`transcript stream for ${botId} dropped; reconnecting`, err));
+  await reconnecting(opts, reportError, {
+    url: () => `${trimSlash(baseUrl)}/bots/${encodeURIComponent(botId)}/events?since=${cursor}`,
+    onEvent(event) {
+      let entry: TranscriptEntry;
+      try {
+        entry = JSON.parse(event.data) as TranscriptEntry;
+      } catch {
+        // Without its id, a bad event can't be stepped over: retrying would just hit it again.
+        if (event.id === undefined) throw new SubscriptionError(0, "The gateway sent an event that isn't JSON.");
+        reportError(new Error(`Skipped an event that isn't JSON (id ${event.id})`));
+        cursor = Math.max(cursor, event.id);
+        return;
+      }
+      // The stream is in updatedSeq order and resumes after the cursor, so anything older is a repeat.
+      if (entry.updatedSeq <= cursor) return;
+      try {
+        opts.onEntry(entry);
+      } catch (err) {
+        throw new ConsumerError(err);
+      }
+      // Only now: if onEntry had thrown, the entry must not count as delivered.
+      cursor = entry.updatedSeq;
+    },
+  });
+}
+
+export interface ActivityOptions extends Omit<SubscribeOptions, "onEntry" | "since"> {
+  /** Called with every bot's activity: once on connect (and reconnect), then on every change. */
+  onActivity(bots: BotActivity[]): void;
+}
+
+/** Streams which bots are running until `signal` aborts. Each event is a full snapshot, so nothing needs resuming. */
+export async function subscribeActivity(baseUrl: string, opts: ActivityOptions): Promise<void> {
+  const reportError = opts.onError ?? ((err: unknown) => console.warn("activity stream dropped; reconnecting", err));
+  await reconnecting(opts, reportError, {
+    url: () => `${trimSlash(baseUrl)}/activity`,
+    onEvent(event) {
+      let bots: unknown;
+      try {
+        bots = JSON.parse(event.data);
+      } catch {
+        reportError(new Error("Skipped an activity event that isn't JSON"));
+        return; // the next snapshot replaces it anyway
+      }
+      if (!Array.isArray(bots)) return reportError(new Error("Skipped an activity event that isn't a list"));
+      const valid = bots.filter(isBotActivity);
+      if (valid.length < bots.length)
+        reportError(new Error(`Skipped ${bots.length - valid.length} malformed activity items`));
+      try {
+        opts.onActivity(valid);
+      } catch (err) {
+        throw new ConsumerError(err);
+      }
+    },
+  });
+}
+
+const trimSlash = (url: string) => url.replace(/\/+$/, "");
+
+function isBotActivity(v: unknown): v is BotActivity {
+  if (typeof v !== "object" || v === null) return false;
+  const a = v as Record<string, unknown>;
+  return typeof a.botId === "string" && typeof a.running === "boolean";
+}
+
+type StreamOptions = Pick<SubscribeOptions, "onState" | "signal" | "token" | "backoff" | "staleAfterMs" | "fetch">;
+
+/**
+ * The shared connection loop: connect, read events until the stream ends or goes quiet, then reconnect with
+ * backoff. `onEvent` may throw a SubscriptionError (stop) or a ConsumerError (stop with the caller's error).
+ */
+async function reconnecting(
+  opts: StreamOptions,
+  reportError: (err: unknown) => void,
+  stream: { url(): string; onEvent(event: { data: string; id?: number }): void },
+): Promise<void> {
   const { signal } = opts;
   const backoff = opts.backoff ?? DEFAULT_BACKOFF;
   const staleAfterMs = opts.staleAfterMs ?? DEFAULT_STALE_MS;
   const fetchFn = opts.fetch ?? fetch;
-  const reportError =
-    opts.onError ?? ((err: unknown) => console.warn(`transcript stream for ${botId} dropped; reconnecting`, err));
-  let cursor = opts.since ?? -1;
   let delay = backoff.initialMs;
 
   opts.onState?.("connecting");
@@ -70,8 +146,7 @@ export async function subscribeTranscript(baseUrl: string, botId: string, opts: 
 
     try {
       kick();
-      const url = `${baseUrl.replace(/\/+$/, "")}/bots/${encodeURIComponent(botId)}/events?since=${cursor}`;
-      const res = await fetchFn(url, {
+      const res = await fetchFn(stream.url(), {
         headers: opts.token ? { authorization: `Bearer ${opts.token}` } : {},
         signal: attempt.signal,
       });
@@ -81,28 +156,7 @@ export async function subscribeTranscript(baseUrl: string, botId: string, opts: 
       if (!res.ok || !res.body) throw new Error(`The gateway answered ${res.status}`);
       opts.onState?.("live");
       delay = backoff.initialMs;
-
-      for await (const event of sseEvents(res.body, kick)) {
-        let entry: TranscriptEntry;
-        try {
-          entry = JSON.parse(event.data) as TranscriptEntry;
-        } catch {
-          // Without its id, a bad event can't be stepped over: retrying would just hit it again.
-          if (event.id === undefined) throw new SubscriptionError(0, "The gateway sent an event that isn't JSON.");
-          reportError(new Error(`Skipped an event that isn't JSON (id ${event.id})`));
-          cursor = Math.max(cursor, event.id);
-          continue;
-        }
-        // The stream is in updatedSeq order and resumes after the cursor, so anything older is a repeat.
-        if (entry.updatedSeq <= cursor) continue;
-        try {
-          opts.onEntry(entry);
-        } catch (err) {
-          throw new ConsumerError(err);
-        }
-        // Only now: if onEntry had thrown, the entry must not count as delivered.
-        cursor = entry.updatedSeq;
-      }
+      for await (const event of sseEvents(res.body, kick)) stream.onEvent(event);
     } catch (err) {
       if (err instanceof SubscriptionError) throw err;
       if (err instanceof ConsumerError) throw err.inner;

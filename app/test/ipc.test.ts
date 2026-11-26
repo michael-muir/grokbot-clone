@@ -44,8 +44,17 @@ test("wrong argument types or counts are refused", () => {
 });
 
 test("stream open messages are checked", () => {
-  assert.deepEqual(checkStreamOpen({ id: "s1", botId: "nova", since: 4 }), { id: "s1", botId: "nova", since: 4 });
-  assert.equal(checkStreamOpen({ id: "s1", botId: "nova", since: "4" }), undefined);
-  assert.equal(checkStreamOpen({ id: "", botId: "nova", since: -1 }), undefined);
+  assert.deepEqual(checkStreamOpen({ id: "s1", topic: "transcript", botId: "nova", since: 4 }), {
+    id: "s1",
+    topic: "transcript",
+    botId: "nova",
+    since: 4,
+  });
+  assert.equal(checkStreamOpen({ id: "s1", topic: "transcript", botId: "nova", since: "4" }), undefined);
+  assert.equal(checkStreamOpen({ id: "", topic: "transcript", botId: "nova", since: -1 }), undefined);
+  assert.equal(checkStreamOpen({ id: "s1", botId: "nova", since: 4 }), undefined, "the topic is required");
+  // Activity takes no other fields; anything extra is dropped.
+  assert.deepEqual(checkStreamOpen({ id: "s2", topic: "activity", botId: "x" }), { id: "s2", topic: "activity" });
+  assert.equal(checkStreamOpen({ id: "s2", topic: "everything" }), undefined);
   assert.equal(checkStreamOpen(null), undefined);
 });

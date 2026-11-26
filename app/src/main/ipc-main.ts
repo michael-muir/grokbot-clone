@@ -2,6 +2,7 @@
 // transcript streams to the window that opened them.
 import { type IpcMainEvent, type IpcMainInvokeEvent, ipcMain, type WebContents } from "electron";
 import { type GatewayClient, GatewayError } from "../../../server/src/client/gateway-client.ts";
+import type { StreamState } from "../../../server/src/client/subscribe.ts";
 import {
   type CallName,
   type CallResult,
@@ -104,20 +105,30 @@ export function registerIpc(deps: IpcDeps): void {
     const send = (e: StreamEvent) => {
       if (!sender.isDestroyed() && !controller.signal.aborted) sender.send(CHANNELS.streamEvent, open.id, e);
     };
+    const common = {
+      signal: controller.signal,
+      onState: (state: StreamState) => send({ kind: "state", state }),
+      onError: (err: unknown) => {
+        // The renderer shows transcript drops; nobody would see activity drops, so they're logged here.
+        if (open.topic === "activity") console.warn("activity stream dropped; reconnecting", err);
+        send({ kind: "error", message: err instanceof Error ? err.message : String(err) });
+      },
+    };
+    const what = open.topic === "activity" ? "activity stream" : `transcript stream for ${open.botId}`;
     deps.gateway
       .then((client) =>
-        client.subscribe(open.botId, {
-          signal: controller.signal,
-          since: open.since,
-          onEntry: (entry) => send({ kind: "entry", entry }),
-          onState: (state) => send({ kind: "state", state }),
-          onError: (err) => send({ kind: "error", message: err instanceof Error ? err.message : String(err) }),
-        }),
+        open.topic === "activity"
+          ? client.activity({ ...common, onActivity: (bots) => send({ kind: "activity", bots }) })
+          : client.subscribe(open.botId, {
+              ...common,
+              since: open.since,
+              onEntry: (entry) => send({ kind: "entry", entry }),
+            }),
       )
       .then(
         () => send({ kind: "ended" }),
         (err: unknown) => {
-          console.error(`transcript stream for ${open.botId} stopped`, err);
+          console.error(`${what} stopped`, err);
           send({ kind: "ended", error: err instanceof Error ? err.message : String(err) });
         },
       )

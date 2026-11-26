@@ -9,6 +9,7 @@ import type {
   AgentProvider,
   ApprovalDecision,
   Bot,
+  BotActivity,
   EntryBody,
   ProviderEvent,
   RunOutcome,
@@ -42,6 +43,7 @@ export class Gateway {
   private readonly computers: ComputerManager;
   private readonly approvals = new ApprovalBroker();
   private readonly active = new Map<string, ActiveRun>();
+  private readonly activityListeners = new Set<(bots: BotActivity[]) => void>();
 
   constructor(bots: BotRegistry, store: TranscriptStore, providers: ProviderRegistry, computers: ComputerManager) {
     this.bots = bots;
@@ -52,6 +54,28 @@ export class Gateway {
 
   isRunning(botId: string): boolean {
     return this.active.has(botId);
+  }
+
+  /** Every bot and whether it's running. */
+  activity(): BotActivity[] {
+    return this.bots.list().map((bot) => ({ botId: bot.id, running: this.active.has(bot.id) }));
+  }
+
+  /** Called with a fresh snapshot whenever a run starts or ends. Returns the unsubscribe function. */
+  subscribeActivity(listener: (bots: BotActivity[]) => void): () => void {
+    this.activityListeners.add(listener);
+    return () => this.activityListeners.delete(listener);
+  }
+
+  private activityChanged(): void {
+    const bots = this.activity();
+    for (const listener of this.activityListeners) {
+      try {
+        listener(bots);
+      } catch (err) {
+        console.error("An activity listener failed:", err);
+      }
+    }
   }
 
   /** Records the user's message and starts a run. Resolves once the run has started, not finished. */
@@ -75,7 +99,11 @@ export class Gateway {
       this.active.delete(botId);
       throw err;
     }
-    run.done = this.execute(bot, provider, text, controller).finally(() => this.active.delete(botId));
+    this.activityChanged();
+    run.done = this.execute(bot, provider, text, controller).finally(() => {
+      this.active.delete(botId);
+      this.activityChanged();
+    });
     return { entry, done: run.done };
   }
 

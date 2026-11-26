@@ -76,6 +76,12 @@ export interface Bot {
 /** A bot as the API shows it: the provider session is the gateway's business. */
 export type PublicBot = Omit<Bot, "sessionId" | "sessionProvider">;
 
+/** What a bot is doing right now, for the sidebar. Sent as a snapshot of every bot whenever one changes. */
+export interface BotActivity {
+  botId: string;
+  running: boolean;
+}
+
 /** Where a provider's API key came from. */
 export type KeySource = "keychain" | "env";
 
