@@ -97,7 +97,7 @@ export class ClaudeProvider implements AgentProvider {
 
     const text = new TextBlocks();
     // An API failure (no credits, bad key, overload) arrives as an assistant message flagged with `error`, then a
-    // "success" result with is_error. Its text is the error, not a reply, so it ends the run as failed.
+    // "success" result with is_error. Its text is the error, not a reply, so it becomes the run's error message.
     const apiError: { message?: string } = {};
     let sessionId = req.sessionId;
     try {
@@ -142,7 +142,8 @@ export class ClaudeProvider implements AgentProvider {
       }
       case "assistant": {
         if (msg.parent_tool_use_id) return;
-        if (msg.error) {
+        // A reply cut off at the length limit is still a reply; only real API failures are swallowed here.
+        if (msg.error && msg.error !== "max_output_tokens") {
           const said = msg.message.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join(" ");
           apiError.message = `Anthropic: ${said || API_ERRORS[msg.error] || msg.error}`;
           return;
@@ -174,7 +175,8 @@ export class ClaudeProvider implements AgentProvider {
         return;
       }
       case "result":
-        if (msg.subtype === "success" && !msg.is_error && !apiError.message) {
+        // The result decides: the SDK may retry after an API error and then succeed.
+        if (msg.subtype === "success" && !msg.is_error) {
           return { status: "finished", costUsd: msg.total_cost_usd };
         }
         return {
