@@ -75,8 +75,8 @@ No gateway or IPC changes: `sendMessage` and `interrupt` exist.
 
 | Acceptance criterion (from the issue) | Shown by |
 | --- | --- |
-| Stop ends the run as interrupted within 2 s | Test `interrupt ends a streaming run as interrupted within 2 s`: the gateway with the fake provider's slow reply, POST `/interrupt` over HTTP, then the time until the run entry reads `interrupted`. **Manual check:** click Stop during a slow reply in the app |
-| Send, disabled while busy | Pure helper `composerState({ draft, busy, sending })` tested for every combination. **Manual check** in the app |
+| Stop ends the run as interrupted within 2 s | Test `HTTP: Stop ends a streaming run as interrupted within 2 s`: the gateway with the fake provider's slow reply, POST `/interrupt` over HTTP, then the time until the run entry reads `interrupted`. Claude tests: `Stop returns at once even while the SDK keeps streaming…` and `a run on a session waits until the stopped run's process has shut down`. **Manual check:** click Stop during a slow reply in the app, and time Stop on a real Claude run |
+| Send, disabled while busy | Pure helper `primaryButton({ draft, busy, sending, stopping })`, test `composer: Send needs text and no send in flight; while busy the button is Stop`. **Manual check** in the app |
 
 Other tests: Enter, Shift+Enter and composition handling go through a pure `shouldSend(key, shift, composing)`
 helper. The token test still passes.

@@ -97,6 +97,8 @@ export function buildRows(entries: readonly TranscriptEntry[], now: Date, locale
 
   const rows: Row[] = [];
   let prev: Item | undefined;
+  // The latest time shown so far. Rows aren't strictly in time order (a Stopped notice moves after its run's
+  // output), so pauses are measured from the latest, not from the row just before.
   let prevAt = Number.NEGATIVE_INFINITY;
   for (const [i, item] of items.entries()) {
     const at = item.entry === "thinking" ? prevAt : item.entry.createdAt;
@@ -112,7 +114,8 @@ export function buildRows(entries: readonly TranscriptEntry[], now: Date, locale
       separated = true;
     }
     const next = items[i + 1];
-    const nextSeparated = next && next.entry !== "thinking" && next.entry.createdAt - at >= SEPARATOR_GAP_MS;
+    const nextSeparated =
+      next && next.entry !== "thinking" && next.entry.createdAt - Math.max(prevAt, at) >= SEPARATOR_GAP_MS;
     const joinsPrev =
       !separated && prev !== undefined && prev.side === item.side && joins(prev.entry) && joins(item.entry);
     const joinsNext =
@@ -141,7 +144,7 @@ export function buildRows(entries: readonly TranscriptEntry[], now: Date, locale
       });
     }
     prev = item;
-    prevAt = at;
+    prevAt = Math.max(prevAt, at);
   }
   return rows;
 }

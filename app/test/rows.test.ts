@@ -95,6 +95,17 @@ test("rows: a Stopped notice comes after what the run produced, not where the ru
   assert.deepEqual(shape(atEnd).slice(-2), ["assistant_text:single:switch", "run:single:switch"]);
 });
 
+test("rows: a moved Stopped notice doesn't make the next message look like it came after a long pause", () => {
+  seq = 0;
+  // The run starts at 0, streams until 55 minutes, is stopped; the next message comes 45 minutes after that.
+  const rows = buildRows(
+    [user("go", 0), run("interrupted", 0), bot("long reply", 55), user("next", 100)],
+    NOW,
+    "en-US",
+  );
+  assert.equal(rows.filter((r) => r.type === "separator").length, 1, "only the first separator");
+});
+
 test("rows: separators before the first entry and after an hour's pause", () => {
   seq = 0;
   const rows = buildRows([bot("a", 0), bot("b", 59), bot("c", 59 + 60)], NOW, "en-US");

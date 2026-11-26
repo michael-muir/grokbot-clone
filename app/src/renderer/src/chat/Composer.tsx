@@ -42,7 +42,12 @@ export function Composer({
     setSending(true);
     try {
       await onSend(text);
-      update("");
+      // Clear only what was sent: anything typed while the send was in flight stays.
+      setDraft((current) => {
+        const next = current.trim() === text ? "" : current;
+        saveDraft(botId, next);
+        return next;
+      });
     } catch {
       // The chat shows the error; the draft stays.
     } finally {
@@ -54,6 +59,8 @@ export function Composer({
 
   const stop = async () => {
     setStopping(true);
+    // The button disables under the cursor or keyboard focus; keep focus somewhere useful.
+    field.current?.focus();
     try {
       await onStop();
     } catch {
