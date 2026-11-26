@@ -81,6 +81,73 @@ Windows policy (read by the `sand-notification-settings` addon), or `~/.cursor/p
   Answers go back via `RespondGrokBotWidget{agent_id, entry_id, value}` / `SubmitGrokBotUserForm`. The
   "What would you like to call me? → C Grok Bot" card in onboarding is a `widget`.
 
+### 5a. Transcript entry format (captured 2026-11-26, #7)
+
+Captured read-only from Grok Bot 1.3.0 in debug mode: the decoded entries held in the open chat's React state,
+plus the entry validator and decoder in the renderer bundle and `dist/node-agent-coordinator/main.cjs`. Nothing was
+sent to the app. *(observed)*
+
+**Wire row**: `GrokBotTranscriptEntry{seq, entry_kind, body?, blob_hash?, updated_seq, entry_id?, body_omitted,
+task_numbers[]}`. `body` is **UTF-8 JSON** of the entry object below; `entry_kind` repeats its `kind`. Large bodies
+come as `blob_hash` (fetched with `readBlobs`) or `body_omitted` (re-listed later). The coordinator parses the JSON,
+validates it, attaches `seq` (and `updatedSeq` + `taskNumbers` when present) and hands it to the renderer.
+
+**Update model**: per bot, rows are keyed by `seq`; a row is replaced only when its `updated_seq` is newer. The
+renderer gets `snapshot{entries[]}`, `appended{entry}`, `updated{entry}` and `removed{id, seq}` events. Older pages
+load on demand (`hasOlder`, `beforeSeq`). Same model as our `seq` / `updatedSeq` + SSE resume.
+
+**Common fields**: `kind`, `id` (stable; e.g. `t0u`, `tbs1`), `seq`, `timestampMs`, `requestId` (the run that
+produced it). Optional on several kinds: `replyTo` (threads), `branched` (after a rollback), `channel`
+(`voice:` / `meeting:` prefixes).
+
+| `kind` | Required fields | Notes |
+| --- | --- | --- |
+| `message` | `role` (`user` / `assistant`), `content` | `isStreaming`; user messages add `richText` (TipTap JSON string) and `clientNonce` (matches the optimistic local copy). Also `fromAgent` / `toAgent` / `fromUser` in group chats, `suppressed` |
+| `send-message` | `message{type, …}` | Something the bot posts on purpose: text, or an interactive card. `author{name}` |
+| `tool-call` | `name` | `status` (`pending`, `failed`, …), `summary`. The "Saving the name" style status rows |
+| `notice` | `text` | `tone` (`error` gives the red error row), `replyTo` |
+| `user-attachment` | `file_path` | |
+| `mcp-app` | `resourceUri`, `serverIdentifier` | Embedded MCP app UI |
+| `voice-call` | `call{callId, nudgeCount, answeredNudgeCount}` | |
+| `event` | `event{type}` | `task-changed{taskId}`, `desktop-goal`, `mcp-call`, `automation-changed`, `cloud-agent-launched`, `team-shared`, `team-bot-publish`, `ping`, `dev-event` |
+| `feedback` | `requestId` | `type` (`meeting` adds `meetingId`), `sentiment` |
+| `labeler-question` | `labeler`, `verdict`, `requestId`, `target{kind}`, `question`, `options[{id,label}]`, `state` | |
+
+`send-message` `message.type` values: `text` (`content`, optional `cards`, `cardCopy`), `widget`
+(`widget{prompt, options[{label, value}], allowCustom, order?, reservation?}`; the entry gets `widgetSkipped` once
+the user types instead), `attachment`, `visualization` (`heightPx`), `user-form`, `email-draft` (`draft{from, …}`),
+`slack-draft`, `imessage-draft`, `meeting-chat-draft`, `calendar-event`, `secret-request`, `connector-grant`,
+`permission-request`, `local-tool-permission`, `auto-review-approval`, `team-access`, `onepassword-connect`,
+`phone-call`, `automation-suggestion`, `cursor-agent`, `x-money-challenge`.
+
+Example (text made generic):
+
+```json
+{"kind":"send-message","id":"tbs1","seq":2,"timestampMs":1795476531899,"requestId":"f2ba…",
+ "message":{"type":"widget","widget":{"prompt":"What would you like me to help with first?",
+ "options":[{"label":"Email and calendar","value":"Help me stay on top of my email and calendar"}],"allowCustom":true}},
+ "widgetSkipped":true}
+{"kind":"message","id":"t0u","seq":3,"role":"user","content":"…","richText":"{\"type\":\"doc\",…}",
+ "isStreaming":false,"timestampMs":1795477372347,"clientNonce":"a217…","requestId":"cc7a…"}
+```
+
+**Compared with our `EntryBody`** (`server/src/types.ts`):
+
+| Ours | Grok Bot | Gap |
+| --- | --- | --- |
+| `user_message{text}` | `message{role:"user", content, richText, clientNonce}` | No rich text or client nonce. The nonce matters once the composer shows a message before the server confirms it |
+| `assistant_text{text, streaming}` | `message{role:"assistant", content, isStreaming}`, or `send-message{type:"text"}` | Same idea. Grok separates the model's own reply from a message the bot deliberately sends |
+| `status{label, tool, state}` | `tool-call{name, status, summary}` | Equivalent |
+| `approval{tool, summary, input, state}` | one `send-message` type per approval kind | Ours is one generic card: fine for now |
+| `error{message}` | `notice{tone:"error"}` | Equivalent |
+| `notice{text}` | `notice{text}` | Same |
+| `run{provider, state, costUsd}` | no entry; `requestId` on every entry | Ours is explicit. Adding `requestId` to entries would let the UI group a run's rows |
+| none | `send-message{type:"widget"}` | **Missing**: the choice card (onboarding "What would you like to call me?", "help with first?") |
+| none | `user-attachment`, `attachment` | Missing: files (Phase 3+) |
+| none | `replyTo`, `branched`, reactions | Missing: threads, rollback, reactions (later phases) |
+| none | `event`, `voice-call`, `mcp-app`, `feedback`, drafts, forms | Future features list |
+
+
 ## 6. Bot acting on YOUR computer (remote-control bridge)
 
 The cloud agent cannot reach your machine directly; the desktop **long-polls/streams** for work:
@@ -142,7 +209,7 @@ Every frame carries `approval_id` and/or `authorized_by_standing` / `authorized_
   model API. Use your own name, mascot, and copy for anything shipped.
 
 ## Open questions (not resolved statically)
-- Exact `entry_kind` values and body encoding of transcript entries (bodies are opaque bytes in the proto).
+- ~~Exact `entry_kind` values and body encoding~~: resolved in 5a.
 - Agent tool list inside the box (lives server-side / in the box image).
 - Voice realtime protocol message shapes.
 These need runtime observation (CDP network capture of a session) to confirm.
