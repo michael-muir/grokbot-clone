@@ -10,6 +10,14 @@ import { registerIpc } from "./ipc-main.ts";
 import { ownPageCheck } from "./own-page.ts";
 import { platformFor } from "./platform/index.ts";
 import { adoptOldSettings, SettingsStore } from "./settings.ts";
+import { bringToFront, takesLock } from "./single-instance.ts";
+
+// One app at a time: a second launch hands over to the running one and exits before it reads settings or starts
+// a gateway. process.exit, not app.quit: app.quit returns, and the rest of this module would still run.
+if (takesLock(process.argv, process.env.ELECTRON_RENDERER_URL) && !app.requestSingleInstanceLock()) {
+  console.log("SmartyPrompts is already running; showing it.");
+  process.exit(0);
+}
 
 const SMOKE = process.argv.includes("--smoke");
 const SMOKE_TIMEOUT_MS = 30_000;
@@ -70,6 +78,10 @@ async function stopGateway(): Promise<void> {
 
 const isOwnPage = ownPageCheck(rendererUrl, rendererFile);
 
+/** Windows that have painted: before that, showing one would flash an empty frame. */
+const readyWindows = new WeakSet<BrowserWindow>();
+let quitting = false;
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1280,
@@ -81,6 +93,7 @@ function createWindow(): BrowserWindow {
     webPreferences: { preload: preloadFile, sandbox: true, contextIsolation: true, nodeIntegration: false },
   });
   win.once("ready-to-show", () => {
+    readyWindows.add(win);
     if (!SMOKE) win.show();
   });
   // The window only ever shows the app. Links open in the user's browser.
@@ -189,12 +202,27 @@ app.whenReady().then(
   },
 );
 
+// Another launch handed over: show this app instead. Before ready, the window that's about to open will do.
+app.on("second-instance", () => {
+  // Quitting: the lock is already released, so a launch after this point starts its own app.
+  if (!app.isReady() || quitting) return;
+  const win = BrowserWindow.getAllWindows()[0];
+  if (!win) createWindow();
+  else if (readyWindows.has(win)) bringToFront(win);
+  // Otherwise it's still loading and shows itself (and takes focus) on ready-to-show.
+});
+
 app.on("window-all-closed", () => {
   if (platform.quitWhenAllWindowsClosed) app.quit();
 });
 
 // Stop the gateway we started before quitting, once.
 app.on("will-quit", (event) => {
+  if (!quitting) {
+    quitting = true;
+    // Stopping the gateway can take seconds; a launch meanwhile must start fresh, not hand over to this one.
+    app.releaseSingleInstanceLock();
+  }
   if (stoppingGateway) return;
   event.preventDefault();
   void stopGateway().finally(() => app.quit());
