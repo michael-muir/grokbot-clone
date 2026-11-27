@@ -18,18 +18,21 @@ and starting a second gateway, the same as the reference app.
 
 `app/src/main/single-instance.ts`, pure and tested in Node:
 
-- `takesLock(argv)`: false for `--smoke`. A smoke run must test a real startup, so it never defers to a running
-  app (that would exit 0 without checking anything).
+- `takesLock(argv, devServer)`: false for `--smoke` (a smoke run must test a real startup, not exit 0 by
+  deferring to a running app) and in development (the dev app shares the installed app's profile and lock).
 - `bringToFront(win)`: restore → show → focus, on a window-shaped interface so it's tested with a fake.
 
 `index.ts`, first thing: if `takesLock(argv)` and `app.requestSingleInstanceLock()` fails, `process.exit(0)`.
 That's synchronous, so nothing below it (the settings file, the gateway spawn) runs. `process.exit` is used, not
-`app.quit()`, because `app.quit()` returns and the module would carry on and spawn a gateway. On
-`second-instance`, the primary calls `bringToFront` on its window, or creates one.
+`app.quit()`, because `app.quit()` returns and the module would carry on and spawn a gateway. It logs
+one line first. On `second-instance`, the primary calls `bringToFront` on its window once it has painted (a
+window still loading shows itself), or creates one. Once quitting starts (`will-quit`), the lock is released and
+`second-instance` is ignored, so a launch during the gateway's shutdown starts its own app instead of handing
+over to one that's closing.
 
 ## Interfaces
 
-- `takesLock(argv: readonly string[]): boolean`
+- `takesLock(argv: readonly string[], devServer: string | undefined): boolean`
 - `bringToFront(win: { isMinimized(): boolean; restore(): void; isVisible(): boolean; show(): void; focus(): void }): void`
 
 ## Test plan

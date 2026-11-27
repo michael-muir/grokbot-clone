@@ -1,8 +1,12 @@
 // One running app: which launches take the single-instance lock, and how the running app comes forward when
 // another launch hands over to it.
 
-/** A smoke run checks a real startup, so it never hands over to a running app (that would pass without testing). */
-export const takesLock = (argv: readonly string[]): boolean => !argv.includes("--smoke");
+/**
+ * A smoke run checks a real startup, so it never hands over to a running app (that would pass without testing).
+ * Development (a dev server URL) shares the installed app's profile; it mustn't vanish into it either.
+ */
+export const takesLock = (argv: readonly string[], devServer: string | undefined): boolean =>
+  !argv.includes("--smoke") && !devServer;
 
 export interface FrontWindow {
   isMinimized(): boolean;

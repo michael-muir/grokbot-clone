@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { bringToFront, type FrontWindow, takesLock } from "../src/main/single-instance.ts";
 
-test("single instance: normal launches take the lock; a smoke run never defers to a running app", () => {
-  assert.equal(takesLock(["electron", "."]), true);
-  assert.equal(takesLock(["electron", ".", "--smoke"]), false);
+test("single instance: normal launches take the lock; smoke and dev runs never defer to a running app", () => {
+  assert.equal(takesLock(["electron", "."], undefined), true);
+  assert.equal(takesLock(["electron", ".", "--smoke"], undefined), false);
+  assert.equal(takesLock(["electron", "."], "http://localhost:5173"), false);
 });
 
 function fakeWindow(state: { minimized: boolean; visible: boolean }) {
