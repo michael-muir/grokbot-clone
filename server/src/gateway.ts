@@ -24,6 +24,8 @@ export const MAX_CUSTOM_ANSWER = 500;
 
 export class BotNotFoundError extends Error {}
 export class BotBusyError extends Error {}
+/** A change the bot can't take, like deleting the main bot. */
+export class BotRuleError extends Error {}
 
 interface ActiveRun {
   controller: AbortController;
@@ -145,9 +147,13 @@ export class Gateway {
    * Changes a bot's settings. Switching provider is refused during a run; when it happens, the old session and
    * model are dropped (by the registry) and a notice says so in the transcript.
    */
-  updateBot(botId: string, patch: Partial<Pick<Bot, "name" | "provider" | "model" | "baseUrl">>): Bot {
+  updateBot(
+    botId: string,
+    patch: Partial<Pick<Bot, "name" | "provider" | "model" | "baseUrl" | "pinned" | "hidden">>,
+  ): Bot {
     const bot = this.bots.get(botId);
     if (!bot) throw new BotNotFoundError(`Unknown bot ${botId}`);
+    if (patch.hidden && botId === this.bots.mainId()) throw new BotRuleError("The main bot is always shown.");
     const switching = patch.provider !== undefined && patch.provider !== bot.provider;
     if (switching && this.active.has(botId)) throw new BotBusyError("Can't change provider during a run.");
     if (patch.provider && !this.providers.has(patch.provider)) throw new Error(`Unknown provider ${patch.provider}`);
@@ -161,6 +167,21 @@ export class Gateway {
       });
     }
     return next;
+  }
+
+  /**
+   * Deletes a bot: its entry, its transcript and its computer (workspace files). Not the main bot, and not while
+   * it's running (stop it first, so nothing writes into what's being deleted).
+   */
+  async deleteBot(botId: string): Promise<void> {
+    const bot = this.bots.get(botId);
+    if (!bot) throw new BotNotFoundError(`Unknown bot ${botId}`);
+    if (botId === this.bots.mainId()) throw new BotRuleError("The main bot can't be deleted.");
+    if (this.active.has(botId)) throw new BotBusyError(`${bot.name} is working. Stop it first.`);
+    this.bots.remove(botId);
+    this.store.forget(botId);
+    this.activityChanged();
+    await this.computers.remove(botId);
   }
 
   /** Stops the bot's current run. Returns false when nothing is running. */

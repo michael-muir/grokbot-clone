@@ -4,7 +4,8 @@
 // shared skills folder. This first step uses a local folder per bot. A
 // container-backed implementation (Docker or WSL, with noVNC for the live view)
 // can replace it without touching the gateway or providers.
-import { mkdirSync } from "node:fs";
+import { mkdirSync, rmdirSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 export interface BotComputer {
@@ -14,7 +15,13 @@ export interface BotComputer {
 
 export interface ComputerManager {
   ensure(botId: string): Promise<BotComputer>;
+  /** Deletes the bot's computer and everything on it. */
+  remove(botId: string): Promise<void>;
 }
+
+const checkId = (botId: string) => {
+  if (!/^[a-z0-9-]+$/.test(botId)) throw new Error(`Invalid bot id ${botId}`);
+};
 
 export class LocalFolderComputers implements ComputerManager {
   private readonly dataDir: string;
@@ -24,10 +31,22 @@ export class LocalFolderComputers implements ComputerManager {
   }
 
   async ensure(botId: string): Promise<BotComputer> {
-    if (!/^[a-z0-9-]+$/.test(botId)) throw new Error(`Invalid bot id ${botId}`);
+    checkId(botId);
     const workspaceDir = resolve(join(this.dataDir, "bots", botId, "computer"));
     // Shared across bots, like Grok Bot's /home/box/agent-data/workflows skills library.
     mkdirSync(join(workspaceDir, "agent-data", "workflows"), { recursive: true });
     return { workspaceDir };
+  }
+
+  async remove(botId: string): Promise<void> {
+    checkId(botId); // the id becomes a path: never let it climb out of bots/
+    const botDir = resolve(join(this.dataDir, "bots", botId));
+    await rm(join(botDir, "computer"), { recursive: true, force: true });
+    try {
+      rmdirSync(botDir); // only once nothing else of the bot's is left
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT" && code !== "ENOTEMPTY") console.warn(`Couldn't remove ${botDir}`, err);
+    }
   }
 }

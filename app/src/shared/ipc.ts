@@ -34,6 +34,8 @@ export const CHANNELS = {
 export interface Calls {
   listBots: { args: []; result: PublicBot[] };
   updateBot: { args: [botId: string, patch: BotPatch]; result: PublicBot };
+  /** Deletes the bot, its transcript and its computer. */
+  deleteBot: { args: [botId: string]; result: undefined };
   transcript: { args: [botId: string, since: number]; result: TranscriptEntry[] };
   /** Returns the id of the user entry the message became. */
   sendMessage: { args: [botId: string, text: string, clientNonce?: string]; result: string };
@@ -94,6 +96,7 @@ export interface DesktopApi {
 }
 
 const isString = (v: unknown): v is string => typeof v === "string";
+const isBoolean = (v: unknown): v is boolean => typeof v === "boolean";
 const isId = (v: unknown): v is string => isString(v) && v.length > 0 && v.length <= 200;
 /** Same limits as the gateway's: 1 to 100 characters. */
 const isNonce = (v: unknown): v is string => isString(v) && v.length > 0 && v.length <= 100;
@@ -106,13 +109,15 @@ const optional =
 
 function isPatch(v: unknown): v is BotPatch {
   if (!isRecord(v)) return false;
-  const known = new Set(["name", "provider", "model", "baseUrl"]);
+  const known = new Set(["name", "provider", "model", "baseUrl", "pinned", "hidden"]);
   return (
     Object.keys(v).every((k) => known.has(k)) &&
     optional(isString)(v.name) &&
     optional(isProviderId)(v.provider) &&
     optional(isString)(v.model) &&
-    optional(isString)(v.baseUrl)
+    optional(isString)(v.baseUrl) &&
+    optional(isBoolean)(v.pinned) &&
+    optional(isBoolean)(v.hidden)
   );
 }
 
@@ -125,6 +130,7 @@ function isDecision(v: unknown): v is ApprovalDecision {
 const ARGS: { [K in CallName]: (a: unknown[]) => a is Calls[K]["args"] } = {
   listBots: (a): a is [] => a.length === 0,
   updateBot: (a): a is [string, BotPatch] => a.length === 2 && isId(a[0]) && isPatch(a[1]),
+  deleteBot: (a): a is [string] => a.length === 1 && isId(a[0]),
   transcript: (a): a is [string, number] => a.length === 2 && isId(a[0]) && isCursor(a[1]),
   sendMessage: (a): a is [string, string, string?] =>
     (a.length === 2 || a.length === 3) && isId(a[0]) && isString(a[1]) && a[1].trim() !== "" && optional(isNonce)(a[2]),

@@ -2,7 +2,7 @@
 // live subscribers, and append-only JSONL persistence (last write per id wins on load).
 
 import { randomUUID } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { EntryBody, TranscriptEntry } from "./types.ts";
 
@@ -88,6 +88,14 @@ export class TranscriptStore {
     const log = this.log(botId);
     log.listeners.add(listener);
     return () => log.listeners.delete(listener);
+  }
+
+  /** Deletes a bot's transcript, in memory and on disk. Its listeners hear nothing more. */
+  forget(botId: string): void {
+    const log = this.logs.get(botId);
+    log?.listeners.clear();
+    this.logs.delete(botId);
+    rmSync(log?.file ?? join(this.dataDir, "bots", botId, "transcript.jsonl"), { force: true });
   }
 
   private commit(log: BotLog, entry: TranscriptEntry): TranscriptEntry {

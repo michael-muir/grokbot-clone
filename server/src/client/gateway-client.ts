@@ -9,7 +9,7 @@ export interface GatewayClientOptions {
   fetch?: typeof fetch;
 }
 
-export type BotPatch = Partial<Pick<PublicBot, "name" | "provider" | "model" | "baseUrl">>;
+export type BotPatch = Partial<Pick<PublicBot, "name" | "provider" | "model" | "baseUrl" | "pinned" | "hidden">>;
 
 export type ProviderTest = { ok: true; models: string[] } | { ok: false; error: string };
 
@@ -51,6 +51,11 @@ export class GatewayClient {
 
   updateBot(botId: string, patch: BotPatch): Promise<PublicBot> {
     return this.request("PATCH", `/bots/${enc(botId)}`, patch);
+  }
+
+  /** Deletes the bot with its transcript and computer. Refused (409) for the main bot or while it's running. */
+  async deleteBot(botId: string): Promise<void> {
+    await this.request("DELETE", `/bots/${enc(botId)}`);
   }
 
   transcript(botId: string, since = -1): Promise<TranscriptEntry[]> {

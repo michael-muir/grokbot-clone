@@ -53,6 +53,16 @@ export class BotRegistry {
     return next;
   }
 
+  /** The main bot: the first one. It's always shown and can't be deleted. */
+  mainId(): string | undefined {
+    return this.bots.keys().next().value;
+  }
+
+  remove(id: string): void {
+    if (!this.bots.delete(id)) throw new Error(`Unknown bot ${id}`);
+    this.save();
+  }
+
   private save(): void {
     writeFileSync(this.file, JSON.stringify(this.list(), null, 2));
   }

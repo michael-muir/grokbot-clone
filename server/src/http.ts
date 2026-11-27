@@ -8,7 +8,8 @@
 //   DELETE /providers/:id/key                   -> 204
 //   POST  /providers/:id/test            {baseUrl?} -> {ok, models} or {ok: false, error}
 //   GET   /bots
-//   PATCH /bots/:id                      {name?, provider?, model?, baseUrl?}
+//   PATCH /bots/:id                      {name?, provider?, model?, baseUrl?, pinned?, hidden?}
+//   DELETE /bots/:id                                    -> 204; 409 for the main bot or while it's running
 //   GET   /bots/:id/transcript?since=N   entries changed after updatedSeq N
 //   GET   /bots/:id/events?since=N       Server-Sent Events: backlog, then live entries, in updatedSeq order;
 //                                        each event's id is its updatedSeq (Last-Event-ID resumes)
@@ -20,7 +21,7 @@ import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { BotRegistry } from "./bots.ts";
 import { NotConfiguredError } from "./errors.ts";
-import { BotBusyError, BotNotFoundError, type Gateway } from "./gateway.ts";
+import { BotBusyError, BotNotFoundError, BotRuleError, type Gateway } from "./gateway.ts";
 import { acceptsKey, type Credentials, KeyStoreUnavailableError, needsKey } from "./keys.ts";
 import type { ProviderRegistry } from "./providers/index.ts";
 import type { TranscriptStore } from "./transcript.ts";
@@ -97,7 +98,12 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
 
   if (parts.length === 2 && method === "PATCH") {
     const body = await readJson(req);
-    const patch: Partial<Pick<Bot, "name" | "provider" | "model" | "baseUrl">> = {};
+    const patch: Partial<Pick<Bot, "name" | "provider" | "model" | "baseUrl" | "pinned" | "hidden">> = {};
+    for (const flag of ["pinned", "hidden"] as const) {
+      if (body[flag] === undefined) continue;
+      if (typeof body[flag] !== "boolean") return send(res, 400, { error: `${flag} must be true or false` });
+      patch[flag] = body[flag];
+    }
     if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
     if (typeof body.model === "string") patch.model = body.model.trim() || undefined;
     if (typeof body.baseUrl === "string") {
@@ -113,7 +119,18 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
     try {
       return send(res, 200, publicBot(d.gateway.updateBot(bot.id, patch)));
     } catch (err) {
-      if (err instanceof BotBusyError) return send(res, 409, { error: err.message });
+      if (err instanceof BotBusyError || err instanceof BotRuleError) return send(res, 409, { error: err.message });
+      throw err;
+    }
+  }
+
+  if (parts.length === 2 && method === "DELETE") {
+    try {
+      await d.gateway.deleteBot(bot.id);
+      res.writeHead(204).end();
+      return;
+    } catch (err) {
+      if (err instanceof BotBusyError || err instanceof BotRuleError) return send(res, 409, { error: err.message });
       throw err;
     }
   }
