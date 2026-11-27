@@ -9,7 +9,9 @@
 //   canUseTool           -> approval card in the transcript
 import { type Options, query, type SDKAssistantMessage, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { apiErrorMessage } from "../agent/openai-compatible.ts";
+import { short } from "../agent/tools.ts";
 import { childEnv } from "../child-env.ts";
+import { labelPath } from "../display-path.ts";
 import { NotConfiguredError } from "../errors.ts";
 import type { AgentProvider, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
 
@@ -93,7 +95,7 @@ export class ClaudeProvider implements AgentProvider {
       env: { ...childEnv(), ...(this.getKey() ? { ANTHROPIC_API_KEY: this.getKey() } : {}) },
       canUseTool: async (toolName, input, { signal }) => {
         const decision = await cb.requestApproval(
-          { tool: toolName, summary: summarizeTool(toolName, input), input },
+          { tool: toolName, summary: summarizeTool(toolName, input, req.workspaceDir), input },
           signal,
         );
         return decision.allow
@@ -119,7 +121,7 @@ export class ClaudeProvider implements AgentProvider {
           return { status: "interrupted", sessionId };
         }
         if (next.done) break;
-        const outcome = this.handle(next.value, cb, text, apiError, (id) => (sessionId = id));
+        const outcome = this.handle(next.value, cb, text, apiError, (id) => (sessionId = id), req.workspaceDir);
         if (outcome) return { ...outcome, sessionId };
       }
       return req.signal.aborted
@@ -155,6 +157,7 @@ export class ClaudeProvider implements AgentProvider {
     text: TextBlocks,
     apiError: { message?: string },
     setSession: (id: string) => void,
+    workspaceDir: string,
   ): RunOutcome | undefined {
     switch (msg.type) {
       case "system":
@@ -190,7 +193,7 @@ export class ClaudeProvider implements AgentProvider {
               type: "tool_start",
               toolUseId: block.id,
               tool: block.name,
-              summary: summarizeTool(block.name, input),
+              summary: summarizeTool(block.name, input, workspaceDir),
             });
           }
         }
@@ -297,22 +300,22 @@ class TextBlocks {
   }
 }
 
-/** Short, human label for a tool call, shown as a status row ("Running npm test"). */
-export function summarizeTool(tool: string, input: Record<string, unknown>): string {
-  const s = (v: unknown, max = 80) => {
-    const str = typeof v === "string" ? v : JSON.stringify(v ?? "");
-    return str.length > max ? `${str.slice(0, max - 1)}…` : str;
-  };
+/** Short, human label for a tool call, shown as a status row ("Running npm test"). Paths are workspace-relative. */
+export function summarizeTool(tool: string, input: Record<string, unknown>, workspaceDir: string): string {
+  const s = (v: unknown) => short(v);
+  const file = (v: unknown) => labelPath(workspaceDir, v);
   switch (tool) {
     case "Bash":
       return `Running ${s(input.command)}`;
     case "Read":
-      return `Reading ${s(input.file_path)}`;
+      return `Reading ${file(input.file_path)}`;
     case "Write":
-      return `Writing ${s(input.file_path)}`;
+      return `Writing ${file(input.file_path)}`;
     case "Edit":
     case "MultiEdit":
-      return `Editing ${s(input.file_path)}`;
+      return `Editing ${file(input.file_path)}`;
+    case "NotebookEdit":
+      return `Editing ${file(input.notebook_path)}`;
     case "Glob":
     case "Grep":
       return `Searching files for ${s(input.pattern)}`;

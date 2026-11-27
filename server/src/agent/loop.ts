@@ -155,7 +155,7 @@ export class LoopProvider implements AgentProvider {
       output,
       isError,
     });
-    const summary = tool ? safeSummary(tool, call.input) : `Using ${call.name}`;
+    const summary = tool ? safeSummary(tool, call.input, req.workspaceDir) : `Using ${call.name}`;
     cb.emit({ type: "tool_start", toolUseId: call.id, tool: call.name, summary });
 
     if (!tool) {
@@ -248,9 +248,9 @@ function interrupted(save: () => void, sessionId: string): RunOutcome {
   return { status: "interrupted", sessionId };
 }
 
-function safeSummary(tool: Tool, input: Record<string, unknown>): string {
+function safeSummary(tool: Tool, input: Record<string, unknown>, workspaceDir: string): string {
   try {
-    return tool.summarize(input);
+    return tool.summarize(input, workspaceDir);
   } catch (err) {
     console.warn(`${tool.spec.name}: couldn't summarize the call`, err);
     return `Using ${tool.spec.name}`;
