@@ -3,10 +3,17 @@
 import { type RefObject, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { StreamState } from "../../../../server/src/client/subscribe.ts";
 import { TranscriptView } from "../../../../server/src/client/transcript-view.ts";
-import type { BotActivity, ProviderSummary, PublicBot, TranscriptEntry } from "../../../../server/src/types.ts";
+import type {
+  AvatarColor,
+  AvatarShape,
+  BotActivity,
+  ProviderSummary,
+  PublicBot,
+  TranscriptEntry,
+} from "../../../../server/src/types.ts";
 import type { ConnectionInfo } from "../../shared/ipc.ts";
 import { type AppSettings, DEFAULT_SETTINGS } from "../../shared/settings.ts";
-import { botColor, initial } from "./bot-colors.ts";
+import { botColor } from "./bot-colors.ts";
 import type { RowContext } from "./chat/ChatRow.tsx";
 import { Composer } from "./chat/Composer.tsx";
 import { isConfirmed, type PendingMessage } from "./chat/rows.ts";
@@ -16,10 +23,12 @@ import { Onboarding } from "./onboarding/Onboarding.tsx";
 import { GeneralPage } from "./settings/GeneralPage.tsx";
 import { ModelsPage } from "./settings/ModelsPage.tsx";
 import { SettingsDialog, type SettingsPage } from "./settings/SettingsDialog.tsx";
+import { Avatar } from "./shell/Avatar.tsx";
 import { DeleteBotDialog } from "./shell/BotMenu.tsx";
 import { BotPanel, PANEL_ID } from "./shell/BotPanel.tsx";
+import { CreateBotDialog } from "./shell/CreateBotDialog.tsx";
 import { Sidebar } from "./shell/Sidebar.tsx";
-import { afterDelete, type MenuAction, nextUnread } from "./shell/sidebar-state.ts";
+import { afterDelete, freeColor, type MenuAction, nextUnread } from "./shell/sidebar-state.ts";
 import "./shell/shell.css";
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -39,6 +48,8 @@ export function App() {
   const [botError, setBotError] = useState<string>();
   /** The bot being deleted, while its confirmation is open. */
   const [deleting, setDeleting] = useState<{ bot: PublicBot; busy: boolean; error?: string }>();
+  /** Create New Bot is open. */
+  const [creating, setCreating] = useState(false);
   /** A sidebar tile to focus after the next change renders (see Sidebar). */
   const [refocus, setRefocus] = useState<{ botId: string }>();
   const [activityError, setActivityError] = useState<string>();
@@ -175,6 +186,12 @@ export function App() {
       try {
         if (action === "delete") return setDeleting({ bot, busy: false });
         if (action === "copy-id") return await navigator.clipboard.writeText(bot.id);
+        if (action === "make-main") {
+          await call("updateBot", bot.id, { main: true });
+          // The order changed for every bot: take the gateway's list as it is now.
+          setBots(await call("listBots"));
+          return;
+        }
         const patch =
           action === "pin" || action === "unpin" ? { pinned: action === "pin" } : { hidden: action === "hide" };
         replaceBot(await call("updateBot", bot.id, patch));
@@ -185,6 +202,29 @@ export function App() {
       }
     },
     [replaceBot, mainId],
+  );
+
+  const createBot = useCallback(
+    async (input: { name: string; avatar: { shape: AvatarShape; color: AvatarColor } }) => {
+      const created = await call("createBot", input);
+      setBots((list) => [...list, created]);
+      setCreating(false);
+      select(created.id);
+      setRefocus({ botId: created.id });
+    },
+    [select],
+  );
+
+  const changeAvatar = useCallback(
+    async (botId: string, avatar: { shape: AvatarShape; color: AvatarColor }) => {
+      try {
+        replaceBot(await call("updateBot", botId, { avatar }));
+        setBotError(undefined);
+      } catch (err) {
+        setBotError(`Couldn't change the avatar: ${message(err)}`);
+      }
+    },
+    [replaceBot],
   );
 
   const confirmDelete = useCallback(async () => {
@@ -241,6 +281,7 @@ export function App() {
         connection={connectionInfo}
         onSelect={select}
         onOpenSettings={() => setSettingsOpen({ page: "general" })}
+        onNewBot={() => setCreating(true)}
         onMenuAction={menuAction}
         refocus={refocus}
         onRefocus={setRefocus}
@@ -278,7 +319,18 @@ export function App() {
           providerLabel={providers.find((p) => p.id === bot.provider)?.label ?? bot.provider}
           onClose={closePanel}
           onRename={(name) => rename(bot.id, name)}
+          onAvatar={(avatar) => void changeAvatar(bot.id, avatar)}
           onChangeModel={() => setSettingsOpen({ page: "models", botId: bot.id })}
+        />
+      )}
+      {creating && (
+        <CreateBotDialog
+          defaultColor={freeColor(bots)}
+          onCreate={createBot}
+          onCancel={() => {
+            setCreating(false);
+            requestAnimationFrame(() => document.querySelector<HTMLButtonElement>("[aria-label='New bot']")?.focus());
+          }}
         />
       )}
       {deleting && (
@@ -379,6 +431,7 @@ function Chat({
   const context = useMemo<RowContext>(
     () => ({
       botName: bot.name,
+      botAvatar: bot.avatar,
       answerApproval: (entry: TranscriptEntry, allow: boolean, reason?: string) =>
         call("answerApproval", bot.id, entry.id, allow ? { allow } : { allow, reason: reason ?? "" }).catch(
           (err: unknown) => {
@@ -392,7 +445,7 @@ function Chat({
           throw err;
         }),
     }),
-    [bot.id, bot.name],
+    [bot.id, bot.name, bot.avatar],
   );
 
   /** Runs a gateway call; a failure shows in the banner and is re-thrown so the caller keeps its state. */
@@ -440,9 +493,7 @@ function Chat({
             title={panelOpen ? "Hide bot details" : "Show bot details"}
             onClick={onTogglePanel}
           >
-            <span className="avatar small" aria-hidden="true">
-              {initial(bot.name)}
-            </span>
+            <Avatar name={bot.name} avatar={bot.avatar} size="small" />
             <span className="name">{bot.name}</span>
           </button>
         </h2>

@@ -90,6 +90,8 @@
   --text-xl--line-height: 28px;
   --text-2xl: 28px; /* onboarding headlines */
   --text-2xl--line-height: 34px;
+  --text-3xl: 36px; /* the initial on the Create New Bot preview */
+  --text-3xl--line-height: 40px;
   --text-display: 60px; /* the wordmark on the welcome screen (reference/screens/01-launch.png) */
   --text-display--line-height: 64px;
 
@@ -127,6 +129,8 @@
 
   /* ---- Shadows ---- */
   --shadow-hairline: inset 0 0 0 0.5px rgb(245 245 245 / 0.06);
+  /* The edge of an avatar's shape, so a white avatar still reads on a light surface. A filter, not a box shadow. */
+  --shadow-avatar-edge: drop-shadow(0 0 0.5px rgb(0 0 0 / 0.45));
   --shadow-bevel:
     inset 0 0.5px 0 rgb(255 255 255 / 0.03), inset 0 -0.5px 0 rgb(255 255 255 / 0.03),
     inset 0 0 0 0.5px rgb(245 245 245 / 0.04);
@@ -165,6 +169,10 @@
   --size-tile: 54px; /* sidebar bot tiles */
   --size-panel: 320px; /* the bot panel on the right */
   --size-avatar-lg: 64px; /* the avatar at the top of the bot panel */
+  --size-avatar-xl: 88px; /* the preview in Create New Bot */
+  --size-picker-option: 40px; /* a shape in the avatar picker */
+  --size-swatch: 24px; /* a color in the avatar picker */
+  --size-create-dialog-w: 440px;
   --size-badge: 12px; /* the corner badge on a sidebar tile */
   --size-thumb-w: 64px; /* the computer card's thumbnail */
   --size-thumb-h: 40px;

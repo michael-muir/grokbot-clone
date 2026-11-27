@@ -3,7 +3,7 @@
 // only the rows that changed re-render.
 import { memo } from "react";
 import type { TranscriptEntry } from "../../../../../server/src/types.ts";
-import { initial } from "../bot-colors.ts";
+import { Avatar } from "../shell/Avatar.tsx";
 import { ApprovalCard } from "./ApprovalCard.tsx";
 import { ChoiceCard } from "./ChoiceCard.tsx";
 import { Markdown } from "./Markdown.tsx";
@@ -11,6 +11,7 @@ import type { Row } from "./rows.ts";
 
 export interface RowContext {
   botName: string;
+  botAvatar: { shape: string; color: string };
   answerApproval(entry: TranscriptEntry, allow: boolean, reason?: string): Promise<unknown>;
   answerChoice(entry: TranscriptEntry, answer: string): Promise<unknown>;
 }
@@ -26,7 +27,7 @@ function ChatRowView({ row, context }: { row: Row; context: RowContext }) {
   if (row.type === "thinking") {
     return (
       <div className="chat-row" data-side="bot" data-gap={row.gap}>
-        <StatusLine botName={context.botName} label="Thinking" state="running" />
+        <StatusLine context={context} label="Thinking" state="running" />
       </div>
     );
   }
@@ -64,7 +65,7 @@ function content(entry: TranscriptEntry, group: string, context: RowContext) {
         </div>
       );
     case "status":
-      return <StatusLine botName={context.botName} label={b.label} state={b.state} />;
+      return <StatusLine context={context} label={b.label} state={b.state} />;
     case "approval":
       return <ApprovalCard body={b} answer={(allow, reason) => context.answerApproval(entry, allow, reason)} />;
     case "choice":
@@ -83,11 +84,11 @@ function content(entry: TranscriptEntry, group: string, context: RowContext) {
   }
 }
 
-function StatusLine({ botName, label, state }: { botName: string; label: string; state: string }) {
+function StatusLine({ context, label, state }: { context: RowContext; label: string; state: string }) {
   return (
     <div className="status-line" data-state={state}>
       <span className="status-slot" aria-hidden="true">
-        <span className="avatar small">{initial(botName)}</span>
+        <Avatar name={context.botName} avatar={context.botAvatar} size="small" />
       </span>
       <span className="status-label">{label}</span>
       {state === "failed" && <span className="visually-hidden">(failed)</span>}
@@ -98,6 +99,11 @@ function StatusLine({ botName, label, state }: { botName: string; label: string;
 /** Re-render only when what the row shows changed: a new entry version, position in its group, or spacing. */
 function sameRow(a: { row: Row; context: RowContext }, b: { row: Row; context: RowContext }): boolean {
   if (a.context.botName !== b.context.botName) return false;
+  if (
+    a.context.botAvatar.shape !== b.context.botAvatar.shape ||
+    a.context.botAvatar.color !== b.context.botAvatar.color
+  )
+    return false;
   const x = a.row;
   const y = b.row;
   if (x.type !== y.type || x.key !== y.key || x.gap !== y.gap) return false;

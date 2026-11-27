@@ -5,7 +5,10 @@ import type { StreamState } from "../../../server/src/client/subscribe.ts";
 import {
   type ApprovalDecision,
   type BotActivity,
+  isAvatarColor,
+  isAvatarShape,
   isProviderId,
+  type NewBot,
   type ProviderId,
   type ProviderSummary,
   type PublicBot,
@@ -33,6 +36,8 @@ export const CHANNELS = {
 /** Every gateway call the renderer may make, by name. */
 export interface Calls {
   listBots: { args: []; result: PublicBot[] };
+  /** Creates a bot on the main bot's model. */
+  createBot: { args: [input: NewBot]; result: PublicBot };
   updateBot: { args: [botId: string, patch: BotPatch]; result: PublicBot };
   /** Deletes the bot, its transcript and its computer. */
   deleteBot: { args: [botId: string]; result: undefined };
@@ -107,11 +112,30 @@ const optional =
   (v: unknown): v is T | undefined =>
     v === undefined || check(v);
 
+const isAvatar = (v: unknown): v is NonNullable<NewBot["avatar"]> =>
+  isRecord(v) &&
+  Object.keys(v).every((k) => k === "shape" || k === "color") &&
+  isAvatarShape(v.shape) &&
+  isAvatarColor(v.color);
+
+function isNewBot(v: unknown): v is NewBot {
+  if (!isRecord(v)) return false;
+  return (
+    Object.keys(v).every((k) => k === "name" || k === "avatar") &&
+    isString(v.name) &&
+    v.name.trim() !== "" &&
+    v.name.length <= 200 &&
+    optional(isAvatar)(v.avatar)
+  );
+}
+
 function isPatch(v: unknown): v is BotPatch {
   if (!isRecord(v)) return false;
-  const known = new Set(["name", "provider", "model", "baseUrl", "pinned", "hidden"]);
+  const known = new Set(["name", "provider", "model", "baseUrl", "pinned", "hidden", "avatar", "main"]);
   return (
     Object.keys(v).every((k) => known.has(k)) &&
+    optional(isAvatar)(v.avatar) &&
+    (v.main === undefined || v.main === true) &&
     optional(isString)(v.name) &&
     optional(isProviderId)(v.provider) &&
     optional(isString)(v.model) &&
@@ -129,6 +153,7 @@ function isDecision(v: unknown): v is ApprovalDecision {
 /** Argument checks per call. Arity is exact, so extra arguments are refused too. */
 const ARGS: { [K in CallName]: (a: unknown[]) => a is Calls[K]["args"] } = {
   listBots: (a): a is [] => a.length === 0,
+  createBot: (a): a is [NewBot] => a.length === 1 && isNewBot(a[0]),
   updateBot: (a): a is [string, BotPatch] => a.length === 2 && isId(a[0]) && isPatch(a[1]),
   deleteBot: (a): a is [string] => a.length === 1 && isId(a[0]),
   transcript: (a): a is [string, number] => a.length === 2 && isId(a[0]) && isCursor(a[1]),

@@ -82,6 +82,58 @@ export interface TranscriptEntry {
   updatedAt: number;
 }
 
+/** Avatar outlines. Our own simple shapes; the initial sits on top. */
+export const AVATAR_SHAPES = [
+  "circle",
+  "square",
+  "diamond",
+  "hexagon",
+  "pentagon",
+  "octagon",
+  "triangle",
+  "star",
+  "flower",
+  "cloud",
+  "shield",
+  "drop",
+] as const;
+export type AvatarShape = (typeof AVATAR_SHAPES)[number];
+
+/** Avatar colors, by the names the app's theme defines (`--color-bot-*`). */
+export const AVATAR_COLORS = [
+  "white",
+  "brown",
+  "red",
+  "orange",
+  "amber",
+  "green",
+  "teal",
+  "blue",
+  "purple",
+  "pink",
+  "gray",
+] as const;
+export type AvatarColor = (typeof AVATAR_COLORS)[number];
+
+export const isAvatarShape = (v: unknown): v is AvatarShape => (AVATAR_SHAPES as readonly unknown[]).includes(v);
+export const isAvatarColor = (v: unknown): v is AvatarColor => (AVATAR_COLORS as readonly unknown[]).includes(v);
+
+/** Longest bot name, in characters. */
+export const MAX_BOT_NAME = 40;
+
+export interface Avatar {
+  /** An `AvatarShape`; files from before shapes existed may hold other names, which draw as a circle. */
+  shape: string;
+  /** An `AvatarColor`; unknown names draw in the default color. */
+  color: string;
+}
+
+/** What creating a bot takes. Everything else starts from the main bot. */
+export interface NewBot {
+  name: string;
+  avatar?: { shape: AvatarShape; color: AvatarColor };
+}
+
 export interface Bot {
   id: string;
   name: string;
@@ -89,7 +141,7 @@ export interface Bot {
   model?: string;
   /** Overrides the provider's server for this bot (e.g. an Ollama on another machine). */
   baseUrl?: string;
-  avatar: { shape: string; color: string };
+  avatar: Avatar;
   /** Shown above the sidebar's divider, with the main bot. */
   pinned?: boolean;
   /** Left out of the sidebar (still there, and can be shown again). */

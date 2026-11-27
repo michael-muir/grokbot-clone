@@ -8,7 +8,8 @@
 //   DELETE /providers/:id/key                   -> 204
 //   POST  /providers/:id/test            {baseUrl?} -> {ok, models} or {ok: false, error}
 //   GET   /bots
-//   PATCH /bots/:id                      {name?, provider?, model?, baseUrl?, pinned?, hidden?}
+//   POST  /bots                          {name, avatar?: {shape, color}}    -> 201 with the bot
+//   PATCH /bots/:id                      {name?, provider?, model?, baseUrl?, pinned?, hidden?, avatar?, main?: true}
 //   DELETE /bots/:id                                    -> 204; 409 for the main bot or while it's running
 //   GET   /bots/:id/transcript?since=N   entries changed after updatedSeq N
 //   GET   /bots/:id/events?since=N       Server-Sent Events: backlog, then live entries, in updatedSeq order;
@@ -21,14 +22,26 @@ import { timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { BotRegistry } from "./bots.ts";
 import { NotConfiguredError } from "./errors.ts";
-import { BotBusyError, BotFilesError, BotNotFoundError, BotRuleError, type Gateway } from "./gateway.ts";
+import {
+  BotBusyError,
+  type BotChange,
+  BotFilesError,
+  BotNotFoundError,
+  BotRuleError,
+  type Gateway,
+} from "./gateway.ts";
 import { acceptsKey, type Credentials, KeyStoreUnavailableError, needsKey } from "./keys.ts";
 import type { ProviderRegistry } from "./providers/index.ts";
 import type { TranscriptStore } from "./transcript.ts";
 import {
+  type AvatarColor,
+  type AvatarShape,
   type Bot,
   type BotActivity,
+  isAvatarColor,
+  isAvatarShape,
   isProviderId,
+  MAX_BOT_NAME,
   type ProviderSummary,
   type PublicBot,
   type TranscriptEntry,
@@ -91,6 +104,18 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
   if (parts[0] === "activity" && parts.length === 1 && method === "GET") return streamActivity(res, d);
   if (parts[0] !== "bots") return send(res, 404, { error: "Not found" });
   if (parts.length === 1 && method === "GET") return send(res, 200, d.bots.list().map(publicBot));
+  if (parts.length === 1 && method === "POST") {
+    const body = await readJson(req);
+    if (typeof body.name !== "string") return send(res, 400, { error: "name is required" });
+    const avatar = body.avatar === undefined ? undefined : readAvatar(body.avatar);
+    if (avatar === null) return send(res, 400, { error: AVATAR_ERROR });
+    try {
+      return send(res, 201, publicBot(d.gateway.createBot({ name: body.name, ...(avatar ? { avatar } : {}) })));
+    } catch (err) {
+      if (err instanceof BotRuleError) return send(res, 400, { error: err.message });
+      throw err;
+    }
+  }
 
   const bot = parts[1] ? d.bots.get(parts[1]) : undefined;
   if (!bot) return send(res, 404, { error: "Unknown bot" });
@@ -98,13 +123,27 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
 
   if (parts.length === 2 && method === "PATCH") {
     const body = await readJson(req);
-    const patch: Partial<Pick<Bot, "name" | "provider" | "model" | "baseUrl" | "pinned" | "hidden">> = {};
+    const patch: BotChange = {};
     for (const flag of ["pinned", "hidden"] as const) {
       if (body[flag] === undefined) continue;
       if (typeof body[flag] !== "boolean") return send(res, 400, { error: `${flag} must be true or false` });
       patch[flag] = body[flag];
     }
-    if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
+    if (typeof body.name === "string" && body.name.trim()) {
+      if (Array.from(body.name.trim()).length > MAX_BOT_NAME) {
+        return send(res, 400, { error: `Names are at most ${MAX_BOT_NAME} characters.` });
+      }
+      patch.name = body.name.trim();
+    }
+    if (body.avatar !== undefined) {
+      const avatar = readAvatar(body.avatar);
+      if (!avatar) return send(res, 400, { error: AVATAR_ERROR });
+      patch.avatar = avatar;
+    }
+    if (body.main !== undefined) {
+      if (body.main !== true) return send(res, 400, { error: "main can only be true" });
+      patch.main = true;
+    }
     if (typeof body.model === "string") patch.model = body.model.trim() || undefined;
     if (typeof body.baseUrl === "string") {
       if (body.baseUrl && !isHttpUrl(body.baseUrl)) return send(res, 400, { error: "baseUrl must be an http(s) URL" });
@@ -324,6 +363,15 @@ function streamActivity(res: ServerResponse, d: HttpDeps): void {
     unsubscribe();
     clearInterval(heartbeat);
   });
+}
+
+const AVATAR_ERROR = "avatar must be {shape, color} with a known shape and color";
+
+/** A posted avatar, checked; null when it isn't one. */
+function readAvatar(v: unknown): { shape: AvatarShape; color: AvatarColor } | null {
+  if (typeof v !== "object" || v === null) return null;
+  const { shape, color } = v as { shape?: unknown; color?: unknown };
+  return isAvatarShape(shape) && isAvatarColor(color) ? { shape, color } : null;
 }
 
 function publicBot(bot: Bot): PublicBot {
