@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { after, test } from "node:test";
 import { runShell, truncateMiddle } from "../src/agent/shell.ts";
 import {
@@ -150,11 +150,15 @@ test("long output keeps its start and end", () => {
 });
 
 test("tool summaries match the status row wording", () => {
-  assert.equal(shellTool().summarize({ command: "npm test" }), "Running npm test");
-  assert.equal(readFileTool.summarize({ path: "notes.md" }), "Reading notes.md");
-  assert.equal(writeFileTool.summarize({ path: "a.txt" }), "Writing a.txt");
-  assert.equal(editFileTool.summarize({ path: "a.txt" }), "Editing a.txt");
-  assert.equal(searchFilesTool.summarize({ pattern: "TODO" }), "Searching files for TODO");
+  const ws = resolve("bots", "smarty", "computer");
+  assert.equal(shellTool().summarize({ command: "npm test" }, ws), "Running npm test");
+  assert.equal(readFileTool.summarize({ path: "notes.md" }, ws), "Reading notes.md");
+  assert.equal(writeFileTool.summarize({ path: "a.txt" }, ws), "Writing a.txt");
+  assert.equal(editFileTool.summarize({ path: "a.txt" }, ws), "Editing a.txt");
+  assert.equal(searchFilesTool.summarize({ pattern: "TODO" }, ws), "Searching files for TODO");
+  // An absolute path inside the workspace is shown relative; one that escapes shows where it really goes.
+  assert.equal(writeFileTool.summarize({ path: join(ws, "docs", "a.txt") }, ws), `Writing ${join("docs", "a.txt")}`);
+  assert.equal(readFileTool.summarize({ path: "../../secret" }, ws), `Reading ${resolve(ws, "..", "..", "secret")}`);
 });
 
 test("writes through a dangling link are refused", async () => {

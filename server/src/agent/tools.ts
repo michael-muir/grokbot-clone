@@ -2,6 +2,7 @@
 import { lstatSync, realpathSync } from "node:fs";
 import { glob, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { displayPath } from "../display-path.ts";
 import type { ChoiceRequest } from "../types.ts";
 import type { ToolSpec } from "./model.ts";
 import { defaultShell, runShell, type ShellInfo } from "./shell.ts";
@@ -24,8 +25,8 @@ export interface Tool {
   readOnly: boolean;
   /** A line for the system prompt, when the model needs to know something about this tool. */
   promptNote?: string;
-  /** Short label for the status row, like "Running npm test". */
-  summarize(input: Record<string, unknown>): string;
+  /** Short label for the status row, like "Running npm test". Paths in it are shown relative to the workspace. */
+  summarize(input: Record<string, unknown>, workspaceDir: string): string;
   run(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>;
 }
 
@@ -60,6 +61,10 @@ const optInt = (input: Record<string, unknown>, key: string): number | undefined
 };
 
 /** Short form of a value for a status row. */
+/** A path for a status row: relative inside the workspace (see displayPath), then shortened. */
+export const shortPath = (v: unknown, workspaceDir: string): string =>
+  short(typeof v === "string" && v ? displayPath(workspaceDir, v) : v);
+
 export function short(v: unknown, max = 80): string {
   const s = typeof v === "string" ? v : JSON.stringify(v ?? "");
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
@@ -117,7 +122,7 @@ export const readFileTool: Tool = {
     },
   },
   readOnly: true,
-  summarize: (input) => `Reading ${short(input.path)}`,
+  summarize: (input, dir) => `Reading ${shortPath(input.path, dir)}`,
   async run(input, ctx) {
     const file = resolveInWorkspace(ctx.workspaceDir, str(input, "path"));
     const info = await stat(file);
@@ -155,7 +160,7 @@ export const writeFileTool: Tool = {
     },
   },
   readOnly: false,
-  summarize: (input) => `Writing ${short(input.path)}`,
+  summarize: (input, dir) => `Writing ${shortPath(input.path, dir)}`,
   async run(input, ctx) {
     const file = resolveInWorkspace(ctx.workspaceDir, str(input, "path"));
     const content = input.content;
@@ -178,7 +183,7 @@ export const editFileTool: Tool = {
     },
   },
   readOnly: false,
-  summarize: (input) => `Editing ${short(input.path)}`,
+  summarize: (input, dir) => `Editing ${shortPath(input.path, dir)}`,
   async run(input, ctx) {
     const file = resolveInWorkspace(ctx.workspaceDir, str(input, "path"));
     const oldText = str(input, "old_text");
