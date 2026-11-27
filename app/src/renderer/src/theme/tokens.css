@@ -90,6 +90,8 @@
   --text-xl--line-height: 28px;
   --text-2xl: 28px; /* onboarding headlines */
   --text-2xl--line-height: 34px;
+  --text-display: 60px; /* the wordmark on the welcome screen (reference/screens/01-launch.png) */
+  --text-display--line-height: 64px;
 
   --tracking-tight: -0.025em; /* avatar initials */
   --tracking-title: -0.02em; /* headlines */
@@ -187,6 +189,10 @@
   --padding-code: 0 4px;
   --size-row-time: 58px; /* the time at the far edge of a chat row */
   --size-status-slot: 36px; /* avatar column of status rows */
+  --size-onboarding: 480px; /* the first-run flow's column */
+  --size-face: 50px; /* the face beside the welcome wordmark */
+  --size-eye-w: 7px;
+  --size-eye-h: 12px;
 }
 
 /*

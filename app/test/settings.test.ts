@@ -10,11 +10,22 @@ import { checkSettingsPatch, DEFAULT_SETTINGS, parseSettings } from "../src/shar
 test("settings: a missing or bad file gives the defaults, field by field", () => {
   assert.deepEqual(parseSettings(undefined), DEFAULT_SETTINGS);
   assert.deepEqual(parseSettings("nonsense"), DEFAULT_SETTINGS);
-  assert.deepEqual(parseSettings({ theme: "dark", spellcheck: "yes", extra: 1 }), {
+  assert.deepEqual(parseSettings({ theme: "dark", spellcheck: "yes", extra: 1, onboarded: false }), {
     ...DEFAULT_SETTINGS,
     theme: "dark",
   });
   assert.deepEqual(parseSettings({ theme: "purple" }).theme, "system");
+});
+
+test("settings: a new install isn't onboarded; a file saved before onboarding existed is", () => {
+  assert.equal(DEFAULT_SETTINGS.onboarded, false);
+  assert.equal(parseSettings(undefined).onboarded, false, "no file: a new install");
+  assert.equal(parseSettings({ theme: "dark" }).onboarded, true, "an older file without the field");
+  assert.equal(parseSettings({ onboarded: false }).onboarded, false);
+  assert.equal(parseSettings({ onboarded: true }).onboarded, true);
+  assert.equal(parseSettings({ onboarded: "yes" }).onboarded, false, "a bad value falls back to the default");
+  assert.deepEqual(checkSettingsPatch({ onboarded: true }), { onboarded: true });
+  assert.equal(checkSettingsPatch({ onboarded: 1 }), undefined);
 });
 
 test("settings: a change from the renderer must have known keys and valid values", () => {

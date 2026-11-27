@@ -1,6 +1,6 @@
 // Settings building blocks: a section card, a labelled row, an on/off switch, and a select. The select is the
 // native element, styled like the reference's trigger, so keyboards and screen readers get the platform's own.
-import { type ReactNode, useId } from "react";
+import { type ReactNode, type Ref, useId } from "react";
 
 export function Section({ title, children }: { title: string; children: ReactNode }) {
   const id = useId();
@@ -72,12 +72,14 @@ export function Switch({
 
 export function Select<T extends string>({
   id,
+  ref,
   value,
   options,
   disabled,
   onChange,
 }: {
   id: string;
+  ref?: Ref<HTMLSelectElement>;
   value: T;
   options: readonly { value: T; label: string; disabled?: boolean }[];
   disabled?: boolean;
@@ -85,7 +87,7 @@ export function Select<T extends string>({
 }) {
   return (
     <span className="select">
-      <select id={id} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as T)}>
+      <select id={id} ref={ref} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as T)}>
         {options.map((o) => (
           <option key={o.value} value={o.value} disabled={o.disabled}>
             {o.label}
