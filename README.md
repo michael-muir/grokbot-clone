@@ -45,6 +45,7 @@ name, mascot and copy.
 npm install && npm --prefix server install && npm --prefix app install
 npm run verify   # lint, format check, typecheck, tests
 npm run smoke    # build the app, open it, list the bots, exit 0 on success
+npm run review   # capture the core screens and write review/out/index.html
 ```
 
 Every pull request runs `npm run verify` and that smoke launch on Windows and Linux. macOS runs every Monday,
