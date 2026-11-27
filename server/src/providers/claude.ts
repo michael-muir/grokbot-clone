@@ -7,6 +7,7 @@
 //   user tool_result     -> tool_end
 //   result               -> RunOutcome (cost, success or error)
 //   canUseTool           -> approval card in the transcript
+//   AskUserQuestion      -> choice cards (claude-questions.ts)
 import { type Options, query, type SDKAssistantMessage, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { apiErrorMessage } from "../agent/openai-compatible.ts";
 import { short } from "../agent/tools.ts";
@@ -14,6 +15,7 @@ import { childEnv } from "../child-env.ts";
 import { labelPath } from "../display-path.ts";
 import { NotConfiguredError } from "../errors.ts";
 import type { AgentProvider, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
+import { ASK_USER_QUESTION, answerQuestions } from "./claude-questions.ts";
 
 export const DEFAULT_CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
 
@@ -94,6 +96,8 @@ export class ClaudeProvider implements AgentProvider {
       // Claude Code needs its own key, and no other secret of the gateway's.
       env: { ...childEnv(), ...(this.getKey() ? { ANTHROPIC_API_KEY: this.getKey() } : {}) },
       canUseTool: async (toolName, input, { signal }) => {
+        // A question isn't an action to approve: the user answers it on its own card.
+        if (toolName === ASK_USER_QUESTION) return answerQuestions(input, cb.requestChoice, signal);
         const decision = await cb.requestApproval(
           { tool: toolName, summary: summarizeTool(toolName, input, req.workspaceDir), input },
           signal,
@@ -325,6 +329,10 @@ export function summarizeTool(tool: string, input: Record<string, unknown>, work
       return `Opening ${s(input.url)}`;
     case "TodoWrite":
       return "Updating the task list";
+    case ASK_USER_QUESTION: {
+      const first = Array.isArray(input.questions) ? (input.questions[0] as { question?: unknown })?.question : "";
+      return `Asking: ${typeof first === "string" ? s(first) : ""}`;
+    }
     default:
       return `Using ${tool}`;
   }
