@@ -46,6 +46,9 @@ test("wrong argument types or counts are refused", () => {
   refused("updateBot", ["nova", { provider: "gpt" }]);
   refused("updateBot", ["nova", { sessionId: "steal" }]);
   refused("updateBot", ["nova", null]);
+  refused("updateBot", ["nova", { pinned: "yes" }]);
+  refused("deleteBot", []);
+  refused("deleteBot", ["nova", "extra"]);
   refused("answerApproval", ["nova", "e1", { allow: "yes" }]);
   refused("answerApproval", ["nova", "e1", { allow: false }]);
   refused("transcript", ["nova", 1.5]);

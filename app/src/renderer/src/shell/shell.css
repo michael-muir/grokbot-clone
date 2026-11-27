@@ -342,6 +342,118 @@
   }
 }
 
+/* ---- Bot menu (reference/screens/39-sidebar-ctx.png) ---- */
+
+.bot-tile[data-hidden] .avatar {
+  opacity: var(--opacity-muted);
+}
+
+.bot-menu {
+  position: fixed;
+  z-index: 20;
+  width: var(--size-menu-w);
+  padding: var(--space-1-5);
+  border: var(--size-hairline) solid var(--color-line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-menu);
+}
+
+.bot-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: var(--size-menu-item);
+  padding: 0 var(--space-2-5);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--text-sm--line-height);
+  letter-spacing: var(--tracking-normal);
+  text-align: left;
+  cursor: pointer;
+}
+
+.bot-menu-item:hover,
+.bot-menu-item:focus-visible {
+  background: var(--color-fill-strong);
+}
+
+.bot-menu-item .icon {
+  flex-shrink: 0;
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  color: var(--color-icon);
+}
+
+.bot-menu-item[data-danger],
+.bot-menu-item[data-danger] .icon {
+  color: var(--color-danger-text);
+}
+
+.bot-menu-separator {
+  height: var(--size-hairline);
+  border: 0;
+  margin: var(--space-1-5) var(--space-1);
+  background: var(--color-line-strong);
+}
+
+/* ---- Confirmation dialog ---- */
+
+.dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+  background: var(--color-scrim);
+}
+
+.confirm-dialog {
+  width: min(var(--size-dialog-w), 100%);
+  padding: var(--space-5);
+  border: var(--size-hairline) solid var(--color-line-strong);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-modal);
+}
+
+.confirm-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+  line-height: var(--text-lg--line-height);
+  font-weight: var(--font-weight-medium);
+}
+
+.confirm-text,
+.confirm-error {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  color: var(--color-text-secondary);
+}
+
+.confirm-error {
+  color: var(--color-danger-text);
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.button.danger {
+  background: var(--color-danger);
+  color: var(--color-on-accent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .working-spinner,
   .tile-badge[data-badge="working"] {

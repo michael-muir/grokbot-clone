@@ -2,7 +2,7 @@
 // live subscribers, and append-only JSONL persistence (last write per id wins on load).
 
 import { randomUUID } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { EntryBody, TranscriptEntry } from "./types.ts";
 
@@ -13,6 +13,8 @@ interface BotLog {
   nextSeq: number;
   nextUpdate: number;
   listeners: Set<Listener>;
+  /** Called when the bot's transcript is deleted: whoever is streaming it should stop. */
+  enders: Set<() => void>;
   file: string;
 }
 
@@ -84,10 +86,39 @@ export class TranscriptStore {
       .sort((a, b) => a.updatedSeq - b.updatedSeq);
   }
 
-  subscribe(botId: string, listener: Listener): () => void {
+  /** `onEnd` runs if the transcript is deleted while subscribed (the bot was deleted). */
+  subscribe(botId: string, listener: Listener, onEnd?: () => void): () => void {
     const log = this.log(botId);
     log.listeners.add(listener);
-    return () => log.listeners.delete(listener);
+    if (onEnd) log.enders.add(onEnd);
+    return () => {
+      log.listeners.delete(listener);
+      if (onEnd) log.enders.delete(onEnd);
+    };
+  }
+
+  /** Deletes a bot's transcript, on disk and in memory. Its listeners hear nothing more; streams are ended. */
+  forget(botId: string): void {
+    const log = this.logs.get(botId);
+    const file = log?.file ?? join(this.dataDir, "bots", botId, "transcript.jsonl");
+    rmSync(file, { force: true });
+    try {
+      rmdirSync(dirname(file)); // the bot's folder, once nothing else of the bot's is left in it
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT" && code !== "ENOTEMPTY") console.warn(`Couldn't remove ${dirname(file)}`, err);
+    }
+    this.logs.delete(botId);
+    if (!log) return;
+    log.listeners.clear();
+    for (const end of [...log.enders]) {
+      try {
+        end();
+      } catch (err) {
+        console.error("ending a transcript stream failed", err);
+      }
+    }
+    log.enders.clear();
   }
 
   private commit(log: BotLog, entry: TranscriptEntry): TranscriptEntry {
@@ -108,7 +139,7 @@ export class TranscriptStore {
     if (log) return log;
     const file = join(this.dataDir, "bots", botId, "transcript.jsonl");
     mkdirSync(dirname(file), { recursive: true });
-    log = { entries: new Map(), nextSeq: 0, nextUpdate: 0, listeners: new Set(), file };
+    log = { entries: new Map(), nextSeq: 0, nextUpdate: 0, listeners: new Set(), enders: new Set(), file };
     if (existsSync(file)) {
       for (const line of readFileSync(file, "utf8").split("\n")) {
         if (!line.trim()) continue;

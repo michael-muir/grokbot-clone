@@ -1,6 +1,40 @@
-// The sidebar's decisions as pure functions: each tile's badge, which bots have a new reply, the working button's
-// label and target, and how a typed bot name is cleaned.
+// The sidebar's decisions as pure functions: which bots show where, each bot's menu, each tile's badge, which bots
+// have a new reply, the working button's label and target, and how a typed bot name is cleaned.
 import type { BotActivity, PublicBot } from "../../../../../server/src/types.ts";
+
+/**
+ * Above the divider: the main bot (always first, always shown), then pinned bots. Below: the rest. Hidden bots
+ * show only when asked, in their usual place.
+ */
+export function sidebarLayout(
+  bots: readonly PublicBot[],
+  showHidden: boolean,
+): { top: PublicBot[]; rest: PublicBot[]; hiddenCount: number } {
+  const [main, ...others] = bots;
+  const visible = others.filter((b) => showHidden || !b.hidden);
+  return {
+    top: [...(main ? [main] : []), ...visible.filter((b) => b.pinned)],
+    rest: visible.filter((b) => !b.pinned),
+    hiddenCount: others.filter((b) => b.hidden).length,
+  };
+}
+
+export type MenuAction = "pin" | "unpin" | "copy-id" | "hide" | "show" | "delete";
+
+/** A bot's menu, in the reference's order. The main bot is always on top and can't be hidden or deleted. */
+export function menuFor(bot: PublicBot, isMain: boolean): { action: MenuAction; label: string }[] {
+  if (isMain) return [{ action: "copy-id", label: "Copy bot ID" }];
+  return [
+    bot.pinned ? { action: "unpin", label: "Unpin" } : { action: "pin", label: "Pin" },
+    { action: "copy-id", label: "Copy bot ID" },
+    bot.hidden ? { action: "show", label: "Show in sidebar" } : { action: "hide", label: "Hide from sidebar" },
+    { action: "delete", label: "Delete" },
+  ];
+}
+
+/** Where the open chat goes when its bot is deleted: the main bot (which can't be deleted itself). */
+export const afterDelete = (mainId: string | undefined, deleted: string, selected: string | undefined) =>
+  selected === deleted ? mainId : selected;
 
 /** The corner badge on a tile. At most one shows: working beats a new reply, which beats the main-bot star. */
 export type Badge = "working" | "unread" | "main" | null;

@@ -23,6 +23,7 @@ const done = (p: Promise<void>): Promise<undefined> => p.then(() => undefined);
 const HANDLERS: Handlers = {
   listBots: (c) => c.listBots(),
   updateBot: (c, [botId, patch]) => c.updateBot(botId, patch),
+  deleteBot: (c, [botId]) => done(c.deleteBot(botId)),
   transcript: (c, [botId, since]) => c.transcript(botId, since),
   sendMessage: (c, [botId, text, clientNonce]) => c.sendMessage(botId, text, clientNonce),
   interrupt: (c, [botId]) => done(c.interrupt(botId)),

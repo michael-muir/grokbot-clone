@@ -189,6 +189,9 @@
   --padding-code: 0 4px;
   --size-row-time: 58px; /* the time at the far edge of a chat row */
   --size-status-slot: 36px; /* avatar column of status rows */
+  --size-menu-w: 200px; /* the bot context menu (reference/screens/39-sidebar-ctx.png) */
+  --size-menu-item: 34px;
+  --size-dialog-w: 360px; /* small confirmation dialogs */
   --size-onboarding: 480px; /* the first-run flow's column */
   --size-face: 50px; /* the face beside the welcome wordmark */
   --size-eye-w: 7px;

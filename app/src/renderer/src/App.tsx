@@ -16,9 +16,10 @@ import { Onboarding } from "./onboarding/Onboarding.tsx";
 import { GeneralPage } from "./settings/GeneralPage.tsx";
 import { ModelsPage } from "./settings/ModelsPage.tsx";
 import { SettingsDialog, type SettingsPage } from "./settings/SettingsDialog.tsx";
+import { DeleteBotDialog } from "./shell/BotMenu.tsx";
 import { BotPanel, PANEL_ID } from "./shell/BotPanel.tsx";
 import { Sidebar } from "./shell/Sidebar.tsx";
-import { nextUnread } from "./shell/sidebar-state.ts";
+import { afterDelete, type MenuAction, nextUnread } from "./shell/sidebar-state.ts";
 import "./shell/shell.css";
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -34,6 +35,12 @@ export function App() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [error, setError] = useState<string>();
   const [renameError, setRenameError] = useState<string>();
+  /** A bot-menu action that failed (pin, hide, copy). */
+  const [botError, setBotError] = useState<string>();
+  /** The bot being deleted, while its confirmation is open. */
+  const [deleting, setDeleting] = useState<{ bot: PublicBot; busy: boolean; error?: string }>();
+  /** A sidebar tile to focus after the next change renders (see Sidebar). */
+  const [refocus, setRefocus] = useState<{ botId: string }>();
   const [activityError, setActivityError] = useState<string>();
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   /** The stored settings have arrived: until then, whether to onboard isn't known. */
@@ -157,6 +164,45 @@ export function App() {
     }
   }, []);
 
+  const mainId = bots[0]?.id;
+  const replaceBot = useCallback((updated: PublicBot) => {
+    setBots((list) => list.map((b) => (b.id === updated.id ? updated : b)));
+  }, []);
+
+  const menuAction = useCallback(
+    async (bot: PublicBot, action: MenuAction) => {
+      setBotError(undefined);
+      try {
+        if (action === "delete") return setDeleting({ bot, busy: false });
+        if (action === "copy-id") return await navigator.clipboard.writeText(bot.id);
+        const patch =
+          action === "pin" || action === "unpin" ? { pinned: action === "pin" } : { hidden: action === "hide" };
+        replaceBot(await call("updateBot", bot.id, patch));
+        // A hidden bot has no tile to show which chat is open: go to the main bot, as after a delete.
+        if (action === "hide") setSelected((current) => afterDelete(mainId, bot.id, current));
+      } catch (err) {
+        setBotError(`Couldn't ${action === "copy-id" ? "copy the bot ID" : "change the bot"}: ${message(err)}`);
+      }
+    },
+    [replaceBot, mainId],
+  );
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleting) return;
+    const { bot } = deleting;
+    setDeleting({ bot, busy: true });
+    try {
+      await call("deleteBot", bot.id);
+      setSelected((current) => afterDelete(mainId, bot.id, current));
+      setBots((list) => list.filter((b) => b.id !== bot.id));
+      setDeleting(undefined);
+      if (mainId) setRefocus({ botId: mainId });
+    } catch (err) {
+      // Kept open, so the reason (still working, say) shows where the user is looking.
+      setDeleting({ bot, busy: false, error: message(err) });
+    }
+  }, [deleting, mainId]);
+
   const connectionInfo = {
     state: connection === undefined ? ("pending" as const) : connection.ok ? ("ok" as const) : ("failed" as const),
     text:
@@ -195,6 +241,9 @@ export function App() {
         connection={connectionInfo}
         onSelect={select}
         onOpenSettings={() => setSettingsOpen({ page: "general" })}
+        onMenuAction={menuAction}
+        refocus={refocus}
+        onRefocus={setRefocus}
       />
       <main className="chat">
         {connection?.ok === false && (
@@ -202,7 +251,7 @@ export function App() {
             {connection.error}
           </p>
         )}
-        {[error, activityError, renameError].map(
+        {[error, activityError, renameError, botError].map(
           (text) =>
             text && (
               <p key={text} className="banner" role="alert">
@@ -230,6 +279,19 @@ export function App() {
           onClose={closePanel}
           onRename={(name) => rename(bot.id, name)}
           onChangeModel={() => setSettingsOpen({ page: "models", botId: bot.id })}
+        />
+      )}
+      {deleting && (
+        <DeleteBotDialog
+          name={deleting.bot.name}
+          busy={deleting.busy}
+          error={deleting.error}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => {
+            const id = deleting.bot.id;
+            setDeleting(undefined);
+            setRefocus({ botId: id });
+          }}
         />
       )}
       {settingsOpen && (

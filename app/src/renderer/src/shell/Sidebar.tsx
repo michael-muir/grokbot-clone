@@ -1,8 +1,18 @@
-// The bot sidebar: the working button, the main bot, a divider, the other bots, and the connection status.
-import type { KeyboardEvent } from "react";
+// The bot sidebar: the working button, the main and pinned bots, a divider, the other bots, each bot's menu, and
+// the connection status.
+import { type KeyboardEvent, type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { BotActivity, PublicBot } from "../../../../../server/src/types.ts";
 import { botColor, initial } from "../bot-colors.ts";
-import { type Badge, badgeFor, tileLabel, workingButton } from "./sidebar-state.ts";
+import { BotMenu } from "./BotMenu.tsx";
+import {
+  type Badge,
+  badgeFor,
+  type MenuAction,
+  menuFor,
+  sidebarLayout,
+  tileLabel,
+  workingButton,
+} from "./sidebar-state.ts";
 
 export function Sidebar({
   bots,
@@ -12,6 +22,9 @@ export function Sidebar({
   connection,
   onSelect,
   onOpenSettings,
+  onMenuAction,
+  refocus,
+  onRefocus,
 }: {
   bots: readonly PublicBot[];
   selected: string | undefined;
@@ -20,16 +33,66 @@ export function Sidebar({
   connection: { state: "pending" | "ok" | "failed"; text: string };
   onSelect(botId: string): void;
   onOpenSettings(): void;
+  /** Resolves once the change is shown, so focus can go back to the (possibly moved) tile. */
+  onMenuAction(bot: PublicBot, action: MenuAction): Promise<void>;
+  /**
+   * A tile to focus once the latest change is on screen (undefined: none). Held by the app, which also asks for it
+   * after the delete dialog. The effect below runs after React commits: a pinned tile has moved by then (moving it
+   * took its focus away), and a hidden or deleted one is gone, in which case the main bot's tile takes focus.
+   */
+  refocus: { botId: string } | undefined;
+  onRefocus(request: { botId: string } | undefined): void;
 }) {
   const running = new Set(activity.filter((a) => a.running).map((a) => a.botId));
   const working = workingButton(bots, activity, selected);
-  const [main, ...others] = bots;
+  const [showHidden, setShowHidden] = useState(false);
+  const { top, rest, hiddenCount } = sidebarLayout(bots, showHidden);
+  const mainId = bots[0]?.id;
+  const [menu, setMenu] = useState<{ botId: string; x: number; y: number }>();
+  const menuBot = menu ? bots.find((b) => b.id === menu.botId) : undefined;
+  const list = useRef<HTMLUListElement>(null);
 
-  const tile = (bot: PublicBot, isMain: boolean) => {
-    const badge = badgeFor({ running: running.has(bot.id), unread: unread.has(bot.id), main: isMain });
+  useEffect(() => {
+    if (!refocus) return;
+    const find = (id: string | undefined) =>
+      id ? list.current?.querySelector<HTMLButtonElement>(`[data-bot-id="${CSS.escape(id)}"]`) : null;
+    (find(refocus.botId) ?? find(mainId))?.focus();
+    onRefocus(undefined);
+  }, [refocus, mainId, onRefocus]);
+  const focusTile = useCallback((botId: string) => onRefocus({ botId }), [onRefocus]);
+
+  // Nothing left to show: back to normal, so a bot hidden later disappears as the user expects.
+  useEffect(() => {
+    if (hiddenCount === 0) setShowHidden(false);
+  }, [hiddenCount]);
+
+  const openBotId = menu?.botId;
+  const closeMenu = useCallback(
+    (restoreFocus: boolean) => {
+      setMenu(undefined);
+      if (restoreFocus && openBotId) focusTile(openBotId);
+    },
+    [focusTile, openBotId],
+  );
+
+  /** Opens beside the tile, overlapping it, as in the reference. */
+  const openMenu = (botId: string, tileEl: HTMLElement) => {
+    const r = tileEl.getBoundingClientRect();
+    setMenu({ botId, x: r.left + r.width * 0.4, y: r.top + r.height * 0.28 });
+  };
+
+  const tile = (bot: PublicBot) => {
+    const badge = badgeFor({ running: running.has(bot.id), unread: unread.has(bot.id), main: bot.id === mainId });
     return (
       <li key={bot.id}>
-        <BotTile bot={bot} badge={badge} current={bot.id === selected} onSelect={onSelect} />
+        <BotTile
+          bot={bot}
+          badge={badge}
+          current={bot.id === selected}
+          menuOpen={menu?.botId === bot.id}
+          onSelect={onSelect}
+          onMenu={openMenu}
+        />
       </li>
     );
   };
@@ -50,12 +113,51 @@ export function Sidebar({
         )}
       </div>
       {/* One list for arrow-key movement; the divider is decoration between the main bot and the rest. */}
-      <ul className="bot-list" onKeyDown={moveFocus}>
-        {main && tile(main, true)}
-        {others.length > 0 && <li className="bot-divider" aria-hidden="true" />}
-        {others.map((bot) => tile(bot, false))}
+      <ul ref={list} className="bot-list" onKeyDown={moveFocus}>
+        {top.map(tile)}
+        {rest.length > 0 && <li className="bot-divider" aria-hidden="true" />}
+        {rest.map(tile)}
       </ul>
+      {menu && menuBot && (
+        <BotMenu
+          label={menuBot.name}
+          items={menuFor(menuBot, menuBot.id === mainId)}
+          at={menu}
+          onClose={closeMenu}
+          onAction={(action) => {
+            setMenu(undefined);
+            // Delete opens a dialog, which takes focus and gives it back itself.
+            void onMenuAction(menuBot, action).then(() => {
+              if (action !== "delete") focusTile(menuBot.id);
+            });
+          }}
+        />
+      )}
       <div className="sidebar-bottom">
+        {hiddenCount > 0 && (
+          <button
+            type="button"
+            className="sidebar-icon-button"
+            aria-pressed={showHidden}
+            aria-label={showHidden ? "Leave hidden bots out" : `Show hidden bots (${hiddenCount})`}
+            title={showHidden ? "Leave hidden bots out" : `Show hidden bots (${hiddenCount})`}
+            onClick={() => setShowHidden((v) => !v)}
+          >
+            <svg className="icon" viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                d={
+                  showHidden
+                    ? "M2 8s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4zM8 6.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z"
+                    : "M2 8s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4zM8 6.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3zM2.5 2.5l11 11"
+                }
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        )}
         <button
           type="button"
           className="sidebar-icon-button"
@@ -86,22 +188,41 @@ function BotTile({
   bot,
   badge,
   current,
+  menuOpen,
   onSelect,
+  onMenu,
 }: {
   bot: PublicBot;
   badge: Badge;
   current: boolean;
+  menuOpen: boolean;
   onSelect(botId: string): void;
+  onMenu(botId: string, tile: HTMLElement): void;
 }) {
   return (
     <button
       type="button"
       className="bot-tile"
+      data-bot-id={bot.id}
+      data-hidden={bot.hidden || undefined}
       aria-current={current ? "page" : undefined}
       aria-label={tileLabel(bot.name, badge)}
+      aria-haspopup="menu"
+      aria-expanded={menuOpen}
       title={bot.name}
       data-bot-color={botColor(bot.avatar.color)}
       onClick={() => onSelect(bot.id)}
+      onContextMenu={(e: MouseEvent<HTMLButtonElement>) => {
+        e.preventDefault();
+        onMenu(bot.id, e.currentTarget);
+      }}
+      onKeyDown={(e) => {
+        // The keyboard's own ways to open a context menu.
+        if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
+          e.preventDefault();
+          onMenu(bot.id, e.currentTarget);
+        }
+      }}
     >
       <span className="avatar" aria-hidden="true">
         {initial(bot.name)}

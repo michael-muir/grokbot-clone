@@ -90,6 +90,10 @@ export interface Bot {
   /** Overrides the provider's server for this bot (e.g. an Ollama on another machine). */
   baseUrl?: string;
   avatar: { shape: string; color: string };
+  /** Shown above the sidebar's divider, with the main bot. */
+  pinned?: boolean;
+  /** Left out of the sidebar (still there, and can be shown again). */
+  hidden?: boolean;
   /** Provider session to resume, so each bot keeps one long-running conversation. */
   sessionId?: string;
   /** Provider the stored session belongs to. A session is dropped when the provider changes. */

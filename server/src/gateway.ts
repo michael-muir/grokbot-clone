@@ -24,6 +24,10 @@ export const MAX_CUSTOM_ANSWER = 500;
 
 export class BotNotFoundError extends Error {}
 export class BotBusyError extends Error {}
+/** A change the bot can't take, like deleting the main bot. */
+export class BotRuleError extends Error {}
+/** A bot's files couldn't be deleted (one is open in another program, say). The bot is kept. */
+export class BotFilesError extends Error {}
 
 interface ActiveRun {
   controller: AbortController;
@@ -48,6 +52,8 @@ export class Gateway {
   /** A stopped run settles a pending choice with undefined (no answer). */
   private readonly choices = new Waiters<string | undefined>(undefined);
   private readonly active = new Map<string, ActiveRun>();
+  /** Bots being deleted: no run may start while their files go. */
+  private readonly deleting = new Set<string>();
   private readonly activityListeners = new Set<(bots: BotActivity[]) => void>();
 
   constructor(bots: BotRegistry, store: TranscriptStore, providers: ProviderRegistry, computers: ComputerManager) {
@@ -117,6 +123,7 @@ export class Gateway {
     const bot = this.bots.get(botId);
     if (!bot) throw new BotNotFoundError(`Unknown bot ${botId}`);
     if (this.active.has(botId)) throw new BotBusyError(`${bot.name} is still working on the last message.`);
+    if (this.deleting.has(botId)) throw new BotBusyError(`${bot.name} is being deleted.`);
     const provider = this.providers.get(bot.provider);
     if (!provider) throw new Error(`No provider registered for ${bot.provider}`);
 
@@ -145,9 +152,13 @@ export class Gateway {
    * Changes a bot's settings. Switching provider is refused during a run; when it happens, the old session and
    * model are dropped (by the registry) and a notice says so in the transcript.
    */
-  updateBot(botId: string, patch: Partial<Pick<Bot, "name" | "provider" | "model" | "baseUrl">>): Bot {
+  updateBot(
+    botId: string,
+    patch: Partial<Pick<Bot, "name" | "provider" | "model" | "baseUrl" | "pinned" | "hidden">>,
+  ): Bot {
     const bot = this.bots.get(botId);
     if (!bot) throw new BotNotFoundError(`Unknown bot ${botId}`);
+    if (patch.hidden && botId === this.bots.mainId()) throw new BotRuleError("The main bot is always shown.");
     const switching = patch.provider !== undefined && patch.provider !== bot.provider;
     if (switching && this.active.has(botId)) throw new BotBusyError("Can't change provider during a run.");
     if (patch.provider && !this.providers.has(patch.provider)) throw new Error(`Unknown provider ${patch.provider}`);
@@ -161,6 +172,36 @@ export class Gateway {
       });
     }
     return next;
+  }
+
+  /**
+   * Deletes a bot: its entry, its transcript and its computer (workspace files). Not the main bot, and not while
+   * it's running (stop it first, so nothing writes into what's being deleted).
+   */
+  async deleteBot(botId: string): Promise<void> {
+    const bot = this.bots.get(botId);
+    if (!bot) throw new BotNotFoundError(`Unknown bot ${botId}`);
+    if (botId === this.bots.mainId()) throw new BotRuleError("The main bot can't be deleted.");
+    if (this.active.has(botId)) throw new BotBusyError(`${bot.name} is working. Stop it first.`);
+    if (this.deleting.has(botId)) throw new BotBusyError(`${bot.name} is already being deleted.`);
+    this.deleting.add(botId);
+    try {
+      // Files first, the registry last: if a file can't go, the bot stays and the delete can be tried again.
+      try {
+        await this.computers.remove(botId);
+        this.store.forget(botId);
+      } catch (err) {
+        console.error(`Couldn't delete ${bot.name}'s files`, err);
+        throw new BotFilesError(
+          `Couldn't delete ${bot.name}'s files: ${err instanceof Error ? err.message : String(err)}. ` +
+            "Close any program using them, then try again.",
+        );
+      }
+      this.bots.remove(botId);
+      this.activityChanged();
+    } finally {
+      this.deleting.delete(botId);
+    }
   }
 
   /** Stops the bot's current run. Returns false when nothing is running. */
