@@ -55,5 +55,6 @@ Other tests: stopped mid-question, no card support, malformed input, the status 
 
 ## Risks and open questions
 
-- Answer shape: taken from the SDK's types and docs; until the live check runs, a Claude Code that reads it
-  differently would answer without the user's choice. The live check is written and waits on the owner's OK.
+- Answer shape: confirmed live on 2026-11-27 (Claude Code 0.3.331, default model). The card showed Red, Green,
+  Blue; answering Green, Claude replied "You picked Green." and the run finished ($0.14). Cleanup of the temp
+  folder failed once with EPERM while Claude Code was still exiting; the live tests now retry the delete.

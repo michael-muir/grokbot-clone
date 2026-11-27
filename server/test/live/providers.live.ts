@@ -61,6 +61,7 @@ test(`live: ${requested} creates a file through an approved tool call`, { timeou
     assert.ok(existsSync(file), "hello.txt was created in the bot's workspace");
     assert.match(readFileSync(file, "utf8"), /hi from the agent/);
   } finally {
-    rmSync(dataDir, { recursive: true, force: true });
+    // Claude Code can hold the folder for a couple of seconds after the run on Windows (its graceful exit).
+    rmSync(dataDir, { recursive: true, force: true, maxRetries: 15, retryDelay: 200 });
   }
 });
