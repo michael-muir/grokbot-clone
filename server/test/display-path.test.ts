@@ -69,8 +69,11 @@ test("claude: file tool labels are relative inside the workspace", () =>
   withWorkspace((ws) => {
     assert.equal(summarizeTool("Write", { file_path: join(ws, "hello.txt") }, ws), "Writing hello.txt");
     assert.equal(summarizeTool("Read", { file_path: join(ws, "a", "b.md") }, ws), `Reading ${join("a", "b.md")}`);
+    // An outside path is the real path, then cut to 80 from the left. macOS temp dirs
+    // (/private/var/folders/…) are longer than that; Windows and Linux ones often are not.
     const other = resolve(ws, "..", "other.ts");
-    assert.equal(summarizeTool("Edit", { file_path: other }, ws), `Editing ${other}`);
+    const shown = other.length <= 80 ? other : `…${other.slice(-(80 - 1))}`;
+    assert.equal(summarizeTool("Edit", { file_path: other }, ws), `Editing ${shown}`);
     assert.equal(summarizeTool("NotebookEdit", { notebook_path: join(ws, "n.ipynb") }, ws), "Editing n.ipynb");
     assert.equal(summarizeTool("Bash", { command: "cat ../x" }, ws), "Running cat ../x", "commands are shown as typed");
   }));
