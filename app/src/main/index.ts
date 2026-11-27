@@ -10,6 +10,11 @@ import { registerIpc } from "./ipc-main.ts";
 import { ownPageCheck } from "./own-page.ts";
 import { platformFor } from "./platform/index.ts";
 import { adoptOldSettings, SettingsStore } from "./settings.ts";
+import { bringToFront, takesLock } from "./single-instance.ts";
+
+// One app at a time: a second launch hands over to the running one and exits before it reads settings or starts
+// a gateway. process.exit, not app.quit: app.quit returns, and the rest of this module would still run.
+if (takesLock(process.argv) && !app.requestSingleInstanceLock()) process.exit(0);
 
 const SMOKE = process.argv.includes("--smoke");
 const SMOKE_TIMEOUT_MS = 30_000;
@@ -188,6 +193,14 @@ app.whenReady().then(
     app.exit(1);
   },
 );
+
+// Another launch handed over: show this app instead. Before ready, the window that's about to open will do.
+app.on("second-instance", () => {
+  if (!app.isReady()) return;
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win) bringToFront(win);
+  else createWindow();
+});
 
 app.on("window-all-closed", () => {
   if (platform.quitWhenAllWindowsClosed) app.quit();
