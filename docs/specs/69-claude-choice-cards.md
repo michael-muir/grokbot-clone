@@ -11,7 +11,8 @@ loop's `ask_user` shows (#64), not an approval card, and Claude gets their answe
 
 - In: routing `AskUserQuestion` from `canUseTool` to `cb.requestChoice`; the answer shape; its status row;
   offline tests on the scripted SDK; a live check that runs on request.
-- Out: picking several options at once (`multiSelect`; a later card change: one label is still a valid answer),
+- Out: picking several options at once (`multiSelect`; a later card change: one label is still a valid answer,
+  and the model is told so),
   option descriptions and previews on the card (the card shows labels only), and the "unanswered" annotation
   newer Claude Code versions accept.
 
@@ -19,8 +20,12 @@ loop's `ask_user` shows (#64), not an approval card, and Claude gets their answe
 
 New module `server/src/providers/claude-questions.ts`, `answerQuestions(input, ask, signal)`:
 
-- Reads `input.questions`: each needs its question text and at least 2 different option labels (trimmed, at most
-  100 characters, at most 6 per card). A malformed call is denied with a message the model can fix.
+- Reads `input.questions`: each needs its question text (no question twice, since answers are keyed by it) and 2
+  to 6 different option labels. A malformed call is denied with a message the model can fix. The card shows each
+  label trimmed and cut to 100 characters; its value, and so the answer, is the label exactly as Claude sent it.
+- A `multiSelect` question still gets a one-pick card, and the answer carries
+  `annotations[question].notes` saying only one option could be picked, so the model doesn't take it as the
+  whole selection.
 - Asks one card per question, in order: prompt = the question, options = the labels (value = label),
   `allowCustom: true` (Claude Code tells the model "Other" is always offered).
 - Returns `{behavior: "allow", updatedInput: {...input, answers}}`, `answers` keyed by question text, each the

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Options, PermissionResult, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { ClaudeProvider, type QueryFn, summarizeTool } from "../src/providers/claude.ts";
-import { answerQuestions } from "../src/providers/claude-questions.ts";
+import { answerQuestions, SINGLE_PICK_NOTE } from "../src/providers/claude-questions.ts";
 import type { ChoiceRequest, RunCallbacks } from "../src/types.ts";
 
 const sdk = (m: object): SDKMessage => m as SDKMessage;
@@ -139,6 +139,13 @@ test("claude: without choice cards, or with a malformed question, AskUserQuestio
     { questions: [{ question: "", options: [{ label: "a" }, { label: "b" }] }] },
     { questions: [{ question: "Pick?", options: [{ label: "a" }, { label: " a " }] }] },
     { questions: [{ question: "Pick?", options: "a,b" }] },
+    { questions: [{ question: "Pick?", options: ["a", "b", "c", "d", "e", "f", "g"].map((label) => ({ label })) }] },
+    {
+      questions: [
+        { question: "Pick?", options: [{ label: "a" }, { label: "b" }] },
+        { question: "Pick?", options: [{ label: "c" }, { label: "d" }] },
+      ],
+    },
   ]) {
     const result = await answerQuestions(bad, never, signal);
     assert.equal(result.behavior, "deny", JSON.stringify(bad));
@@ -148,4 +155,35 @@ test("claude: without choice cards, or with a malformed question, AskUserQuestio
 test("claude: the status row for a question shows the question", () => {
   assert.equal(summarizeTool("AskUserQuestion", QUESTIONS, "/w"), "Asking: Which library should we use?");
   assert.equal(summarizeTool("AskUserQuestion", {}, "/w"), "Asking: ");
+  assert.equal(summarizeTool("AskUserQuestion", { questions: [] }, "/w"), "Asking: ");
+});
+
+test("claude: a long label is cut on the card, but the answer is the label exactly as Claude sent it", async () => {
+  const long = `${"x".repeat(120)} `;
+  const asked: ChoiceRequest[] = [];
+  const result = await answerQuestions(
+    { questions: [{ question: "Pick?", options: [{ label: long }, { label: "short" }] }] },
+    async (req) => {
+      asked.push(req);
+      return req.options[0]?.value;
+    },
+    new AbortController().signal,
+  );
+  assert.equal(asked[0]?.options[0]?.label, "x".repeat(100));
+  assert.deepEqual(result.behavior === "allow" && result.updatedInput?.answers, { "Pick?": long });
+});
+
+test("claude: a multi-select question tells the model only one option could be picked", async () => {
+  const input = {
+    questions: [{ question: "Which ones?", options: [{ label: "a" }, { label: "b" }], multiSelect: true }],
+  };
+  const result = await answerQuestions(input, async () => "a", new AbortController().signal);
+  assert.deepEqual(result, {
+    behavior: "allow",
+    updatedInput: {
+      ...input,
+      answers: { "Which ones?": "a" },
+      annotations: { "Which ones?": { notes: SINGLE_PICK_NOTE } },
+    },
+  });
 });

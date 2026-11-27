@@ -20,6 +20,7 @@ const skip = process.env.LIVE_PROVIDER !== "claude" && "only with LIVE_PROVIDER=
 
 test("live: claude reads the answer to AskUserQuestion from a choice card", { skip, timeout: 300_000 }, async () => {
   const dataDir = mkdtempSync(join(tmpdir(), "smarty-live-q-"));
+  let unsubscribe = () => {};
   try {
     const bots = new BotRegistry(dataDir, [
       {
@@ -36,13 +37,15 @@ test("live: claude reads the answer to AskUserQuestion from a choice card", { sk
     const gateway = new Gateway(bots, store, new Map([["claude", provider]]), new LocalFolderComputers(dataDir));
 
     let picked: string | undefined;
-    store.subscribe("live", (e) => {
+    let cards = 0;
+    unsubscribe = store.subscribe("live", (e) => {
       const b = e.body;
       if (b.kind === "approval" && b.state === "pending") {
         console.log("unexpected approval card", JSON.stringify(b));
         gateway.answerApproval("live", e.id, { allow: false, reason: "Not part of this test." });
       }
       if (b.kind === "choice" && b.state === "pending") {
+        cards++;
         picked = b.options[1]?.value;
         console.log("card", JSON.stringify(b), "->", picked);
         if (picked) gateway.answerChoice("live", e.id, picked);
@@ -60,10 +63,12 @@ test("live: claude reads the answer to AskUserQuestion from a choice card", { sk
     const entries = store.list("live");
     const run = entries.find((e) => e.body.kind === "run");
     assert.equal(run?.body.kind === "run" && run.body.state, "finished");
-    assert.ok(picked, "a choice card was shown");
+    assert.equal(cards, 1, "exactly one choice card was shown");
+    assert.ok(picked, "the card had a second option");
     const reply = entries.flatMap((e) => (e.body.kind === "assistant_text" ? [e.body.text] : [])).join("\n");
     assert.match(reply, new RegExp(`You picked ${picked}`, "i"));
   } finally {
+    unsubscribe();
     rmSync(dataDir, { recursive: true, force: true });
   }
 });

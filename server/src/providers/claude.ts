@@ -331,7 +331,7 @@ export function summarizeTool(tool: string, input: Record<string, unknown>, work
       return "Updating the task list";
     case ASK_USER_QUESTION: {
       const first = Array.isArray(input.questions) ? (input.questions[0] as { question?: unknown })?.question : "";
-      return `Asking: ${s(first)}`;
+      return `Asking: ${typeof first === "string" ? s(first) : ""}`;
     }
     default:
       return `Using ${tool}`;
