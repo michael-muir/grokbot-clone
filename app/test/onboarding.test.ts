@@ -10,6 +10,7 @@ import {
   firstProvider,
   MAX_BOT_NAME,
   needsKey,
+  showKeyField,
   usableProviders,
 } from "../src/renderer/src/onboarding/onboarding-state.ts";
 
@@ -48,6 +49,13 @@ test("onboarding: the key field shows only for a keyed provider without a key", 
   assert.equal(needsKey(xai), false, "already has a key");
   assert.equal(needsKey(ollama), false);
   assert.equal(needsKey(claude), false);
+});
+
+test("onboarding: after a failed test, a saved key can be replaced", () => {
+  assert.equal(showKeyField(xai, false), false, "a saved key that works isn't asked for again");
+  assert.equal(showKeyField(xai, true), true, "the saved key may be wrong");
+  assert.equal(showKeyField(openai, false), true);
+  assert.equal(showKeyField(ollama, true), false, "no key to fix on a local server");
 });
 
 test("onboarding: the model step needs a test, and a model where there's no default", () => {

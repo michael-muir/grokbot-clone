@@ -53,7 +53,11 @@ test("settings store: defaults when there's no file, saves changes, reloads them
     assert.equal(JSON.parse(readFileSync(file, "utf8")).theme, "light");
 
     writeFileSync(file, "{ not json");
-    assert.deepEqual(new SettingsStore(file).get(), DEFAULT_SETTINGS);
+    assert.deepEqual(
+      new SettingsStore(file).get(),
+      { ...DEFAULT_SETTINGS, onboarded: true },
+      "defaults, but a damaged file means someone has used the app",
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

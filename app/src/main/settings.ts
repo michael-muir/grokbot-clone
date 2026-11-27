@@ -45,14 +45,15 @@ export class SettingsStore {
     try {
       text = readFileSync(file, "utf8");
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.warn(`Couldn't read ${file}; using defaults`, err);
-      return parseSettings(undefined);
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return parseSettings(undefined); // a new install
+      console.warn(`Couldn't read ${file}; using defaults`, err);
+      return parseSettings({}); // the file is there, so this isn't a first run
     }
     try {
       return parseSettings(JSON.parse(text));
     } catch (err) {
       console.warn(`${file} isn't valid JSON; using defaults`, err);
-      return parseSettings(undefined);
+      return parseSettings({}); // damaged, but someone used the app: don't onboard them again
     }
   }
 }

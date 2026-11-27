@@ -49,7 +49,11 @@ New files under `app/src/renderer/src/onboarding/`:
   - `firstProvider(list, current)`: the bot's current provider if usable, else the first configured one, else the
     first usable one.
   - `needsKey(p)`: a key field is shown (the provider takes a key and has none).
-  - `firstModel(models, current)`: the bot's model if listed, else the first listed model, else "" (Default).
+  - `firstModel(models, current)`: the bot's model if listed, else "". On Claude and local servers "" is
+    Default; elsewhere it's "Choose a model" (a sorted list's first entry is rarely a good chat model). With no
+    models listed and no default, a text field takes the model's name.
+  - `showKeyField(p, testFailed)`: a missing key, or a saved key after a failed test (so a wrong key can be
+    replaced without leaving the flow).
   - `checkBotName(text)`: trimmed, 1 to 40 characters, or a short reason.
 - `onboarding.css`: layout from the reference launch screen (centred column, large headline, tagline), tokens
   only, focus states, and `prefers-reduced-motion` turns off the step fade.
@@ -57,7 +61,7 @@ New files under `app/src/renderer/src/onboarding/`:
 Focus: each step moves focus to its heading-adjacent primary control (provider picker, name field); Enter in the
 name field finishes. Every control is a native button, input or select.
 
-Copy is ours, not the reference's: "SmartyPrompts" / "Bots that work on their own computer, with the model you
+Copy is ours, not the reference's: "SmartyPrompts" / "Always-on bots that do real work, with the model you
 choose."
 
 ## Interfaces
@@ -75,7 +79,7 @@ Other tests (`app/test/onboarding.test.ts`, `app/test/settings.test.ts`):
 
 - provider ordering and the current-provider preference; placeholders are never offered
 - key field shown only for a keyed provider without a key
-- model choice: current, first listed, Default when none
+- model choice: current if listed, else none; Default only for Claude and local servers
 - bot name: trimmed, empty refused, too long refused
 - settings: a new install isn't onboarded; an old file without the field is; the patch accepts `onboarded`
 - `npm run smoke` on a fresh profile still exits 0

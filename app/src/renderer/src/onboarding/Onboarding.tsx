@@ -13,6 +13,7 @@ import {
   firstProvider,
   MAX_BOT_NAME,
   needsKey,
+  showKeyField,
   usableProviders,
 } from "./onboarding-state.ts";
 import "./onboarding.css";
@@ -56,16 +57,19 @@ export function Onboarding({
     }
   }, []);
 
-  useEffect(() => {
-    void loadProviders().then((list) => {
-      if (list) setProvider((current) => current ?? firstProvider(list, bot.provider));
-    });
+  /** Lists the providers and preselects one; also the retry when listing failed. */
+  const startProviders = useCallback(async () => {
+    const list = await loadProviders();
+    if (list) setProvider((current) => current ?? firstProvider(list, bot.provider));
   }, [loadProviders, bot.provider]);
+  useEffect(() => void startProviders(), [startProviders]);
 
   const chosen = providers?.find((p) => p.id === provider);
 
   const pickProvider = (id: ProviderId) => {
     setProvider(id);
+    // Each provider has its own server: the bot's saved one belongs only to its own provider.
+    setServer(id === bot.provider ? (bot.baseUrl ?? "") : "");
     setKey("");
     setModel("");
     setTest({ state: "idle" });
@@ -87,6 +91,7 @@ export function Onboarding({
       }
       const result = await call("testProvider", chosen.id, baseUrl);
       if (!result.ok) return setTest({ state: "error", error: result.error });
+      setProviderError(undefined); // an earlier listing failure is old news once the provider answers
       setTest({ state: "ok", models: result.models });
       setModel(firstModel(result.models, bot.provider === chosen.id ? bot.model : undefined));
     } catch (err) {
@@ -103,7 +108,8 @@ export function Onboarding({
     setNameError(undefined);
     try {
       const address = checkServerAddress(server);
-      const baseUrl = takesServerAddress(chosen.id) && address.ok && address.url ? { baseUrl: address.url } : {};
+      // Empty means the usual address: sent as "" so an old saved one is cleared, as in Settings.
+      const baseUrl = takesServerAddress(chosen.id) && address.ok ? { baseUrl: address.url ?? "" } : {};
       const updated = await call("updateBot", bot.id, { name: checked.name, provider: chosen.id, model, ...baseUrl });
       await onDone(updated);
     } catch (err) {
@@ -132,6 +138,7 @@ export function Onboarding({
             }}
             onKey={setKey}
             onConnect={() => void connect()}
+            onRetryProviders={() => void startProviders()}
             onModel={setModel}
             onBack={() => setStep("welcome")}
             onNext={() => setStep("name")}
@@ -224,6 +231,7 @@ function ModelStep({
   onServer,
   onKey,
   onConnect,
+  onRetryProviders,
   onModel,
   onBack,
   onNext,
@@ -239,6 +247,7 @@ function ModelStep({
   onServer(server: string): void;
   onKey(key: string): void;
   onConnect(): void;
+  onRetryProviders(): void;
   onModel(model: string): void;
   onBack(): void;
   onNext(): void;
@@ -249,7 +258,9 @@ function ModelStep({
 
   const usable = providers ? usableProviders(providers) : [];
   const testing = test.state === "testing";
-  const askKey = chosen ? needsKey(chosen) : false;
+  const keyMissing = chosen ? needsKey(chosen) : false;
+  // Also after a failed test with a saved key: that key may be the problem, so a new one can be pasted.
+  const askKey = chosen ? showKeyField(chosen, test.state === "error") : false;
   const models = test.state === "ok" ? test.models : [];
   const modelOptions = [
     chosen && allowsDefaultModel(chosen)
@@ -265,7 +276,7 @@ function ModelStep({
         ? test.error
         : test.state === "ok"
           ? `Connected. ${test.models.length} models available.`
-          : askKey
+          : keyMissing
             ? "Paste your key, then connect. It's stored in your computer's keychain."
             : "Connect to check it works.");
   const tone = providerError || test.state === "error" ? "error" : test.state === "ok" ? "ok" : undefined;
@@ -275,7 +286,8 @@ function ModelStep({
       className="onboarding-form"
       onSubmit={(e) => {
         e.preventDefault();
-        if (chosen && canContinue(chosen, test.state === "ok", model)) onNext();
+        if (!providers) onRetryProviders();
+        else if (chosen && canContinue(chosen, test.state === "ok", model)) onNext();
         else if (!testing) onConnect();
       }}
     >
@@ -331,7 +343,7 @@ function ModelStep({
               type="password"
               autoComplete="off"
               spellCheck={false}
-              placeholder="Paste your key"
+              placeholder={keyMissing ? "Paste your key" : "Paste a new key, or connect again"}
               value={keyDraft}
               disabled={testing}
               onChange={(e) => onKey(e.target.value)}
@@ -344,7 +356,19 @@ function ModelStep({
             <label className="onboarding-label" htmlFor={ids.model}>
               Model
             </label>
-            <Select id={ids.model} value={model} options={modelOptions} onChange={onModel} />
+            {models.length === 0 && chosen && !allowsDefaultModel(chosen) ? (
+              // Nothing listed and no default to fall back on: the model has to be named.
+              <input
+                id={ids.model}
+                className="onboarding-input"
+                value={model}
+                placeholder="Type the model's exact name"
+                spellCheck={false}
+                onChange={(e) => onModel(e.target.value.trim())}
+              />
+            ) : (
+              <Select id={ids.model} value={model} options={modelOptions} onChange={onModel} />
+            )}
           </div>
         )}
       </div>
@@ -357,7 +381,11 @@ function ModelStep({
         <button type="button" className="button secondary" onClick={onBack}>
           Back
         </button>
-        {test.state === "ok" ? (
+        {!providers && providerError ? (
+          <button type="button" className="button primary" onClick={onRetryProviders}>
+            Try again
+          </button>
+        ) : test.state === "ok" ? (
           <button type="submit" className="button primary" disabled={!chosen || !canContinue(chosen, true, model)}>
             Continue
           </button>
@@ -365,7 +393,7 @@ function ModelStep({
           <button
             type="submit"
             className="button primary"
-            disabled={!chosen || testing || (askKey && !keyDraft.trim())}
+            disabled={!chosen || testing || (keyMissing && !keyDraft.trim())}
           >
             {testing ? "Connecting…" : "Connect"}
           </button>

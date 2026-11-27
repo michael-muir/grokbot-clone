@@ -18,6 +18,10 @@ export function firstProvider(list: readonly ProviderSummary[], current: Provide
 /** The key field shows when the provider takes a key and doesn't have one yet. */
 export const needsKey = (p: ProviderSummary): boolean => p.needsKey && !p.configured;
 
+/** Shown when a key is missing, and after a failed test: the saved key may be the problem. */
+export const showKeyField = (p: ProviderSummary, testFailed: boolean): boolean =>
+  p.needsKey && (!p.configured || testFailed);
+
 /**
  * "Default" works only where something picks a model without being told: Claude's own default, or a local server's
  * first installed model. Hosted OpenAI-compatible and Gemini providers need a model named.

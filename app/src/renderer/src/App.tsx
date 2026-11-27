@@ -102,6 +102,7 @@ export function App() {
 
   /** Onboarding is over (finished or put off). Saving can fail; the flow closes anyway and returns next launch. */
   const endOnboarding = useCallback(async () => {
+    setSettingsOpen(undefined); // a Settings shortcut pressed during the flow mustn't pop up over the chat
     try {
       setSettings(await window.desktop.settings.set({ onboarded: true }));
     } catch (err) {
@@ -169,7 +170,8 @@ export function App() {
   const showPanel = panelOpen && bot !== undefined;
   const mainBot = bots[0];
 
-  if (settingsLoaded && !settings.onboarded && connected && mainBot) {
+  // Not tied to the connection: a gateway blip mustn't unmount the flow and lose what's been entered.
+  if (settingsLoaded && !settings.onboarded && mainBot) {
     return (
       <Onboarding
         bot={mainBot}
