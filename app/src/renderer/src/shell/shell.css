@@ -454,6 +454,146 @@
   color: var(--color-on-accent);
 }
 
+/* ---- Avatar picker and Create New Bot ---- */
+
+.avatar-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.shape-grid,
+.color-grid {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.shape-grid {
+  max-width: calc(var(--size-picker-option) * 6 + var(--space-2) * 5);
+}
+
+.color-grid {
+  max-width: calc(var(--size-picker-option) * 6 + var(--space-2) * 5);
+}
+
+.picker-option {
+  display: grid;
+  place-items: center;
+  width: var(--size-picker-option);
+  height: var(--size-picker-option);
+  padding: 0;
+  border: var(--size-hairline) solid transparent;
+  border-radius: var(--radius-full);
+  background: transparent;
+  cursor: pointer;
+}
+
+.picker-option:hover {
+  background: var(--color-surface-hover);
+}
+
+.picker-option:has(input:checked) {
+  border-color: var(--color-line-focus);
+}
+
+/* The radio itself is hidden; its focus ring shows on the option around it. */
+.picker-option:has(input:focus-visible) {
+  outline: var(--size-focus-ring) solid var(--color-focus-ring);
+  outline-offset: var(--space-0-5);
+}
+
+.color-swatch {
+  width: var(--size-swatch);
+  height: var(--size-swatch);
+  border-radius: var(--radius-full);
+  background: var(--bot);
+  /* An edge, so the white swatch shows on a white dialog. */
+  box-shadow: inset 0 0 0 var(--size-hairline) var(--color-line-strong);
+}
+
+.create-bot-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(var(--size-create-dialog-w), 100%);
+  max-height: 100%;
+  border: var(--size-hairline) solid var(--color-line-strong);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-modal);
+}
+
+.create-bot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border-bottom: var(--size-hairline) solid var(--color-line);
+}
+
+.create-bot-title {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: var(--text-md--line-height);
+  font-weight: var(--font-weight-semibold);
+}
+
+.create-bot-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-4);
+  overflow-y: auto;
+}
+
+.create-bot-name {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: var(--size-hairline) solid var(--color-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-fill);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.create-bot-name:focus {
+  border-color: var(--color-line-focus);
+}
+
+.create-bot-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--size-hairline) solid var(--color-line);
+}
+
+/* In the bot panel: the avatar is a button that opens the picker under it. */
+.avatar-button {
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  cursor: pointer;
+}
+
+.panel-picker {
+  width: 100%;
+  padding: var(--space-4) var(--space-2);
+  border: var(--size-hairline) solid var(--color-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .working-spinner,
   .tile-badge[data-badge="working"] {

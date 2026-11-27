@@ -53,6 +53,24 @@ export class BotRegistry {
     return next;
   }
 
+  /** Adds a bot at the end. Its id must be new. */
+  add(bot: Bot): Bot {
+    if (this.bots.has(bot.id)) throw new Error(`Bot ${bot.id} already exists`);
+    this.bots.set(bot.id, bot);
+    this.save();
+    return bot;
+  }
+
+  /** Makes a bot the main one by moving it first; the others keep their order. */
+  makeMain(id: string): void {
+    const bot = this.bots.get(id);
+    if (!bot) throw new Error(`Unknown bot ${id}`);
+    const rest = [...this.bots.values()].filter((b) => b.id !== id);
+    this.bots.clear();
+    for (const b of [bot, ...rest]) this.bots.set(b.id, b);
+    this.save();
+  }
+
   /** The main bot: the first one. It's always shown and can't be deleted. */
   mainId(): string | undefined {
     return this.bots.keys().next().value;

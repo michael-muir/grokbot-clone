@@ -47,6 +47,22 @@ test("wrong argument types or counts are refused", () => {
   refused("updateBot", ["nova", { sessionId: "steal" }]);
   refused("updateBot", ["nova", null]);
   refused("updateBot", ["nova", { pinned: "yes" }]);
+  refused("updateBot", ["nova", { avatar: { shape: "blob", color: "red" } }]);
+  refused("updateBot", ["nova", { avatar: { shape: "star", color: "red", extra: 1 } }]);
+  refused("updateBot", ["nova", { main: false }]);
+  assert.deepEqual(checkCall("updateBot", ["nova", { avatar: { shape: "star", color: "red" }, main: true }]), {
+    name: "updateBot",
+    args: ["nova", { avatar: { shape: "star", color: "red" }, main: true }],
+  });
+  assert.deepEqual(checkCall("createBot", [{ name: "Nova", avatar: { shape: "drop", color: "teal" } }]), {
+    name: "createBot",
+    args: [{ name: "Nova", avatar: { shape: "drop", color: "teal" } }],
+  });
+  refused("createBot", [{ name: "  " }]);
+  refused("createBot", [{ name: "Nova", id: "../x" }]);
+  refused("createBot", [{ name: "Nova", avatar: { shape: "circle", color: "chartreuse" } }]);
+  refused("createBot", [{ name: "x".repeat(201) }]);
+  refused("createBot", [{ name: "Nova" }, "extra"]);
   refused("deleteBot", []);
   refused("deleteBot", ["nova", "extra"]);
   refused("answerApproval", ["nova", "e1", { allow: "yes" }]);

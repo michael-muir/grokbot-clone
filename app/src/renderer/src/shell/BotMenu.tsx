@@ -3,6 +3,7 @@ import { type KeyboardEvent, type ReactNode, useEffect, useLayoutEffect, useRef 
 import type { MenuAction } from "./sidebar-state.ts";
 
 const ICONS: Record<MenuAction, ReactNode> = {
+  "make-main": <path d="M8 2.5l1.7 3.5 3.8.5-2.8 2.7.7 3.8L8 11.2 4.6 13l.7-3.8L2.5 6.5l3.8-.5z" />,
   pin: <path d="M6 2.5h4M7 2.5v4L4.5 9h7L9 6.5v-4M8 9v4.5" />,
   unpin: <path d="M6 2.5h4M7 2.5v4L4.5 9h7L9 6.5v-4M8 9v4.5M2.5 2.5l11 11" />,
   "copy-id": (
@@ -14,7 +15,7 @@ const ICONS: Record<MenuAction, ReactNode> = {
 };
 
 /** Items before these get a separator, as in the reference: copy, then hide/show, sit in groups of their own. */
-const STARTS_GROUP: readonly MenuAction[] = ["copy-id", "hide", "show"];
+const STARTS_GROUP: readonly MenuAction[] = ["pin", "unpin", "copy-id", "hide", "show"];
 
 export function BotMenu({
   label,

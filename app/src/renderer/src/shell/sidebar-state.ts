@@ -1,6 +1,6 @@
 // The sidebar's decisions as pure functions: which bots show where, each bot's menu, each tile's badge, which bots
 // have a new reply, the working button's label and target, and how a typed bot name is cleaned.
-import type { BotActivity, PublicBot } from "../../../../../server/src/types.ts";
+import { type BotActivity, MAX_BOT_NAME, type PublicBot } from "../../../../../server/src/types.ts";
 
 /**
  * Above the divider: the main bot (always first, always shown), then pinned bots. Below: the rest. Hidden bots
@@ -19,12 +19,16 @@ export function sidebarLayout(
   };
 }
 
-export type MenuAction = "pin" | "unpin" | "copy-id" | "hide" | "show" | "delete";
+export type MenuAction = "make-main" | "pin" | "unpin" | "copy-id" | "hide" | "show" | "delete";
 
-/** A bot's menu, in the reference's order. The main bot is always on top and can't be hidden or deleted. */
+/**
+ * A bot's menu, in the reference's order, after "Make main bot". The main bot is always on top and can't be hidden
+ * or deleted.
+ */
 export function menuFor(bot: PublicBot, isMain: boolean): { action: MenuAction; label: string }[] {
   if (isMain) return [{ action: "copy-id", label: "Copy bot ID" }];
   return [
+    { action: "make-main", label: "Make main bot" },
     bot.pinned ? { action: "unpin", label: "Unpin" } : { action: "pin", label: "Pin" },
     { action: "copy-id", label: "Copy bot ID" },
     bot.hidden ? { action: "show", label: "Show in sidebar" } : { action: "hide", label: "Hide from sidebar" },
@@ -89,7 +93,10 @@ export function workingButton(
   return { label, target: target.id };
 }
 
-export const MAX_NAME = 40;
+export const MAX_NAME = MAX_BOT_NAME;
+
+/** The gateway's rule, so a bot made here and one made through the API start alike. */
+export { freeColor } from "../../../../../server/src/types.ts";
 
 /** A typed bot name, trimmed and capped; undefined when nothing usable is left. */
 export function cleanName(typed: string): string | undefined {

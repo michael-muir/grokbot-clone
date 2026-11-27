@@ -5,15 +5,18 @@ import type { BotRegistry } from "./bots.ts";
 import type { ComputerManager } from "./computer.ts";
 import type { ProviderRegistry } from "./providers/index.ts";
 import type { TranscriptStore } from "./transcript.ts";
-import type {
-  AgentProvider,
-  ApprovalDecision,
-  Bot,
-  BotActivity,
-  EntryBody,
-  ProviderEvent,
-  RunOutcome,
-  TranscriptEntry,
+import {
+  type AgentProvider,
+  type ApprovalDecision,
+  type Bot,
+  type BotActivity,
+  type EntryBody,
+  freeColor,
+  MAX_BOT_NAME,
+  type NewBot,
+  type ProviderEvent,
+  type RunOutcome,
+  type TranscriptEntry,
 } from "./types.ts";
 
 /** What the model is told when the user denies a tool call without giving a reason. */
@@ -54,6 +57,8 @@ export class Gateway {
   private readonly active = new Map<string, ActiveRun>();
   /** Bots being deleted: no run may start while their files go. */
   private readonly deleting = new Set<string>();
+  /** Ids of bots deleted since this gateway started; a new bot doesn't take one. */
+  private readonly retiredIds = new Set<string>();
   private readonly activityListeners = new Set<(bots: BotActivity[]) => void>();
 
   constructor(bots: BotRegistry, store: TranscriptStore, providers: ProviderRegistry, computers: ComputerManager) {
@@ -152,17 +157,24 @@ export class Gateway {
    * Changes a bot's settings. Switching provider is refused during a run; when it happens, the old session and
    * model are dropped (by the registry) and a notice says so in the transcript.
    */
-  updateBot(
-    botId: string,
-    patch: Partial<Pick<Bot, "name" | "provider" | "model" | "baseUrl" | "pinned" | "hidden">>,
-  ): Bot {
+  updateBot(botId: string, change: BotChange): Bot {
     const bot = this.bots.get(botId);
     if (!bot) throw new BotNotFoundError(`Unknown bot ${botId}`);
+    const { main, ...patch } = change;
+    if (main && patch.hidden) throw new BotRuleError("The main bot is always shown.");
     if (patch.hidden && botId === this.bots.mainId()) throw new BotRuleError("The main bot is always shown.");
     const switching = patch.provider !== undefined && patch.provider !== bot.provider;
     if (switching && this.active.has(botId)) throw new BotBusyError("Can't change provider during a run.");
     if (patch.provider && !this.providers.has(patch.provider)) throw new Error(`Unknown provider ${patch.provider}`);
-    const next = this.bots.update(botId, patch);
+    // Every check is above: a refused change must not have moved the main bot.
+    // The main bot can't be hidden, so a hidden bot made main is shown again.
+    if (main && bot.hidden) patch.hidden = false;
+    let next = this.bots.update(botId, patch);
+    if (main) {
+      this.bots.makeMain(botId);
+      next = this.bots.get(botId) ?? next;
+      this.activityChanged();
+    }
     if (switching) {
       const label = this.providers.get(next.provider)?.info?.().label ?? next.provider;
       const model = next.model ? ` (${next.model})` : "";
@@ -172,6 +184,31 @@ export class Gateway {
       });
     }
     return next;
+  }
+
+  /**
+   * Creates a bot. It starts on the main bot's provider, model and server, so it works at once with what's set
+   * up; its id comes from its name.
+   */
+  createBot(input: NewBot): Bot {
+    const name = input.name.trim();
+    if (!name) throw new BotRuleError("A bot needs a name.");
+    if (Array.from(name).length > MAX_BOT_NAME) throw new BotRuleError(`Names are at most ${MAX_BOT_NAME} characters.`);
+    const all = this.bots.list();
+    const main = all[0];
+    const bot: Bot = {
+      // Not the id of a bot deleted while this gateway runs: a client may still hold a stream cursor for it, and
+      // the new bot's transcript counts from zero again.
+      id: uniqueId(name, new Set([...all.map((b) => b.id), ...this.retiredIds])),
+      name,
+      provider: main?.provider ?? "claude",
+      ...(main?.model ? { model: main.model } : {}),
+      ...(main?.baseUrl ? { baseUrl: main.baseUrl } : {}),
+      avatar: input.avatar ?? { shape: "circle", color: freeColor(all) },
+    };
+    this.bots.add(bot);
+    this.activityChanged();
+    return bot;
   }
 
   /**
@@ -198,6 +235,7 @@ export class Gateway {
         );
       }
       this.bots.remove(botId);
+      this.retiredIds.add(botId);
       this.activityChanged();
     } finally {
       this.deleting.delete(botId);
@@ -389,4 +427,29 @@ export class Gateway {
 
 function anySignal(a: AbortSignal, b: AbortSignal): AbortSignal {
   return AbortSignal.any([a, b]);
+}
+
+/** A bot change: its settings, or `main: true` to make it the main bot. */
+export type BotChange = Partial<
+  Pick<Bot, "name" | "provider" | "model" | "baseUrl" | "pinned" | "hidden" | "avatar">
+> & {
+  main?: true;
+};
+
+const WINDOWS_DEVICE_NAMES = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/;
+
+/** A path-safe id from a name ("Nova Two" -> "nova-two"), numbered when taken ("nova-2"). */
+export function uniqueId(name: string, taken: ReadonlySet<string>): string {
+  const base =
+    name
+      .normalize("NFKD")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 30)
+      .replace(/-+$/, "") || "bot";
+  // The id becomes a folder name, and Windows reserves these names for devices ("con" can't be a folder).
+  const usable = (id: string) => !taken.has(id) && !WINDOWS_DEVICE_NAMES.test(id);
+  if (usable(base)) return base;
+  for (let n = 2; ; n++) if (usable(`${base}-${n}`)) return `${base}-${n}`;
 }

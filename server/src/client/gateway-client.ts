@@ -1,6 +1,15 @@
 // Typed client for the gateway's HTTP API, with token auth. No Node APIs, so any JavaScript runtime can use it;
 // the desktop app runs it in its main process, which keeps the token out of the renderer.
-import type { ApprovalDecision, ProviderId, ProviderSummary, PublicBot, TranscriptEntry } from "../types.ts";
+import type {
+  ApprovalDecision,
+  AvatarColor,
+  AvatarShape,
+  NewBot,
+  ProviderId,
+  ProviderSummary,
+  PublicBot,
+  TranscriptEntry,
+} from "../types.ts";
 import { type ActivityOptions, type SubscribeOptions, subscribeActivity, subscribeTranscript } from "./subscribe.ts";
 
 export interface GatewayClientOptions {
@@ -9,7 +18,13 @@ export interface GatewayClientOptions {
   fetch?: typeof fetch;
 }
 
-export type BotPatch = Partial<Pick<PublicBot, "name" | "provider" | "model" | "baseUrl" | "pinned" | "hidden">>;
+export type BotPatch = Partial<
+  Pick<PublicBot, "name" | "provider" | "model" | "baseUrl" | "pinned" | "hidden"> & {
+    avatar: { shape: AvatarShape; color: AvatarColor };
+    /** Makes this bot the main one. */
+    main: true;
+  }
+>;
 
 export type ProviderTest = { ok: true; models: string[] } | { ok: false; error: string };
 
@@ -51,6 +66,11 @@ export class GatewayClient {
 
   updateBot(botId: string, patch: BotPatch): Promise<PublicBot> {
     return this.request("PATCH", `/bots/${enc(botId)}`, patch);
+  }
+
+  /** Creates a bot on the main bot's model. */
+  createBot(input: NewBot): Promise<PublicBot> {
+    return this.request("POST", "/bots", input);
   }
 
   /** Deletes the bot with its transcript and computer. Refused (409) for the main bot or while it's running. */

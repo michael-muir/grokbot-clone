@@ -1,11 +1,12 @@
 // Sidebar logic: layout, bot menus, badges, new-reply tracking, the working button and bot name cleanup.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { PublicBot } from "../../server/src/types.ts";
+import { AVATAR_COLORS, type PublicBot } from "../../server/src/types.ts";
 import {
   afterDelete,
   badgeFor,
   cleanName,
+  freeColor,
   MAX_NAME,
   menuFor,
   nextUnread,
@@ -97,9 +98,21 @@ test("sidebar: the main bot and pinned bots sit above the divider; hidden bots o
 
 test("sidebar: each bot's menu follows its state; the main bot can only be copied", () => {
   const actions = (b: PublicBot, main = false) => menuFor(b, main).map((i) => i.action);
-  assert.deepEqual(actions(tileBot("a")), ["pin", "copy-id", "hide", "delete"]);
-  assert.deepEqual(actions(tileBot("a", { pinned: true, hidden: true })), ["unpin", "copy-id", "show", "delete"]);
+  assert.deepEqual(actions(tileBot("a")), ["make-main", "pin", "copy-id", "hide", "delete"]);
+  assert.deepEqual(actions(tileBot("a", { pinned: true, hidden: true })), [
+    "make-main",
+    "unpin",
+    "copy-id",
+    "show",
+    "delete",
+  ]);
   assert.deepEqual(actions(tileBot("main"), true), ["copy-id"]);
+});
+
+test("sidebar: a new bot gets the first color no bot uses, or amber when all are taken", () => {
+  const colored = (color: string) => ({ ...tileBot(color), avatar: { shape: "circle", color } });
+  assert.equal(freeColor([colored("white"), colored("red")]), "brown");
+  assert.equal(freeColor(AVATAR_COLORS.map(colored)), "amber");
 });
 
 test("sidebar: deleting the open bot opens the main bot; deleting another keeps the chat", () => {

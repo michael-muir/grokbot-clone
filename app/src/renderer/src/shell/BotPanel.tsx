@@ -1,7 +1,8 @@
 // The right-hand bot panel: the open bot's avatar and name (editable), its computer, and its model.
 import { type KeyboardEvent, type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
-import type { PublicBot } from "../../../../../server/src/types.ts";
-import { botColor, initial } from "../bot-colors.ts";
+import type { AvatarColor, AvatarShape, PublicBot } from "../../../../../server/src/types.ts";
+import { botColor, botShape } from "../bot-colors.ts";
+import { Avatar, AvatarPicker } from "./Avatar.tsx";
 import { cleanName, MAX_NAME } from "./sidebar-state.ts";
 
 export const PANEL_ID = "bot-panel";
@@ -11,6 +12,7 @@ export function BotPanel({
   providerLabel,
   onClose,
   onRename,
+  onAvatar,
   onChangeModel,
 }: {
   bot: PublicBot;
@@ -18,10 +20,24 @@ export function BotPanel({
   onClose(): void;
   /** Rejects when the gateway refuses; the field then goes back to the saved name. */
   onRename(name: string): Promise<void>;
+  /** Saves a new shape or color; the banner says why if it fails. */
+  onAvatar(avatar: { shape: AvatarShape; color: AvatarColor }): void;
   /** Opens Settings at Models & keys for this bot. */
   onChangeModel(): void;
 }) {
   const close = useRef<HTMLButtonElement>(null);
+  const avatarButton = useRef<HTMLButtonElement>(null);
+  const [picking, setPicking] = useState(false);
+  // The latest pick: each pick builds on it, not on the saved avatar, which lags while saves are on their way.
+  const [picked, setPicked] = useState<{ shape: AvatarShape; color: AvatarColor }>();
+  const shown = picked ?? { shape: botShape(bot.avatar.shape), color: botColor(bot.avatar.color) };
+
+  // Another bot: its own avatar, and the picker closed so a stray click can't restyle it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the bot changes, by design.
+  useEffect(() => {
+    setPicking(false);
+    setPicked(undefined);
+  }, [bot.id]);
 
   // Opening the panel moves focus into it, so keyboard users land on its first control.
   useEffect(() => {
@@ -31,7 +47,11 @@ export function BotPanel({
   const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
     if (e.key === "Escape" && !e.defaultPrevented) {
       e.preventDefault();
-      onClose();
+      // The picker closes first, back onto its button; the next Escape closes the panel.
+      if (picking) {
+        setPicking(false);
+        avatarButton.current?.focus();
+      } else onClose();
     }
   };
 
@@ -58,9 +78,30 @@ export function BotPanel({
         </button>
       </div>
       <div className="panel-identity">
-        <span className="avatar large" aria-hidden="true">
-          {initial(bot.name)}
-        </span>
+        <button
+          ref={avatarButton}
+          type="button"
+          className="avatar-button"
+          aria-label="Change avatar"
+          title="Change avatar"
+          aria-expanded={picking}
+          onClick={() => setPicking((v) => !v)}
+        >
+          <Avatar name={bot.name} avatar={shown} size="large" />
+        </button>
+        {picking && (
+          <div className="panel-picker">
+            <AvatarPicker
+              name={bot.name}
+              shape={shown.shape}
+              color={shown.color}
+              onChange={(avatar) => {
+                setPicked(avatar);
+                onAvatar(avatar);
+              }}
+            />
+          </div>
+        )}
         <NameField key={bot.id} saved={bot.name} onRename={onRename} />
       </div>
 
@@ -72,7 +113,7 @@ export function BotPanel({
             <span className="row-subtitle">Local folder</span>
           </span>
           <span className="computer-thumb" aria-hidden="true">
-            <span className="avatar small">{initial(bot.name)}</span>
+            <Avatar name={bot.name} avatar={bot.avatar} size="small" />
           </span>
         </div>
       </PanelSection>

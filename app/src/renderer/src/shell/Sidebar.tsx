@@ -2,7 +2,8 @@
 // the connection status.
 import { type KeyboardEvent, type MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { BotActivity, PublicBot } from "../../../../../server/src/types.ts";
-import { botColor, initial } from "../bot-colors.ts";
+import { botColor } from "../bot-colors.ts";
+import { Avatar } from "./Avatar.tsx";
 import { BotMenu } from "./BotMenu.tsx";
 import {
   type Badge,
@@ -22,6 +23,7 @@ export function Sidebar({
   connection,
   onSelect,
   onOpenSettings,
+  onNewBot,
   onMenuAction,
   refocus,
   onRefocus,
@@ -33,6 +35,8 @@ export function Sidebar({
   connection: { state: "pending" | "ok" | "failed"; text: string };
   onSelect(botId: string): void;
   onOpenSettings(): void;
+  /** Opens Create New Bot. */
+  onNewBot(): void;
   /** Resolves once the change is shown, so focus can go back to the (possibly moved) tile. */
   onMenuAction(bot: PublicBot, action: MenuAction): Promise<void>;
   /**
@@ -134,6 +138,11 @@ export function Sidebar({
         />
       )}
       <div className="sidebar-bottom">
+        <button type="button" className="sidebar-icon-button" aria-label="New bot" title="New bot" onClick={onNewBot}>
+          <svg className="icon" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>
+        </button>
         {hiddenCount > 0 && (
           <button
             type="button"
@@ -224,9 +233,7 @@ function BotTile({
         }
       }}
     >
-      <span className="avatar" aria-hidden="true">
-        {initial(bot.name)}
-      </span>
+      <Avatar name={bot.name} avatar={bot.avatar} />
       {badge && <span className="tile-badge" data-badge={badge} aria-hidden="true" />}
     </button>
   );

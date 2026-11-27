@@ -5,7 +5,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { BOT_COLORS, botColor, initial } from "../src/renderer/src/bot-colors.ts";
+import { BOT_COLORS, botColor, botShape, initial } from "../src/renderer/src/bot-colors.ts";
 
 const rendererDir = join(dirname(fileURLToPath(import.meta.url)), "..", "src", "renderer");
 const tokensFile = join(rendererDir, "src", "theme", "tokens.css");
@@ -75,6 +75,8 @@ test("the bot colors in code are exactly the theme's", () => {
   const palette = [...dark.keys()].filter((k) => k.startsWith("--color-bot-")).map((k) => k.slice(12));
   assert.deepEqual([...BOT_COLORS].sort(), palette.sort());
   assert.equal(botColor("violet"), "amber", "unknown names fall back to the default");
+  assert.equal(botShape("star"), "star");
+  assert.equal(botShape("blob"), "circle", "shapes from before #16 draw as a circle");
   assert.equal(initial("🚀 Rocket"), "🚀", "astral characters stay whole");
   assert.equal(initial("  nova"), "N");
   assert.equal(initial(""), "?");
