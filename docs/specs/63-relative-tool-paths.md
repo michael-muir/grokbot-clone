@@ -16,28 +16,32 @@ bot's computer, and the full path only when the bot reaches outside it, which is
 
 ## Design
 
-New pure module `server/src/display-path.ts`:
+New module `server/src/display-path.ts`:
 
 ```ts
-/** A path for a label: relative inside the workspace, absolute (resolved) outside it. */
+/** Relative inside the workspace, the real absolute path outside it. */
 export function displayPath(workspaceDir: string, path: string): string;
+/** displayPath, then cut to 80 characters from the left so the file name shows. */
+export function labelPath(workspaceDir: string, v: unknown): string;
 ```
 
-- The path is resolved against the workspace (a relative path is relative to it, as the tools treat it), purely
-  lexically: a label never touches the disk.
-- Inside: `relative(workspace, resolved)`, or `.` for the workspace itself.
-- Outside (the relative path starts with a `..` segment, or is absolute, as on another Windows drive): the
-  resolved absolute path, so `../../etc/passwd` shows where it really goes.
-- `node:path` compares Windows paths without regard to case, so `C:\Users\…` and `c:\users\…` match.
+- The path is resolved against the workspace (a relative path is relative to it, as the tools treat it). Both are
+  then taken to their real location: the deepest existing ancestor through `realpath`, plus the rest. A link
+  inside the workspace that points out shows where a write would really land. Claude's own file tools don't go
+  through `resolveInWorkspace`, so its approval cards depend on this. A workspace reached through a link (macOS
+  `/var` → `/private/var`) still matches.
+- Inside: `relative(workspace, target)`, or `.` for the workspace itself.
+- Outside (the relative path starts with a `..` segment, or is absolute, as on another Windows drive): the real
+  absolute path, so `../../etc/passwd` shows where it really goes.
 - A file whose name merely starts with `..` (`..notes`) is inside.
 
 `Tool.summarize(input)` becomes `summarize(input, workspaceDir)`; the loop passes the run's workspace.
-`summarizeTool(tool, input)` in the Claude provider takes `workspaceDir` too. Shortening to 80 characters
-happens after the path is made relative, so a long workspace prefix no longer pushes the file name out.
+`summarizeTool(tool, input)` in the Claude provider takes `workspaceDir` too. Both use `labelPath`, and Claude's
+other labels reuse the loop's `short`, so the two wordings can't drift.
 
 ## Interfaces
 
-- `displayPath(workspaceDir: string, path: string): string` (new)
+- `displayPath(workspaceDir: string, path: string): string` and `labelPath(workspaceDir: string, v: unknown): string` (new)
 - `Tool.summarize(input, workspaceDir)` and `summarizeTool(tool, input, workspaceDir)` (one more argument)
 
 ## Test plan
@@ -49,5 +53,4 @@ happens after the path is made relative, so a long workspace prefix no longer pu
 
 ## Risks and open questions
 
-- A workspace reached through a symlink or an 8.3 short name on Windows won't match lexically, so its paths
-  stay absolute. That's the safe direction: the label looks outside, never inside when it isn't.
+- A label reads the disk (`realpath` up the path): a few stat calls per tool call, small next to the tool.

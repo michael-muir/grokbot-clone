@@ -156,9 +156,8 @@ test("tool summaries match the status row wording", () => {
   assert.equal(writeFileTool.summarize({ path: "a.txt" }, ws), "Writing a.txt");
   assert.equal(editFileTool.summarize({ path: "a.txt" }, ws), "Editing a.txt");
   assert.equal(searchFilesTool.summarize({ pattern: "TODO" }, ws), "Searching files for TODO");
-  // An absolute path inside the workspace is shown relative; one that escapes shows where it really goes.
+  // An absolute path inside the workspace is shown relative (the rules are tested in display-path.test.ts).
   assert.equal(writeFileTool.summarize({ path: join(ws, "docs", "a.txt") }, ws), `Writing ${join("docs", "a.txt")}`);
-  assert.equal(readFileTool.summarize({ path: "../../secret" }, ws), `Reading ${resolve(ws, "..", "..", "secret")}`);
 });
 
 test("writes through a dangling link are refused", async () => {

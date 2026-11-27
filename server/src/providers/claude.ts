@@ -9,8 +9,9 @@
 //   canUseTool           -> approval card in the transcript
 import { type Options, query, type SDKAssistantMessage, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { apiErrorMessage } from "../agent/openai-compatible.ts";
+import { short } from "../agent/tools.ts";
 import { childEnv } from "../child-env.ts";
-import { displayPath } from "../display-path.ts";
+import { labelPath } from "../display-path.ts";
 import { NotConfiguredError } from "../errors.ts";
 import type { AgentProvider, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
 
@@ -301,11 +302,8 @@ class TextBlocks {
 
 /** Short, human label for a tool call, shown as a status row ("Running npm test"). Paths are workspace-relative. */
 export function summarizeTool(tool: string, input: Record<string, unknown>, workspaceDir: string): string {
-  const s = (v: unknown, max = 80) => {
-    const str = typeof v === "string" ? v : JSON.stringify(v ?? "");
-    return str.length > max ? `${str.slice(0, max - 1)}…` : str;
-  };
-  const file = (v: unknown) => s(typeof v === "string" && v ? displayPath(workspaceDir, v) : v);
+  const s = (v: unknown) => short(v);
+  const file = (v: unknown) => labelPath(workspaceDir, v);
   switch (tool) {
     case "Bash":
       return `Running ${s(input.command)}`;
