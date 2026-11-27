@@ -69,6 +69,7 @@ test("live: claude reads the answer to AskUserQuestion from a choice card", { sk
     assert.match(reply, new RegExp(`You picked ${picked}`, "i"));
   } finally {
     unsubscribe();
-    rmSync(dataDir, { recursive: true, force: true });
+    // Claude Code can hold the folder for a couple of seconds after the run on Windows (its graceful exit).
+    rmSync(dataDir, { recursive: true, force: true, maxRetries: 15, retryDelay: 200 });
   }
 });
