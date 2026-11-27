@@ -1,0 +1,74 @@
+# Install, verify and smoke-launch on one runner. Called by verify.yml and verify-macos.yml.
+name: verify-os
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: GitHub-hosted runner label
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 20
+    env:
+      ELECTRON_CACHE: ${{ github.workspace }}/.electron-cache
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+            app/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.electron-cache
+          key: electron-${{ runner.os }}-${{ hashFiles('app/package-lock.json') }}
+
+      - run: npm ci
+      - run: npm ci --prefix server
+      - run: npm ci --prefix app
+      - run: npm run verify
+
+      - name: Linux libraries for Electron
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          common="xvfb libnotify4 libnss3 libxss1 libxtst6 libgbm1 libxshmfence1 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libpango-1.0-0 libcairo2 xdg-utils"
+          if apt-cache show --no-all-versions libgtk-3-0t64 >/dev/null 2>&1; then
+            # Ubuntu 24.04 and newer renamed the transitional libraries.
+            sudo apt-get install -y --no-install-recommends $common \
+              libgtk-3-0t64 libasound2t64 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64
+          else
+            sudo apt-get install -y --no-install-recommends $common \
+              libgtk-3-0 libasound2 libatk1.0-0 libatk-bridge2.0-0 libcups2
+          fi
+
+      - name: Smoke launch
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix app run build
+          cd app
+          # The cli is a Node script that starts the downloaded Electron binary. Calling it with node
+          # avoids npm's argument parsing, which differs between shells.
+          args=(. --smoke)
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            # No display, and the hosted image cannot set up the Chromium process sandbox.
+            # The renderer's own sandbox (webPreferences.sandbox) stays on.
+            args+=(--no-sandbox --disable-gpu --disable-dev-shm-usage)
+            xvfb-run -a -s "-screen 0 1280x1024x24" node ./node_modules/electron/cli.js "${args[@]}"
+          else
+            node ./node_modules/electron/cli.js "${args[@]}"
+          fi

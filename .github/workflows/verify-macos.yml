@@ -1,0 +1,27 @@
+# macOS verify and smoke launch. Minutes cost 10×, so this does not run on every pull request.
+# It runs on Mondays at 07:15 UTC, from the Run workflow button, and when a pull request changes
+# the workflows or the per-OS platform folder.
+name: verify-macos
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - "app/src/main/platform/**"
+  schedule:
+    - cron: "15 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  macos:
+    name: macOS
+    uses: ./.github/workflows/verify-os.yml
+    with:
+      os: macos-latest
