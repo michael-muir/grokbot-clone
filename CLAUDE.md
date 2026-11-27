@@ -20,6 +20,10 @@ npm run verify              # lint + format check, typecheck, tests (must pass b
 npm run fix                 # apply Biome formatting and safe fixes
 ```
 
+Pull requests run `npm run verify` and the smoke launch on Windows and Linux. macOS runs weekly, from the
+Actions "Run workflow" button, and when a pull request changes the workflows or `app/src/main/platform/`.
+The schedule and the reason for it are in [`docs/specs/45-cross-platform-ci.md`](docs/specs/45-cross-platform-ci.md).
+
 Node 23.6 or newer. TypeScript runs natively (type stripping), so only erasable syntax is allowed.
 
 ## Layout

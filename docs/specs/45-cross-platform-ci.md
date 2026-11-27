@@ -55,7 +55,9 @@ A job that is still going after 20 minutes is cancelled. The aim is under 15 min
 | `.github/workflows/verify.yml` | Every pull request; Run workflow; push to `main` only if `verify.yml` or `verify-os.yml` changed |
 | `.github/workflows/verify-macos.yml` | Pull requests that change `.github/workflows/**` or `app/src/main/platform/**`; Mondays 07:15 UTC; Run workflow |
 
-Smoke command, from `app/` after the build: `electron . --smoke`, plus `--no-sandbox --disable-gpu` on Linux CI.
+Smoke command, from `app/` after the build: `node ./node_modules/electron/cli.js . --smoke`. That is the same
+launch as `electron . --smoke`. Calling the cli with `node` keeps the arguments intact. Linux CI adds
+`--no-sandbox`, `--disable-gpu` and `--disable-dev-shm-usage`, and runs it under `xvfb-run`.
 
 ## Test plan
 

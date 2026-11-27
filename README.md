@@ -2,6 +2,9 @@
 
 # SmartyPrompts
 
+[![Windows and Linux](https://github.com/michael-muir/smarty-prompts/actions/workflows/verify.yml/badge.svg)](https://github.com/michael-muir/smarty-prompts/actions/workflows/verify.yml)
+[![macOS](https://github.com/michael-muir/smarty-prompts/actions/workflows/verify-macos.yml/badge.svg)](https://github.com/michael-muir/smarty-prompts/actions/workflows/verify-macos.yml)
+
 A desktop agent app, its interface modeled on Grok Bot's, where each bot can run on a different model
 backend: Claude, OpenAI-compatible APIs (OpenAI, xAI, OpenRouter), local models (Ollama, LM Studio) or Gemini.
 
@@ -39,9 +42,13 @@ name, mascot and copy.
 ## Development
 
 ```bash
-npm install && npm --prefix server install
+npm install && npm --prefix server install && npm --prefix app install
 npm run verify   # lint, format check, typecheck, tests
+npm run smoke    # build the app, open it, list the bots, exit 0 on success
 ```
+
+Every pull request runs `npm run verify` and that smoke launch on Windows and Linux. macOS runs every Monday,
+from the Actions "Run workflow" button, and when a pull request changes the workflows or `app/src/main/platform/`.
 
 Work follows the [software factory process](docs/factory/PROCESS.md), and the coding standards are in
 [`CLAUDE.md`](CLAUDE.md).
