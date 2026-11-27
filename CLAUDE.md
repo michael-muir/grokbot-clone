@@ -16,6 +16,7 @@ npm --prefix server install # gateway dependencies
 npm --prefix app install    # desktop app dependencies (downloads Electron)
 npm run dev                 # open the desktop app; starts the gateway (or set GATEWAY_URL + GATEWAY_TOKEN to attach)
 npm run smoke               # build the app, open it, list the bots, exit 0 on success
+npm run review              # capture the core screens and write review/out/index.html
 npm run verify              # lint + format check, typecheck, tests (must pass before every commit)
 npm run fix                 # apply Biome formatting and safe fixes
 ```

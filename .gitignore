@@ -15,6 +15,9 @@ debug.log
 
 # design pipeline scratch output
 design/source/out/
+
+# visual review captures (npm run review)
+review/out/
 design/source/chrome-profile/
 
 # per-bot runtime data (bot computers, transcripts)

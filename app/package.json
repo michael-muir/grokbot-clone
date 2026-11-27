@@ -13,6 +13,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "smoke": "electron-vite build && electron . --smoke",
+    "review": "electron-vite build && node scripts/review.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "node --test test/*.test.ts"
   },

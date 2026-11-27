@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "npm --prefix app run dev",
     "smoke": "npm --prefix app run smoke",
+    "review": "npm --prefix app run review",
     "check": "biome check .",
     "fix": "biome check --write .",
     "typecheck": "npm --prefix server run typecheck && npm --prefix app run typecheck",
