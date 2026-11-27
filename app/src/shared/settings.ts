@@ -10,6 +10,8 @@ export interface AppSettings {
   sendWithCtrlEnter: boolean;
   /** Applied at startup only. */
   hardwareAcceleration: boolean;
+  /** The first-run flow is done (finished or put off). */
+  onboarded: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -17,6 +19,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   spellcheck: true,
   sendWithCtrlEnter: false,
   hardwareAcceleration: true,
+  onboarded: false,
 };
 
 const THEMES: readonly ThemeSetting[] = ["system", "light", "dark"];
@@ -32,6 +35,8 @@ function field<K extends keyof AppSettings>(key: K, value: unknown): AppSettings
 export function parseSettings(raw: unknown): AppSettings {
   const out: AppSettings = { ...DEFAULT_SETTINGS };
   if (!isRecord(raw)) return out;
+  // A file saved before onboarding existed belongs to someone who has already used the app.
+  if (!Object.hasOwn(raw, "onboarded")) out.onboarded = true;
   for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof AppSettings)[]) {
     const value = field(key, raw[key]);
     if (value !== undefined) (out as unknown as Record<string, unknown>)[key] = value;

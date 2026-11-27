@@ -1,0 +1,178 @@
+/* The first-run flow. Layout from reference/screens/01-launch.png (centred column, wordmark, tagline, links
+ * below); every value is a theme token. See docs/specs/14-onboarding.md. */
+
+.onboarding {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  justify-items: center;
+  padding: var(--space-10) var(--space-6) var(--space-8);
+  overflow-y: auto;
+  background: var(--color-app);
+  color: var(--color-text);
+}
+
+.onboarding-step {
+  align-self: center;
+  width: min(var(--size-onboarding), 100%);
+  animation: onboarding-in var(--duration-slow) var(--ease-out);
+}
+
+@keyframes onboarding-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+}
+
+.onboarding-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+}
+
+.onboarding-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.onboarding-wordmark {
+  margin: 0;
+  font-size: var(--text-display);
+  line-height: var(--text-display--line-height);
+  font-weight: var(--font-weight-regular);
+  letter-spacing: var(--tracking-title);
+  white-space: nowrap;
+}
+
+.onboarding-tagline {
+  margin: var(--space-6) 0 var(--space-4);
+  font-size: var(--text-xl);
+  line-height: var(--text-xl--line-height);
+  color: var(--color-text-soft);
+}
+
+.onboarding-face {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: var(--size-face);
+  height: var(--size-face);
+  border-radius: var(--radius-full);
+  background: var(--color-contrast);
+}
+
+.onboarding-eye {
+  width: var(--size-eye-w);
+  height: var(--size-eye-h);
+  border-radius: var(--radius-full);
+  background: var(--color-on-contrast);
+}
+
+.onboarding-title {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-2xl);
+  line-height: var(--text-2xl--line-height);
+  font-weight: var(--font-weight-medium);
+}
+
+.onboarding-lead {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-md);
+  line-height: var(--text-md--line-height);
+  color: var(--color-text-secondary);
+}
+
+.onboarding-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.onboarding-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  width: 100%;
+  text-align: left;
+}
+
+.onboarding-label {
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  color: var(--color-text-secondary);
+}
+
+.onboarding-input,
+.onboarding-field .select,
+.onboarding-field .select select {
+  width: 100%;
+  max-width: none;
+}
+
+.onboarding-input,
+.onboarding-field .select select {
+  height: var(--size-control);
+  padding: 0 var(--space-3);
+  border: var(--size-hairline) solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-fill);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-md);
+}
+
+.onboarding-input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.onboarding-input:disabled {
+  opacity: var(--opacity-muted);
+}
+
+.onboarding-note {
+  min-height: var(--text-sm--line-height);
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  color: var(--color-text-tertiary);
+  overflow-wrap: anywhere;
+}
+
+.onboarding-note[data-tone="ok"] {
+  color: var(--color-success);
+}
+
+.onboarding-note[data-tone="error"] {
+  color: var(--color-danger-text);
+}
+
+.onboarding-actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.onboarding-skip {
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-tertiary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.onboarding-skip:hover {
+  color: var(--color-text);
+  text-decoration: underline;
+}

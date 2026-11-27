@@ -12,6 +12,7 @@ import { Composer } from "./chat/Composer.tsx";
 import { isConfirmed, type PendingMessage } from "./chat/rows.ts";
 import { Transcript } from "./chat/Transcript.tsx";
 import { call } from "./gateway.ts";
+import { Onboarding } from "./onboarding/Onboarding.tsx";
 import { GeneralPage } from "./settings/GeneralPage.tsx";
 import { ModelsPage } from "./settings/ModelsPage.tsx";
 import { SettingsDialog, type SettingsPage } from "./settings/SettingsDialog.tsx";
@@ -35,6 +36,8 @@ export function App() {
   const [renameError, setRenameError] = useState<string>();
   const [activityError, setActivityError] = useState<string>();
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  /** The stored settings have arrived: until then, whether to onboard isn't known. */
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [settingsError, setSettingsError] = useState<string>();
   /** Open Settings: which page, and for Models & keys, which bot. */
   const [settingsOpen, setSettingsOpen] = useState<{ page: SettingsPage; botId?: string }>();
@@ -72,7 +75,14 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    window.desktop.settings.get().then(setSettings, (err: unknown) => console.warn("Couldn't read settings:", err));
+    window.desktop.settings.get().then(
+      (s) => {
+        setSettings(s);
+        setSettingsLoaded(true);
+      },
+      // Without them, onboarding stays off: better than asking someone who set up long ago.
+      (err: unknown) => console.warn("Couldn't read settings:", err),
+    );
     const stopChange = window.desktop.settings.onChange(setSettings);
     const stopOpen = window.desktop.settings.onOpen(() => setSettingsOpen((open) => open ?? { page: "general" }));
     return () => {
@@ -87,6 +97,17 @@ export function App() {
       setSettingsError(undefined);
     } catch (err) {
       setSettingsError(`Couldn't save the setting: ${message(err)}`);
+    }
+  }, []);
+
+  /** Onboarding is over (finished or put off). Saving can fail; the flow closes anyway and returns next launch. */
+  const endOnboarding = useCallback(async () => {
+    setSettingsOpen(undefined); // a Settings shortcut pressed during the flow mustn't pop up over the chat
+    try {
+      setSettings(await window.desktop.settings.set({ onboarded: true }));
+    } catch (err) {
+      console.error("Couldn't save that onboarding is done:", err);
+      setSettings((s) => ({ ...s, onboarded: true }));
     }
   }, []);
 
@@ -147,6 +168,22 @@ export function App() {
   };
   const bot = bots.find((b) => b.id === selected);
   const showPanel = panelOpen && bot !== undefined;
+  const mainBot = bots[0];
+
+  // Not tied to the connection: a gateway blip mustn't unmount the flow and lose what's been entered.
+  if (settingsLoaded && !settings.onboarded && mainBot) {
+    return (
+      <Onboarding
+        bot={mainBot}
+        onDone={async (updated) => {
+          setBots((list) => list.map((b) => (b.id === updated.id ? updated : b)));
+          select(updated.id);
+          await endOnboarding();
+        }}
+        onSkip={() => void endOnboarding()}
+      />
+    );
+  }
 
   return (
     <div className="shell" data-panel={showPanel ? "open" : "closed"}>
