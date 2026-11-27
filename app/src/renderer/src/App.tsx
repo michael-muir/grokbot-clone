@@ -187,9 +187,9 @@ export function App() {
         if (action === "delete") return setDeleting({ bot, busy: false });
         if (action === "copy-id") return await navigator.clipboard.writeText(bot.id);
         if (action === "make-main") {
-          await call("updateBot", bot.id, { main: true });
-          // The order changed for every bot: take the gateway's list as it is now.
-          setBots(await call("listBots"));
+          const updated = await call("updateBot", bot.id, { main: true });
+          // The gateway moved it first and kept the others in order: the same here.
+          setBots((list) => [updated, ...list.filter((b) => b.id !== updated.id)]);
           return;
         }
         const patch =
@@ -215,14 +215,21 @@ export function App() {
     [select],
   );
 
+  /** Avatar saves, one at a time and in order, so quick picks can't land out of order; the last one wins. */
+  const avatarSaves = useRef<Promise<void>>(Promise.resolve());
+  const avatarLatest = useRef(0);
   const changeAvatar = useCallback(
-    async (botId: string, avatar: { shape: AvatarShape; color: AvatarColor }) => {
-      try {
-        replaceBot(await call("updateBot", botId, { avatar }));
-        setBotError(undefined);
-      } catch (err) {
-        setBotError(`Couldn't change the avatar: ${message(err)}`);
-      }
+    (botId: string, avatar: { shape: AvatarShape; color: AvatarColor }) => {
+      const n = ++avatarLatest.current;
+      avatarSaves.current = avatarSaves.current.then(async () => {
+        try {
+          const updated = await call("updateBot", botId, { avatar });
+          if (n === avatarLatest.current) replaceBot(updated);
+          setBotError(undefined);
+        } catch (err) {
+          setBotError(`Couldn't change the avatar: ${message(err)}`);
+        }
+      });
     },
     [replaceBot],
   );
@@ -319,7 +326,7 @@ export function App() {
           providerLabel={providers.find((p) => p.id === bot.provider)?.label ?? bot.provider}
           onClose={closePanel}
           onRename={(name) => rename(bot.id, name)}
-          onAvatar={(avatar) => void changeAvatar(bot.id, avatar)}
+          onAvatar={(avatar) => changeAvatar(bot.id, avatar)}
           onChangeModel={() => setSettingsOpen({ page: "models", botId: bot.id })}
         />
       )}

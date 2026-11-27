@@ -118,6 +118,12 @@ export type AvatarColor = (typeof AVATAR_COLORS)[number];
 export const isAvatarShape = (v: unknown): v is AvatarShape => (AVATAR_SHAPES as readonly unknown[]).includes(v);
 export const isAvatarColor = (v: unknown): v is AvatarColor => (AVATAR_COLORS as readonly unknown[]).includes(v);
 
+/** A color for a new bot: the first that no bot uses yet, so it stands apart; amber when all are taken. */
+export function freeColor(bots: readonly { avatar: { color: string } }[]): AvatarColor {
+  const used = new Set(bots.map((b) => b.avatar.color));
+  return AVATAR_COLORS.find((c) => !used.has(c)) ?? "amber";
+}
+
 /** Longest bot name, in characters. */
 export const MAX_BOT_NAME = 40;
 

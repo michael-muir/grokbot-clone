@@ -28,6 +28,16 @@ export function BotPanel({
   const close = useRef<HTMLButtonElement>(null);
   const avatarButton = useRef<HTMLButtonElement>(null);
   const [picking, setPicking] = useState(false);
+  // The latest pick: each pick builds on it, not on the saved avatar, which lags while saves are on their way.
+  const [picked, setPicked] = useState<{ shape: AvatarShape; color: AvatarColor }>();
+  const shown = picked ?? { shape: botShape(bot.avatar.shape), color: botColor(bot.avatar.color) };
+
+  // Another bot: its own avatar, and the picker closed so a stray click can't restyle it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the bot changes, by design.
+  useEffect(() => {
+    setPicking(false);
+    setPicked(undefined);
+  }, [bot.id]);
 
   // Opening the panel moves focus into it, so keyboard users land on its first control.
   useEffect(() => {
@@ -77,15 +87,18 @@ export function BotPanel({
           aria-expanded={picking}
           onClick={() => setPicking((v) => !v)}
         >
-          <Avatar name={bot.name} avatar={bot.avatar} size="large" />
+          <Avatar name={bot.name} avatar={shown} size="large" />
         </button>
         {picking && (
           <div className="panel-picker">
             <AvatarPicker
               name={bot.name}
-              shape={botShape(bot.avatar.shape)}
-              color={botColor(bot.avatar.color)}
-              onChange={onAvatar}
+              shape={shown.shape}
+              color={shown.color}
+              onChange={(avatar) => {
+                setPicked(avatar);
+                onAvatar(avatar);
+              }}
             />
           </div>
         )}

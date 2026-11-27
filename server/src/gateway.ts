@@ -8,10 +8,10 @@ import type { TranscriptStore } from "./transcript.ts";
 import {
   type AgentProvider,
   type ApprovalDecision,
-  AVATAR_COLORS,
   type Bot,
   type BotActivity,
   type EntryBody,
+  freeColor,
   MAX_BOT_NAME,
   type NewBot,
   type ProviderEvent,
@@ -57,6 +57,8 @@ export class Gateway {
   private readonly active = new Map<string, ActiveRun>();
   /** Bots being deleted: no run may start while their files go. */
   private readonly deleting = new Set<string>();
+  /** Ids of bots deleted since this gateway started; a new bot doesn't take one. */
+  private readonly retiredIds = new Set<string>();
   private readonly activityListeners = new Set<(bots: BotActivity[]) => void>();
 
   constructor(bots: BotRegistry, store: TranscriptStore, providers: ProviderRegistry, computers: ComputerManager) {
@@ -161,15 +163,18 @@ export class Gateway {
     const { main, ...patch } = change;
     if (main && patch.hidden) throw new BotRuleError("The main bot is always shown.");
     if (patch.hidden && botId === this.bots.mainId()) throw new BotRuleError("The main bot is always shown.");
-    if (main) {
-      this.bots.makeMain(botId);
-      // The main bot can't be hidden, so it can't stay hidden either.
-      if (bot.hidden) patch.hidden = false;
-    }
     const switching = patch.provider !== undefined && patch.provider !== bot.provider;
     if (switching && this.active.has(botId)) throw new BotBusyError("Can't change provider during a run.");
     if (patch.provider && !this.providers.has(patch.provider)) throw new Error(`Unknown provider ${patch.provider}`);
-    const next = this.bots.update(botId, patch);
+    // Every check is above: a refused change must not have moved the main bot.
+    // The main bot can't be hidden, so a hidden bot made main is shown again.
+    if (main && bot.hidden) patch.hidden = false;
+    let next = this.bots.update(botId, patch);
+    if (main) {
+      this.bots.makeMain(botId);
+      next = this.bots.get(botId) ?? next;
+      this.activityChanged();
+    }
     if (switching) {
       const label = this.providers.get(next.provider)?.info?.().label ?? next.provider;
       const model = next.model ? ` (${next.model})` : "";
@@ -191,14 +196,15 @@ export class Gateway {
     if (Array.from(name).length > MAX_BOT_NAME) throw new BotRuleError(`Names are at most ${MAX_BOT_NAME} characters.`);
     const all = this.bots.list();
     const main = all[0];
-    const used = new Set(all.map((b) => b.avatar.color));
     const bot: Bot = {
-      id: uniqueId(name, new Set(all.map((b) => b.id))),
+      // Not the id of a bot deleted while this gateway runs: a client may still hold a stream cursor for it, and
+      // the new bot's transcript counts from zero again.
+      id: uniqueId(name, new Set([...all.map((b) => b.id), ...this.retiredIds])),
       name,
       provider: main?.provider ?? "claude",
       ...(main?.model ? { model: main.model } : {}),
       ...(main?.baseUrl ? { baseUrl: main.baseUrl } : {}),
-      avatar: input.avatar ?? { shape: "circle", color: AVATAR_COLORS.find((c) => !used.has(c)) ?? "amber" },
+      avatar: input.avatar ?? { shape: "circle", color: freeColor(all) },
     };
     this.bots.add(bot);
     this.activityChanged();
@@ -229,6 +235,7 @@ export class Gateway {
         );
       }
       this.bots.remove(botId);
+      this.retiredIds.add(botId);
       this.activityChanged();
     } finally {
       this.deleting.delete(botId);
@@ -429,6 +436,8 @@ export type BotChange = Partial<
   main?: true;
 };
 
+const WINDOWS_DEVICE_NAMES = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/;
+
 /** A path-safe id from a name ("Nova Two" -> "nova-two"), numbered when taken ("nova-2"). */
 export function uniqueId(name: string, taken: ReadonlySet<string>): string {
   const base =
@@ -439,6 +448,8 @@ export function uniqueId(name: string, taken: ReadonlySet<string>): string {
       .replace(/^-+|-+$/g, "")
       .slice(0, 30)
       .replace(/-+$/, "") || "bot";
-  if (!taken.has(base)) return base;
-  for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
+  // The id becomes a folder name, and Windows reserves these names for devices ("con" can't be a folder).
+  const usable = (id: string) => !taken.has(id) && !WINDOWS_DEVICE_NAMES.test(id);
+  if (usable(base)) return base;
+  for (let n = 2; ; n++) if (usable(`${base}-${n}`)) return `${base}-${n}`;
 }

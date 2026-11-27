@@ -1,12 +1,6 @@
 // The sidebar's decisions as pure functions: which bots show where, each bot's menu, each tile's badge, which bots
 // have a new reply, the working button's label and target, and how a typed bot name is cleaned.
-import {
-  AVATAR_COLORS,
-  type AvatarColor,
-  type BotActivity,
-  MAX_BOT_NAME,
-  type PublicBot,
-} from "../../../../../server/src/types.ts";
+import { type BotActivity, MAX_BOT_NAME, type PublicBot } from "../../../../../server/src/types.ts";
 
 /**
  * Above the divider: the main bot (always first, always shown), then pinned bots. Below: the rest. Hidden bots
@@ -101,11 +95,8 @@ export function workingButton(
 
 export const MAX_NAME = MAX_BOT_NAME;
 
-/** A color for a new bot: the first that no bot uses yet, so it stands apart; amber when all are taken. */
-export function freeColor(bots: readonly PublicBot[]): AvatarColor {
-  const used = new Set(bots.map((b) => b.avatar.color));
-  return AVATAR_COLORS.find((c) => !used.has(c)) ?? "amber";
-}
+/** The gateway's rule, so a bot made here and one made through the API start alike. */
+export { freeColor } from "../../../../../server/src/types.ts";
 
 /** A typed bot name, trimmed and capped; undefined when nothing usable is left. */
 export function cleanName(typed: string): string | undefined {

@@ -43,6 +43,11 @@ test("bots: ids come from names, path-safe and unique", () => {
   assert.equal(uniqueId("Nova", new Set(["nova", "nova-2"])), "nova-3");
   assert.equal(uniqueId("x".repeat(100), none).length, 30);
   for (const id of ["nova", "nova-two", "cafe-bot", "bot", "nova-3"]) assert.match(id, /^[a-z0-9-]+$/);
+  // Windows reserves these as device names, so they can't be folders.
+  assert.equal(uniqueId("Con", none), "con-2");
+  assert.equal(uniqueId("NUL", none), "nul-2");
+  assert.equal(uniqueId("com1", none), "com1-2");
+  assert.equal(uniqueId("Connie", none), "connie");
 });
 
 test("bots: creating a bot gives it a unique id from its name and the main bot's model", async () => {
@@ -152,6 +157,27 @@ test("HTTP: POST /bots creates a bot, and PATCH changes avatars and the main bot
   } finally {
     server.closeAllConnections();
     server.close();
+    rmSync(t.dir, { recursive: true, force: true });
+  }
+});
+
+test("bots: a refused change doesn't move the main bot, and a deleted bot's id isn't reused", async () => {
+  const t = setup();
+  try {
+    t.gateway.createBot({ name: "Nova" });
+    assert.throws(() => t.gateway.updateBot("nova", { main: true, provider: "claude" }));
+    assert.equal(t.bots.mainId(), "main", "the refused change left the main bot alone");
+
+    let notified = 0;
+    const stop = t.gateway.subscribeActivity(() => notified++);
+    t.gateway.updateBot("nova", { main: true });
+    stop();
+    assert.ok(notified > 0, "attached clients hear that the bots changed");
+
+    t.gateway.updateBot("main", { main: true });
+    await t.gateway.deleteBot("nova");
+    assert.equal(t.gateway.createBot({ name: "Nova" }).id, "nova-2");
+  } finally {
     rmSync(t.dir, { recursive: true, force: true });
   }
 });
