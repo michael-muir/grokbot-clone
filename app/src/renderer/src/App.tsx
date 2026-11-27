@@ -178,11 +178,13 @@ export function App() {
         const patch =
           action === "pin" || action === "unpin" ? { pinned: action === "pin" } : { hidden: action === "hide" };
         replaceBot(await call("updateBot", bot.id, patch));
+        // A hidden bot has no tile to show which chat is open: go to the main bot, as after a delete.
+        if (action === "hide") setSelected((current) => afterDelete(mainId, bot.id, current));
       } catch (err) {
         setBotError(`Couldn't ${action === "copy-id" ? "copy the bot ID" : "change the bot"}: ${message(err)}`);
       }
     },
-    [replaceBot],
+    [replaceBot, mainId],
   );
 
   const confirmDelete = useCallback(async () => {

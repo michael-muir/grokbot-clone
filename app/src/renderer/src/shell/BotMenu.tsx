@@ -28,24 +28,28 @@ export function BotMenu({
   items: readonly { action: MenuAction; label: string }[];
   at: { x: number; y: number };
   onAction(action: MenuAction): void;
-  /** Closed without choosing: Escape, Tab, or a click elsewhere. */
-  onClose(): void;
+  /**
+   * Closed without choosing. `restoreFocus` for Escape and Tab; not for a click elsewhere, a blur or a resize,
+   * where focus belongs to whatever the user went to.
+   */
+  onClose(restoreFocus: boolean): void;
 }) {
   const menu = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     menu.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus();
     const outside = (e: PointerEvent) => {
-      if (!menu.current?.contains(e.target as Node)) onClose();
+      if (!menu.current?.contains(e.target as Node)) onClose(false);
     };
+    const away = () => onClose(false);
     // Capture: a click that lands on another tile still closes this menu first.
     document.addEventListener("pointerdown", outside, true);
-    window.addEventListener("blur", onClose);
-    window.addEventListener("resize", onClose);
+    window.addEventListener("blur", away);
+    window.addEventListener("resize", away);
     return () => {
       document.removeEventListener("pointerdown", outside, true);
-      window.removeEventListener("blur", onClose);
-      window.removeEventListener("resize", onClose);
+      window.removeEventListener("blur", away);
+      window.removeEventListener("resize", away);
     };
   }, [onClose]);
 
@@ -72,7 +76,7 @@ export function BotMenu({
     else if (e.key === "End") move(buttons.length - 1);
     else if (e.key === "Escape" || e.key === "Tab") {
       e.preventDefault();
-      onClose();
+      onClose(true);
     }
   };
 
@@ -124,7 +128,7 @@ export function DeleteBotDialog({
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Escape") {
       e.preventDefault();
-      onCancel();
+      if (!busy) onCancel(); // mid-delete, the answer is on its way: closing now would hide it
     } else if (e.key === "Tab") {
       // Two buttons: Tab moves between them and never leaves the dialog.
       const buttons = [...(dialog.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
@@ -157,7 +161,7 @@ export function DeleteBotDialog({
           </p>
         )}
         <div className="confirm-actions">
-          <button type="button" className="button secondary" onClick={onCancel}>
+          <button type="button" className="button secondary" disabled={busy} onClick={onCancel}>
             Cancel
           </button>
           <button type="button" className="button danger" disabled={busy} onClick={onConfirm}>

@@ -4,7 +4,7 @@
 // shared skills folder. This first step uses a local folder per bot. A
 // container-backed implementation (Docker or WSL, with noVNC for the live view)
 // can replace it without touching the gateway or providers.
-import { mkdirSync, rmdirSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
@@ -41,12 +41,7 @@ export class LocalFolderComputers implements ComputerManager {
   async remove(botId: string): Promise<void> {
     checkId(botId); // the id becomes a path: never let it climb out of bots/
     const botDir = resolve(join(this.dataDir, "bots", botId));
-    await rm(join(botDir, "computer"), { recursive: true, force: true });
-    try {
-      rmdirSync(botDir); // only once nothing else of the bot's is left
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code !== "ENOENT" && code !== "ENOTEMPTY") console.warn(`Couldn't remove ${botDir}`, err);
-    }
+    // A few retries: on Windows a file just closed by a tool can stay locked for a moment.
+    await rm(join(botDir, "computer"), { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   }
 }

@@ -66,12 +66,14 @@ export function Sidebar({
     if (hiddenCount === 0) setShowHidden(false);
   }, [hiddenCount]);
 
-  const closeMenu = useCallback(() => {
-    setMenu((open) => {
-      if (open) focusTile(open.botId);
-      return undefined;
-    });
-  }, [focusTile]);
+  const openBotId = menu?.botId;
+  const closeMenu = useCallback(
+    (restoreFocus: boolean) => {
+      setMenu(undefined);
+      if (restoreFocus && openBotId) focusTile(openBotId);
+    },
+    [focusTile, openBotId],
+  );
 
   /** Opens beside the tile, overlapping it, as in the reference. */
   const openMenu = (botId: string, tileEl: HTMLElement) => {

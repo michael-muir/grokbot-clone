@@ -6,8 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { BotRegistry } from "../src/bots.ts";
-import { LocalFolderComputers } from "../src/computer.ts";
-import { BotBusyError, BotRuleError, Gateway } from "../src/gateway.ts";
+import { type ComputerManager, LocalFolderComputers } from "../src/computer.ts";
+import { BotBusyError, BotFilesError, BotRuleError, Gateway } from "../src/gateway.ts";
 import { createHttpServer } from "../src/http.ts";
 import { Credentials, MemoryKeyStore } from "../src/keys.ts";
 import { FakeProvider } from "../src/providers/fake.ts";
@@ -125,6 +125,77 @@ test("HTTP: PATCH pinned/hidden, DELETE a bot, and the refusals", async () => {
       list.map((b: { id: string }) => b.id),
       ["main"],
     );
+  } finally {
+    server.closeAllConnections();
+    server.close();
+    rmSync(t.dir, { recursive: true, force: true });
+  }
+});
+
+test("bots: files that can't be deleted keep the bot, and no run starts while its files go", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "smarty-bots-"));
+  try {
+    const bots = new BotRegistry(dir, [
+      { id: "main", name: "Main", provider: "fake", avatar: { shape: "circle", color: "white" } },
+      { id: "nova", name: "Nova", provider: "fake", avatar: { shape: "star", color: "purple" } },
+    ]);
+    const store = new TranscriptStore(dir);
+    let release: (() => void) | undefined;
+    let fail = true;
+    const computers: ComputerManager = {
+      ensure: (id) => new LocalFolderComputers(dir).ensure(id),
+      remove: () =>
+        fail
+          ? Promise.reject(new Error("EBUSY: resource busy or locked"))
+          : new Promise<void>((r) => {
+              release = r;
+            }),
+    };
+    const providers: ProviderRegistry = new Map<ProviderId, FakeProvider>([["fake", new FakeProvider(1)]]);
+    const gateway = new Gateway(bots, store, providers, computers);
+    await (await gateway.sendMessage("nova", "hello")).done;
+
+    await assert.rejects(gateway.deleteBot("nova"), (err: unknown) => {
+      assert.ok(err instanceof BotFilesError);
+      assert.match(err.message, /Couldn't delete Nova's files: EBUSY.*try again/);
+      return true;
+    });
+    assert.ok(bots.get("nova"), "the bot is kept");
+    assert.ok(store.list("nova").length > 0, "and its conversation");
+
+    fail = false;
+    const deleting = gateway.deleteBot("nova");
+    await assert.rejects(gateway.sendMessage("nova", "wait"), BotBusyError);
+    await assert.rejects(gateway.deleteBot("nova"), BotBusyError);
+    release?.();
+    await deleting;
+    assert.equal(bots.get("nova"), undefined);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("HTTP: an open event stream for a bot ends when the bot is deleted", async () => {
+  const t = setup();
+  const server = createHttpServer({
+    gateway: t.gateway,
+    bots: t.bots,
+    store: t.store,
+    providers: t.providers,
+    credentials: new Credentials(new MemoryKeyStore(), {}),
+  });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    const stream = await fetch(`${base}/bots/nova/events`);
+    const reader = stream.body?.getReader();
+    assert.ok(reader);
+    await reader.read(); // connected
+    assert.equal((await fetch(`${base}/bots/nova`, { method: "DELETE" })).status, 204);
+    for (;;) {
+      const { done } = await reader.read();
+      if (done) break; // ended: the test would time out if it stayed open
+    }
   } finally {
     server.closeAllConnections();
     server.close();
