@@ -96,7 +96,9 @@ test("messages: only visible messages take reactions, only bot messages take rat
     assert.throws(() => t.gateway.rate("nova", mine.id, "up"), BotRuleError);
     t.gateway.rollBack("nova", later.mine.id);
     assert.throws(() => t.gateway.react("nova", later.reply.id, "👍", true), BotRuleError, "rolled back");
-    assert.throws(() => t.gateway.rate("nova", later.reply.id, "up"), BotRuleError, "rolled back");
+    assert.throws(() => t.gateway.rate("nova", later.reply.id, "up"), /isn't in the conversation anymore/);
+    assert.throws(() => t.gateway.rate("nova", run?.id ?? "", "up"), /Only the bot's replies can be rated/);
+    assert.throws(() => t.gateway.react("nova", run?.id ?? "", "👍", true), /Only messages can have reactions/);
   } finally {
     t.cleanup();
   }

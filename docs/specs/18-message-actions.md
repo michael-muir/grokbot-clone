@@ -84,11 +84,15 @@ HTTP:
 
 - **Keyboard:** arrow keys move between items, Home and End jump to the ends, and Escape or Tab closes. Focus goes
   back to the button that opened them.
-- **Closing:** a click elsewhere, scrolling the chat, a resize or the window losing focus also closes them.
+- **Closing:** a click elsewhere, the user scrolling (wheel or touch), a resize or the window losing focus also
+  closes them. Scrolls the app makes itself, like the chat following a streaming reply, leave them open.
 - **Shared code:** the menu reuses the bot menu's popup, generalized from `BotMenu` into `PopupMenu`.
 - **Portal:** popups render on `document.body`. Inside the chat, the virtualized list's transform would make
   `position: fixed` relative to the list, not the window.
-- **Toggle:** clicking the open button again closes its popup.
+- **Toggle:** clicking the button that opened a popup closes it. Each popup knows its own button, so other
+  expanded controls (a bot tile with its menu open) still count as "elsewhere".
+- **Quick toggles:** a reaction or rating toggles from what the user last chose, not from the row's last copy, so
+  two quick clicks don't both send "on".
 
 **Reactions** show under the bubble as small chips.
 
@@ -155,3 +159,13 @@ the list's transform, so the popups now render in a portal.
 
 - **Feedback goes nowhere.** It's saved and shown back to the user only. When the product has a feedback channel,
   sending it will need the owner's decision and consent.
+
+**Code review:** it found five issues, all fixed:
+
+- the toggle exception matched every expanded control;
+- streaming auto-scroll closed popups;
+- focus moved inside a state updater;
+- quick toggles read stale data;
+- a rating error mentioned reactions.
+
+The scroll fix was checked in the app: a scroll event the app makes leaves the menu open, and a wheel closes it.

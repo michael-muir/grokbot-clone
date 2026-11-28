@@ -17,37 +17,38 @@ export interface MenuItem<K extends string> {
 
 /**
  * Places the popup at `at` (window pixels), before it paints, and keeps it inside the window. Closes it on a click
- * elsewhere, the window losing focus, a resize, or a scroll (it would no longer sit by what opened it).
+ * elsewhere, the window losing focus, a resize, or the user scrolling (it would no longer sit by what opened it).
+ * Scrolls the app makes itself, like the chat following a reply as it streams, leave it open.
  */
 function usePopup(
   ref: RefObject<HTMLDivElement | null>,
   at: { x: number; y: number },
   onClose: (restoreFocus: boolean) => void,
+  opener?: RefObject<HTMLElement | null>,
 ): void {
   useEffect(() => {
     ref.current?.querySelector<HTMLButtonElement>("[role^=menuitem]")?.focus();
-    const outside = (e: PointerEvent) => {
-      const target = e.target as Element;
-      // The button that opened it toggles it on its own click; closing here would just reopen it.
-      if (target.closest?.("[aria-expanded='true']")) return;
+    const outside = (e: Event) => {
+      const target = e.target as Node;
+      // Its own button toggles it on click; closing here first would just reopen it.
+      if (opener?.current?.contains(target)) return;
       if (!ref.current?.contains(target)) onClose(false);
     };
     const away = () => onClose(false);
-    const scrolled = (e: Event) => {
-      if (!ref.current?.contains(e.target as Node)) onClose(false);
-    };
     // Capture: a click that lands on another control still closes this popup first.
     document.addEventListener("pointerdown", outside, true);
-    document.addEventListener("scroll", scrolled, true);
+    document.addEventListener("wheel", outside, { capture: true, passive: true });
+    document.addEventListener("touchmove", outside, { capture: true, passive: true });
     window.addEventListener("blur", away);
     window.addEventListener("resize", away);
     return () => {
       document.removeEventListener("pointerdown", outside, true);
-      document.removeEventListener("scroll", scrolled, true);
+      document.removeEventListener("wheel", outside, true);
+      document.removeEventListener("touchmove", outside, true);
       window.removeEventListener("blur", away);
       window.removeEventListener("resize", away);
     };
-  }, [ref, onClose]);
+  }, [ref, onClose, opener]);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -91,6 +92,7 @@ export function PopupMenu<K extends string>({
   label,
   items,
   at,
+  opener,
   onSelect,
   onClose,
 }: {
@@ -98,6 +100,8 @@ export function PopupMenu<K extends string>({
   label: string;
   items: readonly MenuItem<K>[];
   at: { x: number; y: number };
+  /** The button that opened it, which toggles it: a click there isn't a click elsewhere. */
+  opener?: RefObject<HTMLElement | null>;
   onSelect(key: K): void;
   /**
    * Closed without choosing. `restoreFocus` for Escape and Tab; not for a click elsewhere, a blur, a scroll or a
@@ -106,7 +110,7 @@ export function PopupMenu<K extends string>({
   onClose(restoreFocus: boolean): void;
 }) {
   const menu = useRef<HTMLDivElement>(null);
-  usePopup(menu, at, onClose);
+  usePopup(menu, at, onClose, opener);
   const onKeyDown = useMenuKeys(menu, "vertical", onClose);
 
   // In a portal: inside the chat, an ancestor's transform (the virtualized list) would make "fixed" mean relative
@@ -170,17 +174,19 @@ export function ReactionPicker({
   choices,
   chosen,
   at,
+  opener,
   onSelect,
   onClose,
 }: {
   choices: readonly string[];
   chosen: readonly string[];
   at: { x: number; y: number };
+  opener?: RefObject<HTMLElement | null>;
   onSelect(emoji: string): void;
   onClose(restoreFocus: boolean): void;
 }) {
   const picker = useRef<HTMLDivElement>(null);
-  usePopup(picker, at, onClose);
+  usePopup(picker, at, onClose, opener);
   const onKeyDown = useMenuKeys(picker, "horizontal", onClose);
 
   return createPortal(

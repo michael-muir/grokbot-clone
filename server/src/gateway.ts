@@ -404,7 +404,7 @@ export class Gateway {
    * reactions now. They stay on this machine: the model never sees them.
    */
   react(botId: string, entryId: string, emoji: string, on: boolean): string[] {
-    const entry = this.visibleMessage(botId, entryId);
+    const entry = this.visibleMessage(botId, entryId, "Only messages can have reactions.");
     if (!isReaction(emoji)) throw new BotRuleError("That reaction isn't one of the choices.");
     const now = entry.reactions ?? [];
     const next = on ? (now.includes(emoji) ? now : [...now, emoji]) : now.filter((r) => r !== emoji);
@@ -415,20 +415,19 @@ export class Gateway {
 
   /** Sets (or with null clears) the user's rating of a bot message. Kept on this machine, never sent anywhere. */
   rate(botId: string, entryId: string, vote: Feedback | null): Feedback | null {
-    const entry = this.visibleMessage(botId, entryId);
+    const entry = this.visibleMessage(botId, entryId, "Only the bot's replies can be rated.");
     if (entry.body.kind !== "assistant_text") throw new BotRuleError("Only the bot's replies can be rated.");
     if ((entry.feedback ?? null) !== vote) this.store.mark(botId, entryId, { feedback: vote ?? undefined });
     return vote;
   }
 
-  /** A message the user can see: theirs or the bot's, not rolled back. */
-  private visibleMessage(botId: string, entryId: string): TranscriptEntry {
+  /** A message the user can see: theirs or the bot's, not rolled back. `notOne` is what to say about anything else. */
+  private visibleMessage(botId: string, entryId: string, notOne: string): TranscriptEntry {
     if (!this.bots.get(botId)) throw new BotNotFoundError(`Unknown bot ${botId}`);
     const entry = this.store.get(botId, entryId);
-    const kind = entry?.body.kind;
-    if (!entry || entry.hidden || (kind !== "user_message" && kind !== "assistant_text")) {
-      throw new BotRuleError("That isn't a message you can react to.");
-    }
+    if (!entry || entry.hidden) throw new BotRuleError("That message isn't in the conversation anymore.");
+    const kind = entry.body.kind;
+    if (kind !== "user_message" && kind !== "assistant_text") throw new BotRuleError(notOne);
     return entry;
   }
 

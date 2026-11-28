@@ -142,9 +142,17 @@ function MessageActions({
   context: RowContext;
 }) {
   const [popup, setPopup] = useState<Popup>();
+  const popupNow = useRef(popup);
+  popupNow.current = popup;
   const [copied, setCopied] = useState(false);
   const reactButton = useRef<HTMLButtonElement>(null);
   const moreButton = useRef<HTMLButtonElement>(null);
+  // What the user last chose, ahead of the gateway's copy: a second click before the update arrives toggles from
+  // here, not from what the row last showed. A new copy of the entry resets it.
+  const [mine, setMine] = useState({ reactions: entry.reactions ?? [], feedback: entry.feedback });
+  useEffect(() => {
+    setMine({ reactions: entry.reactions ?? [], feedback: entry.feedback });
+  }, [entry]);
 
   useEffect(() => {
     if (!copied) return;
@@ -159,10 +167,9 @@ function MessageActions({
     setPopup({ kind, at: { x: r.left, y: r.bottom + POPUP_GAP_PX } });
   };
   const close = useCallback((restoreFocus: boolean) => {
-    setPopup((current) => {
-      if (restoreFocus) (current?.kind === "react" ? reactButton : moreButton).current?.focus();
-      return undefined;
-    });
+    const kind = popupNow.current?.kind;
+    setPopup(undefined);
+    if (restoreFocus) (kind === "react" ? reactButton : moreButton).current?.focus();
   }, []);
 
   const text = entry.body.kind === "user_message" || entry.body.kind === "assistant_text" ? entry.body.text : "";
@@ -177,10 +184,10 @@ function MessageActions({
             key: "up" as const,
             label: "Good response",
             icon: MORE_ICONS.up,
-            checked: entry.feedback === "up",
+            checked: mine.feedback === "up",
             startsGroup: true,
           },
-          { key: "down" as const, label: "Bad response", icon: MORE_ICONS.down, checked: entry.feedback === "down" },
+          { key: "down" as const, label: "Bad response", icon: MORE_ICONS.down, checked: mine.feedback === "down" },
         ]
       : []),
   ];
@@ -192,7 +199,11 @@ function MessageActions({
         () => {}, // the chat shows the error
       );
     } else if (key === "roll-back") context.rollBack(entry);
-    else void context.rate(entry, entry.feedback === key ? null : key);
+    else {
+      const vote = mine.feedback === key ? null : key;
+      setMine((m) => ({ ...m, feedback: vote ?? undefined }));
+      void context.rate(entry, vote);
+    }
   };
 
   return (
@@ -249,17 +260,30 @@ function MessageActions({
       {popup?.kind === "react" && (
         <ReactionPicker
           choices={REACTIONS}
-          chosen={entry.reactions ?? []}
+          chosen={mine.reactions}
           at={popup.at}
+          opener={reactButton}
           onSelect={(emoji) => {
             close(true);
-            void context.react(entry, emoji, !(entry.reactions ?? []).includes(emoji));
+            const on = !mine.reactions.includes(emoji);
+            setMine((m) => ({
+              ...m,
+              reactions: on ? [...m.reactions, emoji] : m.reactions.filter((r) => r !== emoji),
+            }));
+            void context.react(entry, emoji, on);
           }}
           onClose={close}
         />
       )}
       {popup?.kind === "more" && (
-        <PopupMenu label="Message actions" items={more} at={popup.at} onSelect={choose} onClose={close} />
+        <PopupMenu
+          label="Message actions"
+          items={more}
+          at={popup.at}
+          opener={moreButton}
+          onSelect={choose}
+          onClose={close}
+        />
       )}
     </div>
   );
