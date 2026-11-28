@@ -26,6 +26,7 @@ ACP talks to the local CLI over stdio. No Cursor endpoint is called by us: the C
     - tool calls as steps;
     - Cursor's permission requests as approval cards;
     - sessions, resumed with `session/load`;
+    - checkpoints and forks (roll back, threads), emulated with a turn log;
     - the bot's model;
     - Stop.
   - Isolation from the user's own Cursor setup.
@@ -34,9 +35,6 @@ ACP talks to the local CLI over stdio. No Cursor endpoint is called by us: the C
   - A short live check on the owner's signed-in account.
   - Sharing the stdio JSON-RPC client with the Codex provider, instead of a second copy.
 - **Out:**
-  - **Checkpoints.** Cursor's agent has no `session/fork`, so a Cursor run reports no checkpoint. Roll back and a
-    new thread then start a fresh Cursor session, which the gateway already does for providers without
-    checkpoints. The thread's first message still carries what the thread is about.
   - **Usage.** ACP reports no token counts, so Cursor runs record none.
   - **Signing in from our app.** The user runs `cursor-agent login`.
   - **Cursor's own questions** (`cursor/ask_question`, sent as a permission request with answer options). Each is
@@ -65,15 +63,17 @@ session's `cwd`.
 1. `initialize {protocolVersion: 1, clientCapabilities: {fs: {readTextFile: false, writeTextFile: false},
    terminal: false}}`. Cursor's agent then uses its own tools; we offer no file or terminal access of ours.
 2. The session:
-   - **Resume:** with `sessionId`, `session/load {sessionId, cwd, mcpServers: []}`. Cursor replays the
+   - **Fork:** with `sessionId` and `resumeAt`, `session/new` (see checkpoints below).
+   - **Resume:** with only `sessionId`, `session/load {sessionId, cwd, mcpServers: []}`. Cursor replays the
      conversation as `session/update`s before it answers. Those are history, not this run, so updates are ignored
      until the answer comes.
    - **New:** otherwise `session/new {cwd, mcpServers: []}`.
 
    The session id is emitted as `session`.
 3. **Model:** with `model`, `session/set_model {sessionId, modelId}`.
-4. **The prompt:** `session/prompt {sessionId, prompt: [{type: "text", text}]}`. The bot's instructions go first in
-   the text of a new session's first prompt, as ACP has no system prompt field.
+4. **The prompt:** `session/prompt {sessionId, prompt: [{type: "text", text}]}`. ACP has no system prompt field.
+   So a new session's first prompt carries the bot's instructions, and on a fork the earlier conversation
+   (`firstPrompt`).
 
 **Events** (`session/update`, by `update.sessionUpdate`):
 
@@ -91,10 +91,21 @@ The outcome comes from `session/prompt`'s `stopReason`:
 - `refusal` gives `failed` ("The model declined to answer.");
 - an error reply gives `failed` with its message.
 
+**Checkpoints and forks.** Cursor's agent has no `session/fork`, and the contract asks for checkpoints, so the
+provider emulates them:
+
+- **The turn log.** It keeps a text log of each session's turns: the prompt, and the reply's text. It uses the
+  existing `SessionStore`, under `<cursor-home>/sessions`.
+- **The checkpoint.** After each finished or stopped turn, the checkpoint is how many messages the log holds.
+- **A fork** (`resumeAt`) opens a new Cursor session. Its first prompt carries the conversation up to that
+  checkpoint, as `<earlier_conversation>`, and the original session is left as it was.
+- **What a fork keeps.** Only text carries over; the tool calls of earlier turns don't. A failed turn isn't logged.
+
 **Permissions:** `session/request_permission {toolCall, options}`.
 
 - **Approval requests.** When the options include `allow-once`, it's a real approval. It becomes a card: the tool
-  from `kind`, `title` as the summary, and `rawInput` as the input.
+  from `kind`, `title` as the summary, and `rawInput` as the input. If the request has no input, the input of the
+  matching `tool_call` is used; Cursor sends it there.
   - Allow gives `allow-once`, and deny gives the `reject-once` option.
   - `allow-always` is never chosen: standing grants are the gateway's.
   - Stop gives `{outcome: "cancelled"}`.
@@ -149,6 +160,7 @@ class CursorProvider implements AgentProvider   // id "cursor"
   constructor(opts: { homeDir: string; connect?: (cwd: string, signal: AbortSignal) => Promise<LineConnection>; command?: string; stopGraceMs?: number })
 function isolatedEnv(homeDir: string, env?: NodeJS.ProcessEnv, platform?: NodeJS.Platform): NodeJS.ProcessEnv
 function workspaceHooks(workspaceDir: string): string | undefined   // the first hook file found
+function firstPrompt(instructions: string, history: ChatMessage[], prompt: string): string
 ```
 
 ## Test plan
@@ -163,7 +175,9 @@ Other tests (`cursor.test.ts`):
 - **Sessions:**
   - `session/load` for a session, and its replay isn't emitted;
   - `session/new` otherwise, with the instructions in the first prompt;
-  - the model set with `session/set_model`.
+  - the model set with `session/set_model`;
+  - each turn's checkpoint;
+  - a fork replays only the turns up to its checkpoint, in a new session, and leaves the original whole.
 - **Permissions:**
   - allow and deny map to `allow-once` and `reject-once`;
   - Stop during one sends `cancelled`;
@@ -174,10 +188,33 @@ Other tests (`cursor.test.ts`):
 - **Codex** still passes its tests on the shared plumbing.
 
 **Live check:** with the owner's signed-in Cursor. Through the gateway, a bot on Cursor is asked for a one-line
-reply with no tools. Check that it streams and finishes, and that a second message resumes the same session.
+reply with no tools. Check that:
+
+- it streams and finishes;
+- a second message resumes the same session;
+- a roll back forks into a new session.
 
 ## Risks and open questions
 
 - **The ACP command is hidden.** See the owner's decision above.
 - **Global skills.** Skills Cursor serves for the account, not from local files, still show in its command list.
   They're instructions, not tools.
+
+## Manual check (2026-11-28)
+
+On the owner's signed-in Cursor CLI (2026.11.19), through a gateway on a throwaway data dir. The bot is "Cursor
+check", switched to Cursor, on the default model (Auto):
+
+1. **"Reply with … the word hello. Use no tools."** It streamed "hello" and finished in 7.1 s, with checkpoint
+   `{session, "2"}`. Settings listed Cursor as configured.
+2. **A second message.** It resumed the same session ("again"), with checkpoint `"4"`.
+3. **A roll back to before the second message, then "What was the first word you replied with?"** It forked into a
+   new session and answered "hello": the replayed turn carried over, and the rolled-back one didn't show.
+4. **"Run the shell command `echo smarty-check` …"** An approval card appeared: Bash, "`echo smarty-check`".
+   - Approving it ran the command: the status row was done, and the reply was "smarty-check".
+   - This found that the card's input was empty: Cursor sends the input with the tool call. That's fixed, and a
+     test covers it.
+5. **Isolation.** The bots' Cursor home (`<data>/cursor-home`) held only the CLI's own fresh files, with none of
+   the owner's MCP servers, hooks or settings, and the sign-in still worked.
+6. **The `.cmd` shim.** It started through the shell with no Node warning.
+

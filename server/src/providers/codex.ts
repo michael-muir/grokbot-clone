@@ -10,12 +10,15 @@
 //
 // Isolation: the user's Codex setup brings plugins (computer use, browser), their MCP servers and a notify hook.
 // A bot mustn't inherit tools that act outside its workspace, so every run switches those off (codexArgs).
-import { type ChildProcess, execFile, spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { delimiter, isAbsolute, join } from "node:path";
+import { execFile } from "node:child_process";
 import { childEnv } from "../child-env.ts";
 import { NotConfiguredError } from "../errors.ts";
 import type { AgentProvider, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
+import { findExecutable, type Json, type LineConnection, launchSpec, Rpc, spawnLines } from "./stdio-rpc.ts";
+
+/** A connection to one `codex app-server` process. Tests replace it with a scripted server. */
+export type CodexConnection = LineConnection;
+export { findExecutable };
 
 /** Codex features that reach outside the workspace or run code at turn ends: off for every bot run. */
 export const DISABLED_FEATURES = [
@@ -53,15 +56,6 @@ export function codexArgs(mcpNames: readonly string[]): string[] {
   ];
 }
 
-/** A line-based connection to one app-server process. Tests replace it with a scripted server. */
-export interface CodexConnection {
-  send(line: string): void;
-  onLine(fn: (line: string) => void): void;
-  /** Called once if the process ends; `detail` is the end of its stderr. */
-  onExit(fn: (detail: string) => void): void;
-  close(): void;
-}
-
 export interface CodexOptions {
   /** Opens the connection for a run in `cwd`, giving up when `signal` fires. Defaults to spawning `codex app-server`. */
   connect?: (cwd: string, signal: AbortSignal) => Promise<CodexConnection>;
@@ -71,150 +65,9 @@ export interface CodexOptions {
   stopGraceMs?: number;
 }
 
-type Json = Record<string, unknown>;
 const isRecord = (v: unknown): v is Json => typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
-
-/** The process's last stderr lines, kept for an error message. Codex gets no keys (childEnv), so none can show. */
-const TAIL_CHARS = 400;
-
-/**
- * How to launch `command`: npm installs Codex on Windows as a `.cmd` shim, which only a shell can start. That's safe
- * here because every argument is one of ours: fixed flags, and MCP names already limited to word characters.
- */
-function launchSpec(command: string): { file: string; shell: boolean } {
-  const file = findExecutable(command) ?? command;
-  return { file, shell: process.platform === "win32" && /\.(cmd|bat)$/i.test(file) };
-}
-
-function spawnCodex(command: string, args: string[], cwd: string): CodexConnection {
-  const { file, shell } = launchSpec(command);
-  const child: ChildProcess = spawn(shell ? `"${file}"` : file, args, {
-    cwd,
-    env: childEnv(),
-    windowsHide: true,
-    shell,
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-  let buffer = "";
-  let tail = "";
-  const lineHandlers: ((line: string) => void)[] = [];
-  const exitHandlers: ((detail: string) => void)[] = [];
-  let exited = false;
-  const exit = (detail: string) => {
-    if (exited) return;
-    exited = true;
-    for (const h of exitHandlers) h(detail);
-  };
-  child.stdout?.setEncoding("utf8");
-  child.stdout?.on("data", (chunk: string) => {
-    buffer += chunk;
-    for (let i = buffer.indexOf("\n"); i >= 0; i = buffer.indexOf("\n")) {
-      const line = buffer.slice(0, i).trim();
-      buffer = buffer.slice(i + 1);
-      if (line) for (const h of lineHandlers) h(line);
-    }
-  });
-  child.stderr?.setEncoding("utf8");
-  child.stderr?.on("data", (chunk: string) => {
-    tail = (tail + chunk).slice(-TAIL_CHARS);
-  });
-  child.on("error", (err) => exit(err.message));
-  // A write after Codex died, before "exit" arrives, is EPIPE: that ends the run, not the gateway.
-  child.stdin?.on("error", (err) => {
-    console.warn(`codex: couldn't write to Codex (${err.message})`);
-    exit(tail.trim().split("\n").at(-1) || err.message);
-  });
-  child.on("exit", () => exit(tail.trim().split("\n").at(-1) ?? ""));
-  return {
-    send: (line) => {
-      if (!exited) child.stdin?.write(`${line}\n`);
-    },
-    onLine: (fn) => lineHandlers.push(fn),
-    onExit: (fn) => exitHandlers.push(fn),
-    close: () => {
-      child.stdin?.end();
-      if (!exited) child.kill();
-    },
-  };
-}
-
-/** JSON-RPC over a CodexConnection: requests, notifications, and answering the server's requests. */
-class Rpc {
-  private next = 1;
-  private readonly pending = new Map<number, { resolve(v: unknown): void; reject(e: Error): void }>();
-  private onNotify: (method: string, params: Json) => void = () => {};
-  private onRequest: (method: string, params: Json) => Promise<unknown> = async () => {
-    throw new Error("not supported here");
-  };
-  private readonly conn: CodexConnection;
-  ended: string | undefined;
-
-  constructor(conn: CodexConnection) {
-    this.conn = conn;
-    conn.onLine((line) => this.receive(line));
-    conn.onExit((detail) => {
-      this.ended = detail || "Codex stopped.";
-      for (const p of this.pending.values()) p.reject(new Error(this.ended));
-      this.pending.clear();
-    });
-  }
-
-  handle(notify: (method: string, params: Json) => void, request: (method: string, params: Json) => Promise<unknown>) {
-    this.onNotify = notify;
-    this.onRequest = request;
-  }
-
-  request(method: string, params: Json): Promise<Json> {
-    if (this.ended !== undefined) return Promise.reject(new Error(this.ended));
-    const id = this.next++;
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve: (v) => resolve(isRecord(v) ? v : {}), reject });
-      this.conn.send(JSON.stringify({ jsonrpc: "2.0", id, method, params }));
-    });
-  }
-
-  notify(method: string, params?: Json): void {
-    this.conn.send(JSON.stringify({ jsonrpc: "2.0", method, ...(params ? { params } : {}) }));
-  }
-
-  private receive(line: string): void {
-    let msg: unknown;
-    try {
-      msg = JSON.parse(line);
-    } catch {
-      console.warn("codex: a line that isn't JSON was ignored");
-      return;
-    }
-    if (!isRecord(msg)) return;
-    const method = typeof msg.method === "string" ? msg.method : undefined;
-    const params = isRecord(msg.params) ? msg.params : {};
-    if (method && msg.id !== undefined) {
-      // A request from Codex: answer it, even when we can't do what it asks.
-      const id = msg.id;
-      this.onRequest(method, params).then(
-        (result) => this.conn.send(JSON.stringify({ jsonrpc: "2.0", id, result })),
-        (err: unknown) =>
-          this.conn.send(
-            JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32601, message: (err as Error).message } }),
-          ),
-      );
-      return;
-    }
-    if (method) {
-      this.onNotify(method, params);
-      return;
-    }
-    if (typeof msg.id === "number") {
-      const p = this.pending.get(msg.id);
-      if (!p) return;
-      this.pending.delete(msg.id);
-      if (isRecord(msg.error)) p.reject(new Error(str(msg.error.message) || "Codex refused the request."));
-      else p.resolve(msg.result);
-    }
-  }
-}
 
 export class CodexProvider implements AgentProvider {
   readonly id = "codex" as const;
@@ -247,7 +100,7 @@ export class CodexProvider implements AgentProvider {
       conn.close();
       throw new Error("Stopped.");
     }
-    const rpc = new Rpc(conn);
+    const rpc = new Rpc(conn, "Codex");
     const abort = () => conn.close();
     signal.addEventListener("abort", abort, { once: true });
     try {
@@ -277,7 +130,7 @@ export class CodexProvider implements AgentProvider {
       conn.close();
       return { status: "interrupted", sessionId: req.sessionId };
     }
-    const rpc = new Rpc(conn);
+    const rpc = new Rpc(conn, "Codex");
     let threadId: string | undefined; // set from Codex's answer; until then nothing is filtered by thread
     let turnId: string | undefined;
     const openText = new Map<string, string>(); // item id -> text streamed so far
@@ -462,16 +315,16 @@ export class CodexProvider implements AgentProvider {
   private async spawnIsolated(cwd: string, signal: AbortSignal): Promise<CodexConnection> {
     const names = await this.enabledMcpServers(cwd, signal);
     signal.throwIfAborted();
-    return spawnCodex(this.command, ["app-server", ...codexArgs(names)], cwd);
+    return spawnLines(this.command, ["app-server", ...codexArgs(names)], cwd, childEnv(), "Codex");
   }
 
   /** The MCP servers the user's Codex config still enables, once plugins are off: only their names are read. */
   private enabledMcpServers(cwd: string, signal: AbortSignal): Promise<string[]> {
     const args = [...codexArgs([]), "mcp", "list", "--json"];
-    const { file, shell } = launchSpec(this.command);
-    const opts = { cwd, env: childEnv(), windowsHide: true, timeout: 20_000, signal, shell };
+    const launch = launchSpec(this.command, args);
+    const opts = { cwd, env: childEnv(), windowsHide: true, timeout: 20_000, signal, shell: launch.shell };
     return new Promise((resolve, reject) => {
-      execFile(shell ? `"${file}"` : file, args, opts, (err, stdout) => {
+      execFile(launch.file, launch.args, opts, (err, stdout) => {
         if (err) return reject(new Error(err.message.split("\n")[0] ?? "codex mcp list failed"));
         try {
           resolve(enabledMcpNames(stdout));
@@ -498,26 +351,6 @@ export function enabledMcpNames(stdout: string): string[] {
     throw new Error("Codex listed its MCP servers in a form this app doesn't read.");
   }
   return list.filter((s: Json) => s.enabled !== false).map((s: Json) => str(s.name));
-}
-
-/** Where `command` resolves: a path that exists, or the first match on the PATH (with Windows' extensions). */
-export function findExecutable(
-  command: string,
-  env: NodeJS.ProcessEnv = process.env,
-  exists: (path: string) => boolean = existsSync,
-): string | undefined {
-  if (isAbsolute(command) || command.includes("/") || command.includes("\\")) {
-    return exists(command) ? command : undefined;
-  }
-  const exts = process.platform === "win32" ? ["", ...(env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";")] : [""];
-  for (const dir of (env.PATH ?? env.Path ?? "").split(delimiter)) {
-    if (!dir) continue;
-    for (const ext of exts) {
-      const path = join(dir, command + ext.toLowerCase());
-      if (exists(path)) return path;
-    }
-  }
-  return undefined;
 }
 
 /** Our approval decision in the shape Codex asked for (the v2 requests, or the legacy ones). */
