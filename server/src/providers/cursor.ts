@@ -211,7 +211,7 @@ export class CursorProvider implements AgentProvider {
   async listModels(signal: AbortSignal): Promise<string[]> {
     const cwd = mkdtempSync(join(tmpdir(), "smarty-cursor-models-"));
     let conn: LineConnection | undefined;
-    const abort = () => conn?.close();
+    const abort = () => conn?.close(true);
     let exited: Promise<void> | undefined;
     signal.addEventListener("abort", abort, { once: true });
     try {
@@ -410,6 +410,7 @@ export class CursorProvider implements AgentProvider {
       graceTimer = setTimeout(() => {
         closeOpen();
         logTurn();
+        conn.close(true); // it didn't answer the cancel: no waiting for it to save
         finish({ status: "interrupted", sessionId: sid() });
       }, this.stopGraceMs);
     };

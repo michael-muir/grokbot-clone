@@ -96,8 +96,11 @@ export interface HttpDeps {
   modelLists?: ModelLists;
 }
 
+/** The deps a request sees: the model lists are always there. */
+type Deps = HttpDeps & { modelLists: ModelLists };
+
 export function createHttpServer(given: HttpDeps): Server {
-  const deps: HttpDeps = { ...given, modelLists: given.modelLists ?? new ModelLists(given.providers) };
+  const deps: Deps = { ...given, modelLists: given.modelLists ?? new ModelLists(given.providers) };
   return createServer((req, res) => {
     const refused = refuseForeignRequest(req, deps.allowedOrigins ?? []);
     if (refused) return send(res, 403, { error: refused });
@@ -109,7 +112,7 @@ export function createHttpServer(given: HttpDeps): Server {
   });
 }
 
-async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): Promise<void> {
+async function handle(req: IncomingMessage, res: ServerResponse, d: Deps): Promise<void> {
   if (d.token && !authorized(req, d.token)) return send(res, 401, { error: "Unauthorized" });
   const url = new URL(req.url ?? "/", "http://localhost");
   const parts = url.pathname.split("/").filter(Boolean);
@@ -364,7 +367,7 @@ async function handleProviders(
   res: ServerResponse,
   parts: string[],
   method: string,
-  d: HttpDeps,
+  d: Deps,
 ): Promise<void> {
   if (parts.length === 1 && method === "GET") {
     const list = [...d.providers.values()].map(
@@ -384,7 +387,7 @@ async function handleProviders(
   if (action === "PUT key" || action === "DELETE key") {
     if (!acceptsKey(provider.id)) return send(res, 400, { error: "This provider doesn't use an API key" });
     try {
-      d.modelLists?.forget(provider.id);
+      d.modelLists.forget(provider.id);
       if (method === "DELETE") d.credentials.delete(provider.id);
       else {
         const body = await readJson(req);
@@ -413,8 +416,7 @@ async function handleProviders(
       }
     }
     try {
-      const lists = d.modelLists ?? new ModelLists(d.providers);
-      const models = await lists.get(provider.id, { ...(baseUrl ? { baseUrl } : {}), cached });
+      const models = await d.modelLists.get(provider.id, { ...(baseUrl ? { baseUrl } : {}), cached });
       return send(res, 200, method === "POST" ? { ok: true, models } : { models });
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);

@@ -14,6 +14,8 @@ export class ModelLists {
   private readonly now: () => number;
   private readonly kept = new Map<string, { models: string[]; at: number }>();
   private readonly loading = new Map<string, Promise<string[]>>();
+  /** Bumped by forget(): a load started before it doesn't store its list. */
+  private readonly generation = new Map<ProviderId, number>();
 
   constructor(providers: ProviderRegistry, ttlMs = MODEL_LIST_TTL_MS, now: () => number = Date.now) {
     this.providers = providers;
@@ -33,20 +35,26 @@ export class ModelLists {
     if (opts.cached && kept && this.now() - kept.at < this.ttlMs) return Promise.resolve(kept.models);
     const inFlight = this.loading.get(key);
     if (inFlight) return inFlight;
+    const started = this.generation.get(id) ?? 0;
     const load = provider
       .listModels(AbortSignal.timeout(LOAD_TIMEOUT_MS), opts.baseUrl)
       .then((models) => {
-        this.kept.set(key, { models, at: this.now() });
+        if ((this.generation.get(id) ?? 0) === started) this.kept.set(key, { models, at: this.now() });
         return models;
       })
-      .finally(() => this.loading.delete(key));
+      .finally(() => {
+        if (this.loading.get(key) === load) this.loading.delete(key);
+      });
     this.loading.set(key, load);
     return load;
   }
 
   /** Forgets a provider's lists: a new key can change what it offers. */
   forget(id: ProviderId): void {
-    for (const key of this.kept.keys()) if (key.startsWith(`${id}\n`)) this.kept.delete(key);
+    this.generation.set(id, (this.generation.get(id) ?? 0) + 1);
+    for (const key of [...this.kept.keys()]) if (key.startsWith(`${id}\n`)) this.kept.delete(key);
+    // A load already running was for the old key: the next ask starts a new one.
+    for (const key of [...this.loading.keys()]) if (key.startsWith(`${id}\n`)) this.loading.delete(key);
   }
 
   /** Loads lists in the background, so the picker has them when it opens. Failures are only logged. */

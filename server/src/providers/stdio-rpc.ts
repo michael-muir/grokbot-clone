@@ -12,9 +12,10 @@ const str = (v: unknown): string => (typeof v === "string" ? v : "");
 export interface LineConnection {
   send(line: string): void;
   onLine(fn: (line: string) => void): void;
-  /** Called once if the process ends; `detail` is the end of its stderr. */
+  /** Called once when the process ends (at once if it already has); `detail` is the end of its stderr. */
   onExit(fn: (detail: string) => void): void;
-  close(): void;
+  /** Ends the process: by closing its input so it can save, or with `now` (a Stop or a timeout) by killing it. */
+  close(now?: boolean): void;
 }
 
 /** The process's last stderr, kept for an error message. Callers pass an env without keys, so none can show. */
@@ -41,6 +42,15 @@ export function launchSpec(command: string, args: readonly string[]): { file: st
 
 /** How long a closed process may take to exit on its own before it's killed. */
 export const EXIT_GRACE_MS = 3000;
+
+/** Every agent process still running, so the gateway can end them all when it exits. */
+const running = new Set<ChildProcess>();
+
+/** Kills every agent process still running, with its tree. For the gateway's shutdown. */
+export function endAllNow(): void {
+  for (const child of running) killTree(child);
+  running.clear();
+}
 
 /** Kills a process and everything it started. */
 function killTree(child: ChildProcess): void {
@@ -78,9 +88,11 @@ export function spawnLines(
   const lineHandlers: ((line: string) => void)[] = [];
   const exitHandlers: ((detail: string) => void)[] = [];
   let exited = false;
+  let exitDetail = "";
   const exit = (detail: string) => {
     if (exited) return;
     exited = true;
+    exitDetail = detail;
     for (const h of exitHandlers) h(detail);
   };
   child.stdout?.setEncoding("utf8");
@@ -102,9 +114,11 @@ export function spawnLines(
     console.warn(`${name.toLowerCase()}: couldn't write to ${name} (${err.message})`);
     exit(tail.trim().split("\n").at(-1) || err.message);
   });
+  running.add(child);
   let gone = false; // the process itself has exited (not just a failed write)
   child.on("exit", () => {
     gone = true;
+    running.delete(child);
     exit(tail.trim().split("\n").at(-1) ?? "");
   });
   return {
@@ -112,12 +126,19 @@ export function spawnLines(
       if (!exited) child.stdin?.write(`${line}\n`);
     },
     onLine: (fn) => lineHandlers.push(fn),
-    onExit: (fn) => exitHandlers.push(fn),
+    onExit: (fn) => {
+      if (exited) fn(exitDetail);
+      else exitHandlers.push(fn);
+    },
     // Closing input lets the CLI finish and save (Cursor writes its conversation on the way out). Only one that
     // doesn't exit in time is killed, with its whole tree: on Windows the child may be a .cmd shim.
-    close: () => {
+    close: (now = false) => {
       child.stdin?.end();
       if (gone) return;
+      if (now) {
+        killTree(child);
+        return;
+      }
       const timer = setTimeout(() => {
         if (!gone) killTree(child);
       }, exitGraceMs);

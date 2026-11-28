@@ -103,7 +103,7 @@ export class CodexProvider implements AgentProvider {
       throw new Error("Stopped.");
     }
     const rpc = new Rpc(conn, "Codex");
-    const abort = () => conn.close();
+    const abort = () => conn.close(true);
     signal.addEventListener("abort", abort, { once: true });
     try {
       await this.initialize(rpc);
@@ -364,10 +364,14 @@ export function enabledMcpNames(stdout: string): string[] {
  * the card's input keeps the whole line.
  */
 export function shownCommand(command: string): string {
-  const wrapped = /^"?[^"]*?(?:powershell|pwsh)(?:\.exe)?"?\s+(?:-NoProfile\s+)?-Command\s+'([\s\S]*)'$/i.exec(
-    command.trim(),
-  );
-  return wrapped?.[1] !== undefined ? wrapped[1].replaceAll("''", "'") : command;
+  // Only Codex's exact form: one quoted argument, nothing after it. Inside single quotes '' is a quote; double
+  // quotes hold no quote at all. Anything else is shown whole, so a card never hides part of a command.
+  const wrapped =
+    /^"?[^"]*?(?:powershell|pwsh)(?:\.exe)?"?\s+(?:-NoProfile\s+)?-Command\s+(?:'((?:[^']|'')*)'|"([^"]*)")$/i.exec(
+      command.trim(),
+    );
+  if (!wrapped) return command;
+  return wrapped[1] !== undefined ? wrapped[1].replaceAll("''", "'") : (wrapped[2] ?? command);
 }
 
 /** Our approval decision in the shape Codex asked for (the v2 requests, or the legacy ones). */

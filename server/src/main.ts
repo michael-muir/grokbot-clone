@@ -7,6 +7,7 @@ import { createHttpServer } from "./http.ts";
 import { Credentials, KeychainKeyStore } from "./keys.ts";
 import { ModelLists } from "./model-lists.ts";
 import { defaultProviders } from "./providers/index.ts";
+import { endAllNow } from "./providers/stdio-rpc.ts";
 import { BotSecrets, KeychainSecretStore } from "./secrets.ts";
 import { TranscriptStore } from "./transcript.ts";
 
@@ -64,10 +65,13 @@ function shutdown(reason: string) {
   server.closeAllConnections();
   const forced = setTimeout(() => {
     console.error("Runs didn't stop in time; exiting anyway.");
+    endAllNow();
     process.exit(1);
   }, SHUTDOWN_GRACE_MS);
   void gateway.shutdown().then(() => {
     clearTimeout(forced);
+    // Agent CLIs still closing would outlive the gateway (Windows doesn't end children with their parent).
+    endAllNow();
     process.exit(0);
   });
 }

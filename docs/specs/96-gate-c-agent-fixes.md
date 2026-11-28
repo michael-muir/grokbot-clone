@@ -24,6 +24,15 @@ This change: Nothing escapes the workspace through it: commands still run
 under `approvalPolicy: "untrusted"` and the `workspace-write` sandbox, so each one asks first. The #25 spec is
 updated.
 
+**Known gap until Phase 4.** Codex's `untrusted` policy runs commands it considers known-safe reads (`ls`, `cat`
+and the like) without asking. Its sandbox limits writes, not reads, and Codex has no "always ask" policy. Its
+policies are `untrusted`, `on-request`, `never` and a granular form.
+
+- **Windows.** Every command is wrapped in PowerShell, so none counts as known-safe. A probe of `type
+  C:\Windows\win.ini`, outside the workspace, asked first, and a denial blocked it.
+- **macOS and Linux.** A known-safe read outside the workspace may run without a card. Phase 4 (Gate D: no bot
+  tool touches the host) runs bots away from the host, which closes this.
+
 ## 2. Cursor bots fail with "Invalid params" after the first message
 
 **Cause, as first found.** The owner's Cursor bot answered its first message, then every later one failed. The failing call is
@@ -90,6 +99,18 @@ folder is removed after it exits, without holding up the answer.
 - **Keys.** Saving or removing a provider's key forgets its lists.
 - **Warm-up.** On start the gateway loads the Codex and Cursor lists in the background, when they're set up. Each
   failure is logged, and nothing is shown.
+
+## Review changes
+
+- **Key changes.** A list loading when a key changes isn't stored, and the next ask starts a new load (a generation
+  per provider).
+- **Stop and timeouts close at once:** `close(true)`. An aborted model listing and a Cursor that didn't answer
+  its cancel are killed without the grace.
+- **Shutdown.** It ends every agent process still running (`endAllNow`). Windows doesn't end children with their
+  parent.
+- **Late handlers.** `onExit` added after the exit is called at once.
+- **Unwrapping.** `shownCommand` unwraps only Codex's exact form. That's one single- or double-quoted argument with
+  nothing after it; anything else shows whole.
 
 ## Interfaces
 

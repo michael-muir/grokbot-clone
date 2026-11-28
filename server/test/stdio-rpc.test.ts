@@ -1,7 +1,7 @@
 // Closing an agent CLI (#96): its input is closed so it can save and exit; only one that stays is killed.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { spawnLines } from "../src/providers/stdio-rpc.ts";
+import { endAllNow, spawnLines } from "../src/providers/stdio-rpc.ts";
 
 /** Spawns node running `script`, as an agent CLI would be. */
 function child(script: string, exitGraceMs: number) {
@@ -36,4 +36,26 @@ test("stdio: a CLI that ignores its closed input is killed after the grace perio
   await exited;
   const waited = Date.now() - closedAt;
   assert.ok(waited >= 150 && waited < 5000, `killed after the grace (${waited} ms)`);
+});
+
+test("stdio: a Stop or timeout kills at once, and onExit after the end is called right away", async () => {
+  const { conn, exited } = child("setInterval(() => {}, 1000);", 10_000);
+  await new Promise((r) => setTimeout(r, 300));
+  const closedAt = Date.now();
+  conn.close(true);
+  await exited;
+  assert.ok(Date.now() - closedAt < 3000, "no grace period");
+  const late = await new Promise<boolean>((resolve) => {
+    conn.onExit(() => resolve(true));
+    setTimeout(() => resolve(false), 100);
+  });
+  assert.equal(late, true, "a handler added after the exit still hears of it");
+});
+
+test("stdio: at shutdown every agent process still running is ended", async () => {
+  const { exited } = child("setInterval(() => {}, 1000);", 10_000);
+  await new Promise((r) => setTimeout(r, 300));
+  endAllNow();
+  const ms = await exited;
+  assert.ok(ms < 5000);
 });

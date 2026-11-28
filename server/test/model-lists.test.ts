@@ -93,3 +93,20 @@ test("model lists: warming loads set-up providers in the background and only log
     console.warn = warn;
   }
 });
+
+test("model lists: a load from before a key change never comes back as the current list", async () => {
+  const { cursor, lists } = setup();
+  let open: () => void = () => {};
+  cursor.gate = new Promise((r) => {
+    open = r;
+  });
+  const old = lists.get("cursor", { cached: true });
+  lists.forget("cursor"); // the key changed while the old list was loading
+  cursor.gate = Promise.resolve();
+  const fresh = lists.get("cursor", { cached: true });
+  assert.notEqual(fresh, old, "a new ask doesn't join the old load");
+  open();
+  await old;
+  assert.deepEqual(await fresh, ["model-2"]);
+  assert.deepEqual(await lists.get("cursor", { cached: true }), ["model-2"], "the old list wasn't stored");
+});

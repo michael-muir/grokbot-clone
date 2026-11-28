@@ -441,4 +441,9 @@ test("codex: a command Codex wraps in PowerShell is shown as the user would type
   assert.equal(shownCommand(ps), "echo hi");
   assert.equal(shownCommand(String.raw`pwsh.exe -NoProfile -Command 'echo ''quoted'''`), "echo 'quoted'");
   assert.equal(shownCommand("ls -la"), "ls -la", "anything else as it is");
+  const doubled = String.raw`"C:\WINDOWS\powershell.exe" -NoProfile -Command "type C:\Windows\win.ini"`;
+  assert.equal(shownCommand(doubled), String.raw`type C:\Windows\win.ini`);
+  // Not Codex's form: something follows the quoted part, so the whole line shows.
+  const tricky = "powershell -Command 'echo a' ; Remove-Item x ; 'b'";
+  assert.equal(shownCommand(tricky), tricky);
 });
