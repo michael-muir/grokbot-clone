@@ -31,8 +31,11 @@ import { ConfirmDialog, DeleteBotDialog } from "./shell/BotMenu.tsx";
 import { BotPanel, PANEL_ID } from "./shell/BotPanel.tsx";
 import { CreateBotDialog } from "./shell/CreateBotDialog.tsx";
 import { noteActivity } from "./shell/face-director.ts";
+import { type PaletteChoice, SearchPalette } from "./shell/SearchPalette.tsx";
+import { ShortcutsDialog } from "./shell/ShortcutsDialog.tsx";
 import { Sidebar } from "./shell/Sidebar.tsx";
-import { afterDelete, freeColor, type MenuAction, nextUnread } from "./shell/sidebar-state.ts";
+import { matchShortcut } from "./shell/shortcuts.ts";
+import { afterDelete, freeColor, type MenuAction, nextUnread, sidebarLayout } from "./shell/sidebar-state.ts";
 import "./shell/shell.css";
 
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -56,6 +59,11 @@ export function App() {
   const [freshening, setFreshening] = useState<{ bot: PublicBot; busy: boolean; error?: string }>();
   /** Create New Bot is open. */
   const [creating, setCreating] = useState(false);
+  /** The search palette and the shortcuts sheet (#23). */
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  /** A message to scroll to and highlight, from the palette; `n` makes the same message count again. */
+  const [jump, setJump] = useState<{ botId: string; entryId: string; threadId?: string; n: number }>();
   /** A sidebar tile to focus after the next change renders (see Sidebar). */
   const [refocus, setRefocus] = useState<{ botId: string }>();
   const [activityError, setActivityError] = useState<string>();
@@ -284,6 +292,82 @@ export function App() {
   const bot = bots.find((b) => b.id === selected);
   const showPanel = panelOpen && bot !== undefined;
   const mainBot = bots[0];
+  const isMac = navigator.platform.startsWith("Mac");
+  /** The bots as the sidebar shows them (hidden ones aside): the order of Go to bot and Previous / next bot. */
+  const order = useMemo(() => {
+    const { top, rest } = sidebarLayout(bots, false);
+    return [...top, ...rest];
+  }, [bots]);
+  const anyDialog = paletteOpen || shortcutsOpen || creating || !!deleting || !!freshening || !!settingsOpen;
+
+  // The app's keyboard shortcuts (#23): one listener, only while no dialog is open (a dialog keeps its keys).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || anyDialog) return;
+      const hit = matchShortcut(e, isMac);
+      if (!hit) return;
+      e.preventDefault();
+      switch (hit.action) {
+        case "search":
+          return setPaletteOpen(true);
+        case "new-bot":
+          return setCreating(true);
+        case "shortcuts":
+          return setShortcutsOpen(true);
+        case "focus-chat":
+          return document.querySelector<HTMLTextAreaElement>(".composer textarea")?.focus();
+        case "details":
+          return panelOpen ? closePanel() : setPanelOpen(true);
+        case "go-to-bot": {
+          const target = order[hit.index ?? 0];
+          if (target) select(target.id);
+          return;
+        }
+        case "previous-bot":
+        case "next-bot": {
+          if (order.length === 0) return;
+          const at = order.findIndex((b) => b.id === selected);
+          const step = hit.action === "next-bot" ? 1 : -1;
+          const target = order[(at + step + order.length) % order.length];
+          if (target) select(target.id);
+          return;
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [anyDialog, isMac, order, selected, select, panelOpen, closePanel]);
+
+  const choose = useCallback(
+    (choice: PaletteChoice) => {
+      setPaletteOpen(false);
+      if (choice.kind === "bot") return select(choice.botId);
+      if (choice.kind === "message") {
+        const { botId, entryId, threadId } = choice.hit;
+        select(botId);
+        setJump((j) => ({ botId, entryId, ...(threadId ? { threadId } : {}), n: (j?.n ?? 0) + 1 }));
+        return;
+      }
+      switch (choice.id) {
+        case "new-bot":
+          return setCreating(true);
+        case "shortcuts":
+          return setShortcutsOpen(true);
+        case "settings":
+          return setSettingsOpen({ page: "general" });
+        case "models":
+          return setSettingsOpen({ page: "models", ...(selected ? { botId: selected } : {}) });
+        case "usage":
+          return setSettingsOpen({ page: "usage" });
+        case "start-fresh": {
+          const current = bots.find((b) => b.id === selected);
+          if (current) setFreshening({ bot: current, busy: false });
+          return;
+        }
+      }
+    },
+    [select, selected, bots],
+  );
 
   // Not tied to the connection: a gateway blip mustn't unmount the flow and lose what's been entered.
   if (settingsLoaded && !settings.onboarded && mainBot) {
@@ -337,6 +421,7 @@ export function App() {
             panelOpen={showPanel}
             onTogglePanel={() => (panelOpen ? closePanel() : setPanelOpen(true))}
             settings={settings}
+            jump={jump?.botId === bot.id ? jump : undefined}
           />
         ) : (
           connected && <p className="muted">No bot selected.</p>
@@ -375,6 +460,15 @@ export function App() {
           }}
         />
       )}
+      {paletteOpen && (
+        <SearchPalette
+          bots={order}
+          currentBotName={bot?.name}
+          onChoose={choose}
+          onClose={() => setPaletteOpen(false)}
+        />
+      )}
+      {shortcutsOpen && <ShortcutsDialog isMac={isMac} onClose={() => setShortcutsOpen(false)} />}
       {freshening && (
         <ConfirmDialog
           title="Start a new conversation?"
@@ -429,12 +523,15 @@ function Chat({
   panelOpen,
   onTogglePanel,
   settings,
+  jump,
 }: {
   bot: PublicBot;
   pill: RefObject<HTMLButtonElement | null>;
   panelOpen: boolean;
   onTogglePanel(): void;
   settings: AppSettings;
+  /** A message to show: opens its thread if it's in one, scrolls to it and highlights it. */
+  jump?: { entryId: string; threadId?: string; n: number };
 }) {
   const [view] = useState(() => new TranscriptView());
   const entries = useSyncExternalStore(
@@ -447,6 +544,10 @@ function Chat({
   const [pending, setPending] = useState<PendingMessage[]>([]);
   /** The open thread, by its root message's id; the main chat when undefined. */
   const [thread, setThread] = useState<string>();
+  // A jump from the palette opens the message's conversation: its thread, or the main chat.
+  useEffect(() => {
+    if (jump) setThread(jump.threadId);
+  }, [jump]);
   /** The message being rolled back to, while its confirmation is open. */
   const [rolling, setRolling] = useState<{ entry: TranscriptEntry; busy: boolean; error?: string }>();
   /** A rolled-back message's text, for the composer. */
@@ -612,6 +713,7 @@ function Chat({
         thread={thread}
         replies={replies}
         waiting={waiting}
+        focus={jump && jump.threadId === thread ? { entryId: jump.entryId, n: jump.n } : undefined}
         label={thread === undefined ? `Conversation with ${bot.name}` : `Thread with ${bot.name}`}
       />
       {problem ? (

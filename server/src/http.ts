@@ -7,6 +7,7 @@
 //   PUT   /providers/:id/key             {key}  -> 204, saved in the OS keychain (never returned)
 //   DELETE /providers/:id/key                   -> 204
 //   POST  /providers/:id/test            {baseUrl?} -> {ok, models} or {ok: false, error}
+//   GET   /search?q=                      each bot's latest message, and the messages that contain q
 //   GET   /usage?days=7|30|90             token and cost totals per day and per bot
 //   GET   /bots
 //   POST  /bots                          {name, avatar?: {shape, color}}    -> 201 with the bot
@@ -40,6 +41,7 @@ import {
 } from "./gateway.ts";
 import { acceptsKey, type Credentials, KeyStoreUnavailableError, needsKey } from "./keys.ts";
 import type { ProviderRegistry } from "./providers/index.ts";
+import { MAX_QUERY, searchTranscripts } from "./search.ts";
 import type { TranscriptStore } from "./transcript.ts";
 import {
   type AvatarColor,
@@ -112,6 +114,21 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
   if (method === "GET" && url.pathname === "/health") return send(res, 200, { ok: true });
   if (parts[0] === "providers") return handleProviders(req, res, parts, method, d);
   if (parts[0] === "activity" && parts.length === 1 && method === "GET") return streamActivity(res, d);
+  if (parts[0] === "search" && parts.length === 1 && method === "GET") {
+    const q = url.searchParams.get("q") ?? "";
+    if (q.length > MAX_QUERY) return send(res, 400, { error: `Search for at most ${MAX_QUERY} characters` });
+    const bots = d.bots.list();
+    const entries = new Map(bots.map((b) => [b.id, d.store.list(b.id)]));
+    return send(
+      res,
+      200,
+      searchTranscripts(
+        bots.map((b) => b.id),
+        entries,
+        q,
+      ),
+    );
+  }
   if (parts[0] === "usage" && parts.length === 1 && method === "GET") {
     const days = Number(url.searchParams.get("days") ?? 7);
     if (!(USAGE_PERIODS as readonly number[]).includes(days))

@@ -39,6 +39,7 @@ const HANDLERS: Handlers = {
   answerChoice: (c, [botId, entryId, answer]) => done(c.answerChoice(botId, entryId, answer)),
   listProviders: (c) => c.listProviders(),
   usage: (c, [days]) => c.usage(days),
+  search: (c, [query]) => c.search(query),
   listModels: (c, [provider]) => c.listModels(provider),
   testProvider: (c, [provider, baseUrl]) => c.testProvider(provider, baseUrl),
   setKey: (c, [provider, key]) => done(c.setKey(provider, key)),

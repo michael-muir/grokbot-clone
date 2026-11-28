@@ -104,6 +104,12 @@ export function Composer({
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Escape in an empty box stops a running reply; with nothing running, it leaves a thread.
+    if (e.key === "Escape" && busy && draft === "" && !e.nativeEvent.isComposing && !stopping) {
+      e.preventDefault();
+      void stop();
+      return;
+    }
     if (e.key === "Escape" && onEscape && draft === "" && !e.nativeEvent.isComposing) {
       e.preventDefault();
       onEscape();

@@ -148,6 +148,7 @@
   --duration-face-morph: 280ms; /* a bot's eyes changing expression (the surprised look) */
   --duration-face-idle: 4000ms; /* one idle sway; face-director.ts SWAY_MS matches it */
   --duration-face-working: 1400ms; /* one sway while the bot works */
+  --duration-found: 2000ms; /* a message found by search glowing; Transcript.tsx HIGHLIGHT_MS matches it */
   --ease-face: cubic-bezier(0.4, 0.06, 0.18, 1);
   --face-surprised-scale: 1.25; /* face-motion.ts SURPRISED_SCALE matches it */
   --opacity-muted: 0.6; /* placeholders standing in for content that isn't there yet */
@@ -203,6 +204,9 @@
   --size-menu-w: 200px; /* the bot context menu (reference/screens/39-sidebar-ctx.png) */
   --size-menu-item: 34px;
   --size-dialog-w: 360px; /* small confirmation dialogs */
+  --size-palette-w: 640px; /* the search palette (reference/screens/26-search.png) */
+  --size-palette-list-h: 420px; /* its results, before they scroll */
+  --size-shortcuts-w: 900px; /* the shortcuts sheet (reference/screens/25-shortcuts.png) */
   --size-onboarding: 480px; /* the first-run flow's column */
   --size-face: 50px; /* the face beside the welcome wordmark */
   --size-eye-w: 7px;

@@ -12,6 +12,8 @@ import "./chat.css";
 
 /** Within this many pixels of the end counts as "at the bottom". */
 const FOLLOW_SLACK_PX = 40;
+/** How long a message found by search stays highlighted. */
+const HIGHLIGHT_MS = 2000;
 /** A first guess at a row's height, before it's measured. */
 const ESTIMATED_ROW_PX = 60;
 
@@ -38,6 +40,7 @@ export function Transcript({
   thread,
   replies,
   waiting,
+  focus,
   label,
 }: {
   /** The entries of this view (see rows.ts conversation()). */
@@ -51,6 +54,8 @@ export function Transcript({
   replies?: ReadonlyMap<string, number>;
   /** Threads with a card waiting for the user, marked on their replies buttons. */
   waiting?: ReadonlySet<string>;
+  /** A message to scroll to and highlight (from the search palette); `n` makes the same one count again. */
+  focus?: { entryId: string; n: number };
   /** Accessible name of the log, e.g. "Conversation with Nova". */
   label: string;
 }) {
@@ -92,6 +97,21 @@ export function Transcript({
     if (el && following.current) el.scrollTop = el.scrollHeight;
   }, [entries, pending, total]);
 
+  // Scroll to a searched-for message once its row exists (the transcript may still be loading), and highlight it.
+  const [highlight, setHighlight] = useState<string>();
+  const shown = useRef(0);
+  useEffect(() => {
+    if (!focus || shown.current === focus.n) return;
+    const index = rows.findIndex((r) => r.key === focus.entryId);
+    if (index < 0) return;
+    shown.current = focus.n;
+    following.current = false;
+    virtualizer.scrollToIndex(index, { align: "center" });
+    setHighlight(focus.entryId);
+    const timer = setTimeout(() => setHighlight(undefined), HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+  }, [focus, rows, virtualizer]);
+
   return (
     <div
       ref={scroller}
@@ -111,7 +131,12 @@ export function Transcript({
           {items.map((item) => {
             const row = rows[item.index];
             return row ? (
-              <div key={item.key} data-index={item.index} ref={virtualizer.measureElement}>
+              <div
+                key={item.key}
+                data-index={item.index}
+                data-highlight={row.key === highlight || undefined}
+                ref={virtualizer.measureElement}
+              >
                 <ChatRow row={row} context={context} />
               </div>
             ) : null;

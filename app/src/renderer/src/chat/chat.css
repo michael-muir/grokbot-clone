@@ -590,7 +590,27 @@ textarea.card-input {
   }
 }
 
+/* A message found by search: a short glow that fades (#23). */
+[data-highlight] .row-content {
+  border-radius: var(--radius-card);
+  animation: found var(--duration-found) var(--ease-out);
+}
+
+@keyframes found {
+  from {
+    background: var(--color-fill-strong);
+  }
+  to {
+    background: transparent;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  [data-highlight] .row-content {
+    background: var(--color-fill-strong);
+    animation: none;
+  }
+
   .status-line[data-state="running"] .status-label {
     background: none;
     color: var(--color-text-tertiary);

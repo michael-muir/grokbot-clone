@@ -2,6 +2,7 @@
 // stream events, and the checks main runs on everything the renderer sends.
 import type { BotPatch, ProviderTest, UsageReport } from "../../../server/src/client/gateway-client.ts";
 import type { StreamState } from "../../../server/src/client/subscribe.ts";
+import type { SearchResult } from "../../../server/src/search.ts";
 import {
   type ApprovalDecision,
   type BotActivity,
@@ -67,6 +68,8 @@ export interface Calls {
   answerApproval: { args: [botId: string, entryId: string, decision: ApprovalDecision]; result: undefined };
   answerChoice: { args: [botId: string, entryId: string, answer: string]; result: undefined };
   listProviders: { args: []; result: ProviderSummary[] };
+  /** Each bot's latest message, and the messages that contain the query (#23). */
+  search: { args: [query: string]; result: SearchResult };
   /** Token and cost totals for the last 7, 30 or 90 days. */
   usage: { args: [days: number]; result: UsageReport };
   listModels: { args: [provider: ProviderId]; result: string[] };
@@ -219,6 +222,7 @@ const ARGS: { [K in CallName]: (a: unknown[]) => a is Calls[K]["args"] } = {
   answerChoice: (a): a is [string, string, string] =>
     a.length === 3 && isId(a[0]) && isId(a[1]) && isString(a[2]) && a[2].length <= 1000,
   listProviders: (a): a is [] => a.length === 0,
+  search: (a): a is [string] => a.length === 1 && isString(a[0]) && a[0].length <= 200,
   usage: (a): a is [number] => a.length === 1 && (a[0] === 7 || a[0] === 30 || a[0] === 90),
   listModels: (a): a is [ProviderId] => a.length === 1 && isProviderId(a[0]),
   testProvider: (a): a is [ProviderId, string?] =>
