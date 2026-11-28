@@ -342,3 +342,35 @@ test("rows: a card stands alone on the bot's side, and a pending card stops Thin
   assert.deepEqual([...waitingThreads(waiting)], [root.id]);
   assert.deepEqual([...waitingThreads([root, { ...card("answered"), threadId: root.id }])], []);
 });
+
+test("rows: a cut-off run shows the app stopped mid-reply, with Resume while it's the latest run", () => {
+  seq = 0;
+  const cut = (extra: object = {}) =>
+    e({ kind: "run", provider: "fake", state: "interrupted", cutOff: true, ...extra });
+  const resumable = (rows: Row[]) =>
+    rows.flatMap((r) =>
+      r.type === "entry" && r.entry.body.kind === "run" ? [[r.entry.id, r.resumable ?? false]] : [],
+    );
+  const first = cut();
+  assert.deepEqual(resumable(buildRows([user("go"), first], NOW, "en-US")), [[first.id, true]]);
+  const later = run("finished");
+  assert.deepEqual(resumable(buildRows([user("go"), first, user("again"), later], NOW, "en-US")), [[first.id, false]]);
+  const done = cut({ resumed: true });
+  assert.deepEqual(resumable(buildRows([user("go"), done], NOW, "en-US")), [[done.id, false]]);
+  const stopped = run("interrupted");
+  assert.deepEqual(resumable(buildRows([user("go"), stopped], NOW, "en-US")), [[stopped.id, false]], "a user's Stop");
+  const again = cut();
+  const reset = e({ kind: "notice", text: "New conversation.", reset: true });
+  assert.deepEqual(
+    resumable(buildRows([user("go"), again, reset], NOW, "en-US")),
+    [[again.id, false]],
+    "after a fresh start",
+  );
+  const lost = cut();
+  const failedTry = e({ kind: "run", provider: "fake", state: "failed", resumes: lost.id });
+  assert.deepEqual(
+    resumable(buildRows([user("go"), lost, failedTry], NOW, "en-US")),
+    [[lost.id, true]],
+    "a failed resume leaves it resumable",
+  );
+});

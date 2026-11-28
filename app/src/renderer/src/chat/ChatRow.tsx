@@ -28,6 +28,8 @@ export interface RowContext {
   react(entry: TranscriptEntry, emoji: string, on: boolean): Promise<unknown>;
   /** Rates a bot message (null clears it). Failures show in the chat. */
   rate(entry: TranscriptEntry, vote: Feedback | null): Promise<unknown>;
+  /** Resumes a reply the app cut off (#22). Failures show in the chat. */
+  resumeRun(entry: TranscriptEntry): Promise<unknown>;
   /** Puts text on the clipboard; rejects (and the chat says why) when it can't. */
   copy(text: string): Promise<void>;
 }
@@ -58,7 +60,7 @@ function ChatRowView({ row, context }: { row: Row; context: RowContext }) {
   return (
     <div className="chat-row" data-side={row.side} data-gap={row.gap}>
       <div className="row-content" data-pending={row.pending || undefined}>
-        {content(row.entry, row.group, context)}
+        {content(row.entry, row.group, context, row.resumable === true)}
         <Reactions entry={entry} context={context} />
         {row.replies !== undefined && (
           <button
@@ -82,7 +84,7 @@ function ChatRowView({ row, context }: { row: Row; context: RowContext }) {
   );
 }
 
-function content(entry: TranscriptEntry, group: string, context: RowContext) {
+function content(entry: TranscriptEntry, group: string, context: RowContext, resumable = false) {
   const b = entry.body;
   switch (b.kind) {
     case "user_message":
@@ -115,9 +117,34 @@ function content(entry: TranscriptEntry, group: string, context: RowContext) {
         </p>
       );
     case "run":
-      // Only interrupted runs reach here (rows.ts hides the rest).
-      return <p className="notice">Stopped</p>;
+      // Only interrupted runs reach here (rows.ts hides the rest). One the app cut off (a crash, quitting) can be
+      // resumed while it's the latest run (#22).
+      if (!b.cutOff) return <p className="notice">Stopped</p>;
+      return (
+        <p className="notice">
+          The app stopped mid-reply{b.resumed && " · Resumed"}
+          {resumable && <ResumeButton onResume={() => context.resumeRun(entry)} />}
+        </p>
+      );
   }
+}
+
+/** Resume, once: disabled after a click until the run it starts (or an error) changes the row. */
+function ResumeButton({ onResume }: { onResume(): Promise<unknown> }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      className="button secondary small notice-action"
+      disabled={busy}
+      onClick={() => {
+        setBusy(true);
+        onResume().finally(() => setBusy(false));
+      }}
+    >
+      Resume
+    </button>
+  );
 }
 
 type Popup = { kind: "react" | "more"; at: { x: number; y: number } };
@@ -360,6 +387,7 @@ function sameRow(a: { row: Row; context: RowContext }, b: { row: Row; context: R
       x.pending === y.pending &&
       x.replies === y.replies &&
       x.waiting === y.waiting &&
+      x.resumable === y.resumable &&
       sameActions(x.actions, y.actions)
     );
   }

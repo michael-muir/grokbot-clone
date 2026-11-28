@@ -1,5 +1,6 @@
 // Turns transcript entries into display rows: which side each sits on, how bubbles group, the spacing above each
 // row, and time separators. Pure, so the layout rules are tested without rendering.
+import { isLatestCutOff } from "../../../../../server/src/runs.ts";
 import type { TranscriptEntry } from "../../../../../server/src/types.ts";
 
 export type Side = "bot" | "user" | "center";
@@ -24,6 +25,8 @@ export type Row =
       replies?: number;
       /** That thread has a card waiting for the user (main view only). */
       waiting?: boolean;
+      /** A run the app cut off that can be resumed: the latest run of this view (#22). */
+      resumable?: boolean;
       /** The hover actions this row offers. */
       actions?: RowActions;
     }
@@ -232,6 +235,7 @@ export function buildRows(
   }
   if (isThinking(entries)) items.push({ entry: "thinking", side: "bot" });
 
+  // Resume only while the cut run is still the one to resume (the gateway's rule): the latest run, no fresh start.
   const rows: Row[] = [];
   let prev: Item | undefined;
   // The latest time shown so far. Rows aren't strictly in time order (a Stopped notice moves after its run's
@@ -273,6 +277,8 @@ export function buildRows(
       const pendingRow = item.entry.id.startsWith(PENDING_PREFIX) && item.entry.seq === -1;
       const replies = view.thread === undefined ? view.replies?.get(item.entry.id) : undefined;
       const waiting = view.thread === undefined && view.waiting?.has(item.entry.id);
+      const rb = item.entry.body;
+      const resumable = rb.kind === "run" && rb.cutOff && !rb.resumed && isLatestCutOff(entries, item.entry);
       const actions = pendingRow ? undefined : actionsFor(item.entry, view.thread);
       rows.push({
         type: "entry",
@@ -285,6 +291,7 @@ export function buildRows(
         ...(pendingRow ? { pending: true } : {}),
         ...(replies ? { replies } : {}),
         ...(waiting ? { waiting: true } : {}),
+        ...(resumable ? { resumable: true } : {}),
         ...(actions ? { actions } : {}),
       });
     }

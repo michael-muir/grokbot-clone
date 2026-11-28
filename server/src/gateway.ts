@@ -5,6 +5,7 @@ import type { BotRegistry } from "./bots.ts";
 import { checkCardAnswer } from "./cards.ts";
 import type { ComputerManager } from "./computer.ts";
 import type { ProviderRegistry } from "./providers/index.ts";
+import { isLatestCutOff } from "./runs.ts";
 import { BotSecrets, MAX_SECRET_LENGTH, MemorySecretStore, SecretStoreUnavailableError } from "./secrets.ts";
 import type { TranscriptStore } from "./transcript.ts";
 import {
@@ -36,6 +37,11 @@ export const MAX_CUSTOM_ANSWER = 500;
 /** What starting fresh leaves in the chat, where the new conversation begins. */
 export const FRESH_NOTICE = "New conversation. Earlier messages stay above for reference.";
 
+/** What a resumed run asks the bot (#22): carry on, without redoing what already happened. */
+export const RESUME_PROMPT =
+  "Your last reply was cut off when the app stopped. Continue where you left off. Before redoing any step, check " +
+  "whether it was already done (files written, commands run).";
+
 /** How much of a thread's root message its first prompt quotes. */
 export const THREAD_QUOTE_CHARS = 500;
 
@@ -58,6 +64,8 @@ export class BotFilesError extends Error {}
 interface ActiveRun {
   controller: AbortController;
   done: Promise<void>;
+  /** The user pressed Stop: whatever else happens (quitting right after), this run wasn't cut off by the app. */
+  stoppedByUser?: boolean;
 }
 
 export function botInstructions(bot: Bot): string {
@@ -85,6 +93,8 @@ export class Gateway {
   /** Ids of bots deleted since this gateway started; a new bot doesn't take one. */
   private readonly retiredIds = new Set<string>();
   private readonly activityListeners = new Set<(bots: BotActivity[]) => void>();
+  /** Shutting down: runs stopped now were cut off by the app. */
+  private stopping = false;
   /** How each bot's last run ended, for activity snapshots. */
   private readonly lastRuns = new Map<string, RunOutcome["status"]>();
 
@@ -117,7 +127,7 @@ export class Gateway {
         const b = entry.body;
         const closed: EntryBody | undefined =
           b.kind === "run" && b.state === "running"
-            ? { ...b, state: "interrupted" }
+            ? { ...b, state: "interrupted", cutOff: true }
             : (b.kind === "approval" || b.kind === "choice" || b.kind === "card") && b.state === "pending"
               ? { ...b, state: "expired" }
               : b.kind === "assistant_text" && b.streaming
@@ -183,36 +193,93 @@ export class Gateway {
     const prompt = root && !stored?.sessionId ? threadPrompt(root.text, text) : text;
     const session = root ? (stored ?? this.threadStart(bot, root.id)) : mainSession(bot);
 
-    const controller = new AbortController();
-    // Claim the bot before any await, so a second message can't start a parallel run.
-    const run: ActiveRun = { controller, done: Promise.resolve() };
-    this.active.set(botId, run);
-
     const runId = randomUUID();
-    let entry: TranscriptEntry;
-    try {
+    let entry: TranscriptEntry | undefined;
+    const done = this.launch(bot, provider, prompt, { runId, threadId, session, cardKinds: [...cardKinds] }, () => {
       entry = this.store.append(
         botId,
         { kind: "user_message", text, ...(clientNonce ? { clientNonce } : {}) },
         { runId, threadId },
       );
+    });
+    if (!entry) throw new Error("The message wasn't recorded.");
+    return { entry, done };
+  }
+
+  /**
+   * Resumes a run the app cut off (#22): a new run in the same conversation and session, asked to carry on and to
+   * check before redoing anything. Only the latest run of its conversation, once, while the bot is idle.
+   */
+  resumeRun(botId: string, runId: string, cardKinds: readonly CardKind[] = []): { done: Promise<void> } {
+    const bot = this.idleBot(botId);
+    const provider = this.providers.get(bot.provider);
+    if (!provider) throw new Error(`No provider registered for ${bot.provider}`);
+    const cut = this.store.get(botId, runId);
+    const b = cut?.body;
+    if (!cut || b?.kind !== "run" || !b.cutOff || b.resumed || cut.hidden) {
+      throw new BotRuleError("Only a reply the app cut off can be resumed.");
+    }
+    const all = this.store.list(botId);
+    if (!isLatestCutOff(all, cut)) {
+      throw new BotRuleError("Only the latest reply can be resumed, and not after the conversation started over.");
+    }
+    const root = cut.threadId === undefined ? undefined : this.threadRoot(botId, cut.threadId);
+    const stored = root ? bot.threadSessions?.[root.id] : undefined;
+    const session = root ? (stored ?? this.threadStart(bot, root.id)) : mainSession(bot);
+    // The session may not hold what the run was doing: cut before it saved anything, or since moved to another
+    // provider. Then the bot is told what it was answering (and in a thread, which message the thread is about).
+    const saved = b.checkpoint !== undefined && b.provider === bot.provider && session.sessionId !== undefined;
+    const asked = all.find((e) => e.runId === runId && e.body.kind === "user_message");
+    const original = asked?.body.kind === "user_message" ? asked.body.text : undefined;
+    const prompt =
+      saved || original === undefined
+        ? RESUME_PROMPT
+        : `${RESUME_PROMPT}\n\nThe message you were answering:\n${root && !stored?.sessionId ? threadPrompt(root.text, original) : original}`;
+    // The cut run counts as resumed only once its resume didn't fail (see execute), so a failed attempt can be
+    // tried again.
+    const done = this.launch(
+      bot,
+      provider,
+      prompt,
+      { runId: randomUUID(), threadId: cut.threadId, session, cardKinds: [...cardKinds], resumes: runId },
+      () => {},
+    );
+    return { done };
+  }
+
+  /**
+   * Claims the bot, runs `record` (what must be written before the run: the user's message), and starts the run.
+   * If `record` throws, the claim is released and the error goes to the caller.
+   */
+  private launch(
+    bot: Bot,
+    provider: AgentProvider,
+    prompt: string,
+    opts: Parameters<Gateway["execute"]>[4],
+    record: () => void,
+  ): Promise<void> {
+    // Quitting: nothing new starts, or it would be cut off (or left running) by the exit under way.
+    if (this.stopping) throw new BotBusyError("The app is shutting down.");
+    const controller = new AbortController();
+    // Claim the bot before any await, so a second message can't start a parallel run.
+    const run: ActiveRun = { controller, done: Promise.resolve() };
+    this.active.set(bot.id, run);
+    try {
+      record();
     } catch (err) {
       // Release the claim, or the bot would look busy until the gateway restarts.
-      this.active.delete(botId);
+      this.active.delete(bot.id);
       throw err;
     }
     // This run's outcome replaces the last one's; if it throws before saying, it failed.
-    this.lastRuns.delete(botId);
+    this.lastRuns.delete(bot.id);
     this.activityChanged();
-    const kinds = [...cardKinds];
-    run.done = this.execute(bot, provider, prompt, controller, { runId, threadId, session, cardKinds: kinds }).finally(
-      () => {
-        if (!this.lastRuns.has(botId)) this.lastRuns.set(botId, "failed");
-        this.active.delete(botId);
-        this.activityChanged();
-      },
-    );
-    return { entry, done: run.done };
+    run.done = this.execute(bot, provider, prompt, controller, opts).finally(() => {
+      if (!this.lastRuns.has(bot.id)) this.lastRuns.set(bot.id, "failed");
+      this.active.delete(bot.id);
+      this.activityChanged();
+    });
+    return run.done;
   }
 
   /**
@@ -465,12 +532,15 @@ export class Gateway {
   interrupt(botId: string): boolean {
     const run = this.active.get(botId);
     if (!run) return false;
+    run.stoppedByUser = true;
     run.controller.abort();
     return true;
   }
 
   /** Interrupts every run and waits for each to record how it ended, so nothing is cut off mid-write. */
   async shutdown(): Promise<void> {
+    // The runs stopped here are the app's doing, not the user's: they can be resumed next time (#22).
+    this.stopping = true;
     const runs = [...this.active.values()];
     for (const run of runs) run.controller.abort();
     await Promise.allSettled(runs.map((run) => run.done));
@@ -574,11 +644,21 @@ export class Gateway {
       threadId,
       session,
       cardKinds,
-    }: { runId: string; threadId: string | undefined; session: ConversationSession; cardKinds: CardKind[] },
+      resumes,
+    }: {
+      runId: string;
+      threadId: string | undefined;
+      session: ConversationSession;
+      cardKinds: CardKind[];
+      resumes?: string;
+    },
   ): Promise<void> {
     // Everything written during this run carries its id (the run entry included) and its thread.
     const append = (body: EntryBody, id?: string) => this.store.append(bot.id, body, { id, runId, threadId });
-    const runEntry = append({ kind: "run", provider: provider.id, state: "running" }, runId);
+    const runEntry = append(
+      { kind: "run", provider: provider.id, state: "running", ...(resumes ? { resumes } : {}) },
+      runId,
+    );
     /** The session this run is on, once the provider says, and the last point it reached. */
     let sessionNow: string | undefined;
     let checkpoint: { sessionId: string; at: string } | undefined;
@@ -778,11 +858,18 @@ export class Gateway {
       if (session.sessionAt !== undefined && sessionNow === undefined) this.saveSession(bot.id, threadId, {});
     }
     this.lastRuns.set(bot.id, outcome.status);
+    // A resume that got anywhere settles the run it resumed; a failed one leaves it to try again.
+    if (resumes && outcome.status !== "failed") {
+      set(resumes, (x) => (x.kind === "run" ? { ...x, resumed: true } : x));
+    }
     set(runEntry.id, (b) =>
       b.kind === "run"
         ? {
             ...b,
             state: outcome.status,
+            ...(outcome.status === "interrupted" && this.stopping && !this.active.get(bot.id)?.stoppedByUser
+              ? { cutOff: true as const }
+              : {}),
             ...((reportedCost ?? outcome.costUsd) !== undefined ? { costUsd: reportedCost ?? outcome.costUsd } : {}),
             ...(tokens ? { usage: tokens } : {}),
             ...(sessionCost ? { sessionCost } : {}),
