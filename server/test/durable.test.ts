@@ -14,7 +14,7 @@ import { Credentials, MemoryKeyStore } from "../src/keys.ts";
 import { FakeProvider } from "../src/providers/fake.ts";
 import type { ProviderRegistry } from "../src/providers/index.ts";
 import { TranscriptStore } from "../src/transcript.ts";
-import type { EntryBody, ProviderId, TranscriptEntry } from "../src/types.ts";
+import type { AgentProvider, EntryBody, ProviderId, RunRequest, TranscriptEntry } from "../src/types.ts";
 
 function setup() {
   const dir = mkdtempSync(join(tmpdir(), "smarty-durable-"));
@@ -194,6 +194,61 @@ test("http: resume answers 202, 400 or 409", async () => {
   } finally {
     server.closeAllConnections();
     server.close();
+    t.cleanup();
+  }
+});
+
+test("durable: no resume after the conversation started over, and a stop right before quitting stays a stop", async () => {
+  const t = setup();
+  try {
+    await (await t.start().sendMessage("nova", "apples")).done;
+    const cut = crashMidRun(t);
+    const gateway = t.start();
+    gateway.startFresh("nova");
+    assert.throws(() => gateway.resumeRun("nova", cut.id), /started over/);
+
+    const run = await gateway.sendMessage("nova", "/slow");
+    await new Promise((r) => setTimeout(r, 20));
+    gateway.interrupt("nova");
+    await gateway.shutdown(); // quitting while the stopped run is still unwinding
+    await run.done;
+    const last = runOf(t.store.list("nova").findLast((e) => e.body.kind === "run"));
+    assert.equal(last?.cutOff, undefined, "the user stopped it");
+    await assert.rejects(gateway.sendMessage("nova", "hi"), /shutting down/, "nothing new starts while quitting");
+  } finally {
+    t.cleanup();
+  }
+});
+
+test("durable: a resume that fails can be tried again; one cut before any save tells the bot what it was answering", async () => {
+  const t = setup();
+  try {
+    await (await t.start().sendMessage("nova", "apples")).done;
+    // Cut before the session saved anything: no checkpoint on the run.
+    const runId = "cut-early";
+    t.store.append("nova", { kind: "user_message", text: "refactor X" }, { runId });
+    const cut = t.store.append("nova", { kind: "run", provider: "fake", state: "running" }, { id: runId, runId });
+    t.start();
+
+    const prompts: string[] = [];
+    let fail = true;
+    const fake = t.providers.get("fake") as AgentProvider;
+    const flaky: AgentProvider = {
+      id: "fake",
+      async run(req: RunRequest, cb) {
+        prompts.push(req.prompt);
+        if (fail) return { status: "failed", error: "bad key" };
+        return fake.run(req, cb);
+      },
+    };
+    const gateway = new Gateway(t.bots, t.store, new Map([["fake", flaky]]), new LocalFolderComputers(t.dir));
+    await gateway.resumeRun("nova", cut.id).done;
+    assert.equal(runOf(t.store.get("nova", cut.id))?.resumed, undefined, "a failed resume doesn't settle it");
+    fail = false;
+    await gateway.resumeRun("nova", cut.id).done;
+    assert.equal(runOf(t.store.get("nova", cut.id))?.resumed, true);
+    assert.match(prompts[0] ?? "", /The message you were answering:\nrefactor X/);
+  } finally {
     t.cleanup();
   }
 });

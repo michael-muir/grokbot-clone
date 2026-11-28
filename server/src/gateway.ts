@@ -5,6 +5,7 @@ import type { BotRegistry } from "./bots.ts";
 import { checkCardAnswer } from "./cards.ts";
 import type { ComputerManager } from "./computer.ts";
 import type { ProviderRegistry } from "./providers/index.ts";
+import { isLatestCutOff } from "./runs.ts";
 import { BotSecrets, MAX_SECRET_LENGTH, MemorySecretStore, SecretStoreUnavailableError } from "./secrets.ts";
 import type { TranscriptStore } from "./transcript.ts";
 import {
@@ -63,6 +64,8 @@ export class BotFilesError extends Error {}
 interface ActiveRun {
   controller: AbortController;
   done: Promise<void>;
+  /** The user pressed Stop: whatever else happens (quitting right after), this run wasn't cut off by the app. */
+  stoppedByUser?: boolean;
 }
 
 export function botInstructions(bot: Bot): string {
@@ -216,18 +219,30 @@ export class Gateway {
     if (!cut || b?.kind !== "run" || !b.cutOff || b.resumed || cut.hidden) {
       throw new BotRuleError("Only a reply the app cut off can be resumed.");
     }
-    const latest = this.store
-      .list(botId)
-      .filter((e) => !e.hidden && e.threadId === cut.threadId && e.body.kind === "run")
-      .at(-1);
-    if (latest?.id !== runId) throw new BotRuleError("Only the latest reply can be resumed.");
-    const session = cut.threadId === undefined ? mainSession(bot) : (bot.threadSessions?.[cut.threadId] ?? {});
+    const all = this.store.list(botId);
+    if (!isLatestCutOff(all, cut)) {
+      throw new BotRuleError("Only the latest reply can be resumed, and not after the conversation started over.");
+    }
+    const root = cut.threadId === undefined ? undefined : this.threadRoot(botId, cut.threadId);
+    const stored = root ? bot.threadSessions?.[root.id] : undefined;
+    const session = root ? (stored ?? this.threadStart(bot, root.id)) : mainSession(bot);
+    // The session may not hold what the run was doing: cut before it saved anything, or since moved to another
+    // provider. Then the bot is told what it was answering (and in a thread, which message the thread is about).
+    const saved = b.checkpoint !== undefined && b.provider === bot.provider && session.sessionId !== undefined;
+    const asked = all.find((e) => e.runId === runId && e.body.kind === "user_message");
+    const original = asked?.body.kind === "user_message" ? asked.body.text : undefined;
+    const prompt =
+      saved || original === undefined
+        ? RESUME_PROMPT
+        : `${RESUME_PROMPT}\n\nThe message you were answering:\n${root && !stored?.sessionId ? threadPrompt(root.text, original) : original}`;
+    // The cut run counts as resumed only once its resume didn't fail (see execute), so a failed attempt can be
+    // tried again.
     const done = this.launch(
       bot,
       provider,
-      RESUME_PROMPT,
+      prompt,
       { runId: randomUUID(), threadId: cut.threadId, session, cardKinds: [...cardKinds], resumes: runId },
-      () => this.store.update(botId, runId, (x) => (x.kind === "run" ? { ...x, resumed: true } : x)),
+      () => {},
     );
     return { done };
   }
@@ -243,6 +258,8 @@ export class Gateway {
     opts: Parameters<Gateway["execute"]>[4],
     record: () => void,
   ): Promise<void> {
+    // Quitting: nothing new starts, or it would be cut off (or left running) by the exit under way.
+    if (this.stopping) throw new BotBusyError("The app is shutting down.");
     const controller = new AbortController();
     // Claim the bot before any await, so a second message can't start a parallel run.
     const run: ActiveRun = { controller, done: Promise.resolve() };
@@ -515,6 +532,7 @@ export class Gateway {
   interrupt(botId: string): boolean {
     const run = this.active.get(botId);
     if (!run) return false;
+    run.stoppedByUser = true;
     run.controller.abort();
     return true;
   }
@@ -840,12 +858,18 @@ export class Gateway {
       if (session.sessionAt !== undefined && sessionNow === undefined) this.saveSession(bot.id, threadId, {});
     }
     this.lastRuns.set(bot.id, outcome.status);
+    // A resume that got anywhere settles the run it resumed; a failed one leaves it to try again.
+    if (resumes && outcome.status !== "failed") {
+      set(resumes, (x) => (x.kind === "run" ? { ...x, resumed: true } : x));
+    }
     set(runEntry.id, (b) =>
       b.kind === "run"
         ? {
             ...b,
             state: outcome.status,
-            ...(outcome.status === "interrupted" && this.stopping ? { cutOff: true as const } : {}),
+            ...(outcome.status === "interrupted" && this.stopping && !this.active.get(bot.id)?.stoppedByUser
+              ? { cutOff: true as const }
+              : {}),
             ...((reportedCost ?? outcome.costUsd) !== undefined ? { costUsd: reportedCost ?? outcome.costUsd } : {}),
             ...(tokens ? { usage: tokens } : {}),
             ...(sessionCost ? { sessionCost } : {}),

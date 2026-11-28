@@ -77,9 +77,10 @@ The owner chose **the transcript plus a Resume button** (2026-11-27), over a SQL
 
 ```ts
 EntryBody run: { …; cutOff?: true; resumed?: true; resumes?: string }
-Gateway.resumeRun(botId, runId): Promise<{ done: Promise<void> }>
-POST /bots/:id/runs/:runId/resume -> 202
-GatewayClient.resumeRun(botId, runId); IPC "resumeRun"
+Gateway.resumeRun(botId, runId, cardKinds?): { done: Promise<void> }   // synchronous; throws BotRuleError / BotBusyError
+POST /bots/:id/runs/:runId/resume {cardKinds?} -> 202
+GatewayClient.resumeRun(botId, runId, cardKinds?); IPC "resumeRun" [botId, runId, cardKinds?]
+isLatestCutOff(entries, cut): boolean    // server/src/runs.ts, shared by the gateway and the app's rows
 Row (entry) gains resumable?: true
 ```
 
@@ -113,3 +114,19 @@ Other tests:
   workspace.
 - **Claude's last moments.** If Claude Code didn't save the last moments of its session, those are lost to the bot.
   The transcript still shows them to the user.
+
+**Code review:** it found eight issues, all fixed. The changes are tested in `durable.test.ts` and `rows.test.ts`,
+except the Resume button's one click.
+
+- **After a fresh start:** a cut run can't be resumed once the conversation has a fresh start after it. The gateway
+  and the rows share the rule (`isLatestCutOff`, in a pure module the renderer can import).
+- **Threads:** a thread whose first run was cut off forks from its root (`threadStart`), as a first message does.
+- **Nothing saved:** a run cut off before its session saved anything, or now on another provider, gets the original
+  message (and in a thread, the root's quote) in its resume prompt.
+- **Failed resumes:** a cut run counts as resumed only when the resume run didn't fail. A failed attempt is skipped
+  when picking the latest run, so Resume shows again.
+- **Stop, then quit:** a user's Stop is remembered on the run (`stoppedByUser`), so quitting right after it can't
+  mark it cut off.
+- **Quitting:** no new runs start once shutdown has begun. This one was there before #22.
+- **Resume button:** it disables itself after a click.
+- **Spec:** the interfaces above now match the code.

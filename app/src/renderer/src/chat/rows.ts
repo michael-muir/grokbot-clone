@@ -1,5 +1,6 @@
 // Turns transcript entries into display rows: which side each sits on, how bubbles group, the spacing above each
 // row, and time separators. Pure, so the layout rules are tested without rendering.
+import { isLatestCutOff } from "../../../../../server/src/runs.ts";
 import type { TranscriptEntry } from "../../../../../server/src/types.ts";
 
 export type Side = "bot" | "user" | "center";
@@ -234,8 +235,7 @@ export function buildRows(
   }
   if (isThinking(entries)) items.push({ entry: "thinking", side: "bot" });
 
-  // Only the latest run of the view can be resumed: a reply after it means the conversation moved on.
-  const lastRunId = entries.findLast((e) => e.body.kind === "run")?.id;
+  // Resume only while the cut run is still the one to resume (the gateway's rule): the latest run, no fresh start.
   const rows: Row[] = [];
   let prev: Item | undefined;
   // The latest time shown so far. Rows aren't strictly in time order (a Stopped notice moves after its run's
@@ -278,7 +278,7 @@ export function buildRows(
       const replies = view.thread === undefined ? view.replies?.get(item.entry.id) : undefined;
       const waiting = view.thread === undefined && view.waiting?.has(item.entry.id);
       const rb = item.entry.body;
-      const resumable = rb.kind === "run" && rb.cutOff && !rb.resumed && item.entry.id === lastRunId;
+      const resumable = rb.kind === "run" && rb.cutOff && !rb.resumed && isLatestCutOff(entries, item.entry);
       const actions = pendingRow ? undefined : actionsFor(item.entry, view.thread);
       rows.push({
         type: "entry",

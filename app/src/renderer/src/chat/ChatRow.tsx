@@ -123,18 +123,28 @@ function content(entry: TranscriptEntry, group: string, context: RowContext, res
       return (
         <p className="notice">
           The app stopped mid-reply{b.resumed && " · Resumed"}
-          {resumable && (
-            <button
-              type="button"
-              className="button secondary small notice-action"
-              onClick={() => void context.resumeRun(entry)}
-            >
-              Resume
-            </button>
-          )}
+          {resumable && <ResumeButton onResume={() => context.resumeRun(entry)} />}
         </p>
       );
   }
+}
+
+/** Resume, once: disabled after a click until the run it starts (or an error) changes the row. */
+function ResumeButton({ onResume }: { onResume(): Promise<unknown> }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      className="button secondary small notice-action"
+      disabled={busy}
+      onClick={() => {
+        setBusy(true);
+        onResume().finally(() => setBusy(false));
+      }}
+    >
+      Resume
+    </button>
+  );
 }
 
 type Popup = { kind: "react" | "more"; at: { x: number; y: number } };

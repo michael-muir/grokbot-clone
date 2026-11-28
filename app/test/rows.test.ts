@@ -359,4 +359,18 @@ test("rows: a cut-off run shows the app stopped mid-reply, with Resume while it'
   assert.deepEqual(resumable(buildRows([user("go"), done], NOW, "en-US")), [[done.id, false]]);
   const stopped = run("interrupted");
   assert.deepEqual(resumable(buildRows([user("go"), stopped], NOW, "en-US")), [[stopped.id, false]], "a user's Stop");
+  const again = cut();
+  const reset = e({ kind: "notice", text: "New conversation.", reset: true });
+  assert.deepEqual(
+    resumable(buildRows([user("go"), again, reset], NOW, "en-US")),
+    [[again.id, false]],
+    "after a fresh start",
+  );
+  const lost = cut();
+  const failedTry = e({ kind: "run", provider: "fake", state: "failed", resumes: lost.id });
+  assert.deepEqual(
+    resumable(buildRows([user("go"), lost, failedTry], NOW, "en-US")),
+    [[lost.id, true]],
+    "a failed resume leaves it resumable",
+  );
 });
