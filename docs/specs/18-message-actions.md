@@ -86,13 +86,17 @@ HTTP:
   back to the button that opened them.
 - **Closing:** a click elsewhere, scrolling the chat, a resize or the window losing focus also closes them.
 - **Shared code:** the menu reuses the bot menu's popup, generalized from `BotMenu` into `PopupMenu`.
+- **Portal:** popups render on `document.body`. Inside the chat, the virtualized list's transform would make
+  `position: fixed` relative to the list, not the window.
+- **Toggle:** clicking the open button again closes its popup.
 
 **Reactions** show under the bubble as small chips.
 
 - Each chip is a button: "Remove 👍".
 - A message with reactions keeps them visible without hovering.
 
-**Rows** (`rows.ts`): `RowActions` becomes `{ react, thread, more: { copy, rollBack, rate } }`, all booleans.
+**Rows** (`rows.ts`): `RowActions` becomes `{ react, thread, copy, rollBack, rate }`, all booleans. The last three
+fill the More menu.
 
 **Hover bar changes:** "Roll back to here" moves from its own icon into More, as in the reference, where the bar has
 three buttons.
@@ -128,14 +132,24 @@ Other tests:
 - `transcript: mark changes an entry in place and streams it`.
 - `ipc: react and rate arguments are checked`.
 
-**Manual check:** in the app, on the fake provider, in an isolated profile.
+**Manual check, 2026-11-27.** In the app, on the fake provider, in an isolated profile on port 9411:
 
-- React to a bot message with 👍 and ❤️. The chips show, and clicking 👍 removes it.
-- Copy a message, then paste it.
-- Rate a reply as a good response, then as a bad one. The menu shows which is checked.
-- Roll back from the More menu.
-- Restart the app and check that the reactions and the rating are still there.
-- Use the keyboard alone, from the bar to the picker and the menu.
+- **Hover bar:** a bot message shows React, Reply in a thread and More, in the reference's order.
+- **Reactions:**
+  - The picker opens under its button with focus on 👍.
+  - Arrow keys and Enter react, and the chips show under the bubble.
+  - Clicking ❤️ removed it.
+  - Focus went back to "Add reaction".
+- **Copy:** the clipboard held "Nova here. You said: apples". The More button and the status region both said
+  "Copied".
+- **Rating:** "Good response" showed checked the next time the menu opened. Escape closed the menu and focus went
+  back to More.
+- **Your messages:** More has Copy and Roll back to here. Roll back to here opens #17's confirmation.
+- **Restart:** after stopping and relaunching the app on the same data, the 👍 reaction and the Good response
+  rating were still there.
+
+This check found the picker opening about 100 px off. Inside the virtualized list, `position: fixed` is relative to
+the list's transform, so the popups now render in a portal.
 
 ## Risks and open questions
 

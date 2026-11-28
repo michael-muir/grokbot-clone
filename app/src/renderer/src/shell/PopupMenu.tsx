@@ -1,6 +1,7 @@
 // Popups that open beside what opened them: a menu of actions (the bot menu, a message's More menu) and a row of
 // reactions. One place for placing them inside the window, closing them, and moving through them by keyboard.
 import { type KeyboardEvent, type ReactNode, type RefObject, useEffect, useLayoutEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 export interface MenuItem<K extends string> {
   key: K;
@@ -26,7 +27,10 @@ function usePopup(
   useEffect(() => {
     ref.current?.querySelector<HTMLButtonElement>("[role^=menuitem]")?.focus();
     const outside = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) onClose(false);
+      const target = e.target as Element;
+      // The button that opened it toggles it on its own click; closing here would just reopen it.
+      if (target.closest?.("[aria-expanded='true']")) return;
+      if (!ref.current?.contains(target)) onClose(false);
     };
     const away = () => onClose(false);
     const scrolled = (e: Event) => {
@@ -105,7 +109,9 @@ export function PopupMenu<K extends string>({
   usePopup(menu, at, onClose);
   const onKeyDown = useMenuKeys(menu, "vertical", onClose);
 
-  return (
+  // In a portal: inside the chat, an ancestor's transform (the virtualized list) would make "fixed" mean relative
+  // to it, not to the window.
+  return createPortal(
     <div ref={menu} className="bot-menu" role="menu" aria-label={label} onKeyDown={onKeyDown}>
       {items.map((item, i) => (
         <div key={item.key} role="none">
@@ -135,7 +141,8 @@ export function PopupMenu<K extends string>({
           )}
         </div>
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -176,7 +183,7 @@ export function ReactionPicker({
   usePopup(picker, at, onClose);
   const onKeyDown = useMenuKeys(picker, "horizontal", onClose);
 
-  return (
+  return createPortal(
     <div
       ref={picker}
       className="reaction-picker"
@@ -202,6 +209,7 @@ export function ReactionPicker({
           </button>
         );
       })}
-    </div>
+    </div>,
+    document.body,
   );
 }
