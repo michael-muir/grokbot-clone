@@ -39,63 +39,52 @@ textarea {
   grid-template-columns: var(--size-sidebar) minmax(0, 1fr) var(--size-panel);
 }
 
-/* Bots in the sidebar, the header pill, the panel and the pickers all use this avatar: a shape with the initial. */
+/* Bots in the sidebar, the header pill, the panel and the pickers all use this avatar: a shape with a face. */
 .avatar {
-  position: relative;
-  display: grid;
+  display: block;
   flex-shrink: 0;
-  place-items: center;
   width: var(--size-control);
   height: var(--size-control);
-  color: var(--color-on-bot);
-  font-size: var(--text-md);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: var(--tracking-tight);
 }
 
-.avatar-shape {
-  position: absolute;
-  inset: 0;
+/* The edge goes on the outer svg, a plain CSS box, so it's a full CSS pixel at every size (it keeps a white bot
+   visible on the light theme). */
+.avatar-face {
+  display: block;
   width: 100%;
   height: 100%;
   overflow: visible;
-  fill: var(--bot);
-  stroke: var(--bot);
-  stroke-width: 3;
-  stroke-linejoin: round;
   filter: var(--shadow-avatar-edge);
 }
 
-.avatar-letter {
-  position: relative;
+/* The stroke's width comes from STROKE in avatar-faces.ts (the attribute in Avatar.tsx), the one the tests check;
+   round joins are what soften the corners. */
+.avatar-body {
+  fill: var(--bot);
+  stroke: var(--bot);
+  stroke-linejoin: round;
 }
 
-/* Shapes whose middle sits low: the letter follows it. */
-.avatar[data-shape="triangle"] .avatar-letter {
-  translate: 0 18%;
-}
-
-.avatar[data-shape="cloud"] .avatar-letter,
-.avatar[data-shape="drop"] .avatar-letter {
-  translate: 0 8%;
+/* Each eye scales around its own middle, ready for blinking (#44). */
+.avatar-eye {
+  fill: var(--color-on-bot);
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 .avatar.small {
   width: var(--size-avatar-sm);
   height: var(--size-avatar-sm);
-  font-size: var(--text-xs);
 }
 
 .avatar.large {
   width: var(--size-avatar-lg);
   height: var(--size-avatar-lg);
-  font-size: var(--text-2xl);
 }
 
 .avatar.xl {
   width: var(--size-avatar-xl);
   height: var(--size-avatar-xl);
-  font-size: var(--text-3xl);
 }
 
 /* ---- Chat ---- */

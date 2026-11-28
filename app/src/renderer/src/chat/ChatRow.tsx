@@ -88,7 +88,7 @@ function StatusLine({ context, label, state }: { context: RowContext; label: str
   return (
     <div className="status-line" data-state={state}>
       <span className="status-slot" aria-hidden="true">
-        <Avatar name={context.botName} avatar={context.botAvatar} size="small" />
+        <Avatar avatar={context.botAvatar} size="small" />
       </span>
       <span className="status-label">{label}</span>
       {state === "failed" && <span className="visually-hidden">(failed)</span>}

@@ -91,7 +91,7 @@ export function CreateBotDialog({
           </button>
         </div>
         <div className="create-bot-body">
-          <Avatar name={clean ?? "?"} avatar={avatar} size="xl" showInitial={clean !== undefined} />
+          <Avatar avatar={avatar} size="xl" />
           <input
             ref={field}
             className="create-bot-name"
@@ -108,7 +108,7 @@ export function CreateBotDialog({
               }
             }}
           />
-          <AvatarPicker name={clean ?? "?"} shape={avatar.shape} color={avatar.color} onChange={setAvatar} />
+          <AvatarPicker shape={avatar.shape} color={avatar.color} onChange={setAvatar} />
           {error && (
             <p className="confirm-error" role="alert">
               {error}

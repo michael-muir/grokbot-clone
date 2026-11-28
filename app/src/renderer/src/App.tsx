@@ -500,7 +500,7 @@ function Chat({
             title={panelOpen ? "Hide bot details" : "Show bot details"}
             onClick={onTogglePanel}
           >
-            <Avatar name={bot.name} avatar={bot.avatar} size="small" />
+            <Avatar avatar={bot.avatar} size="small" />
             <span className="name">{bot.name}</span>
           </button>
         </h2>
