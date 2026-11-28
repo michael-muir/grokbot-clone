@@ -60,7 +60,7 @@
   --color-bot-purple: #905afb;
   --color-bot-pink: #fb3499;
   --color-bot-gray: #777777;
-  --color-on-bot: #121212; /* initials and faces on a bot-colored avatar, in either theme */
+  --color-on-bot: #121212; /* eyes on a bot-colored avatar, in either theme */
   --color-on-user-bubble: #ffffff;
 
   /* ---- Type ---- */
@@ -90,12 +90,9 @@
   --text-xl--line-height: 28px;
   --text-2xl: 28px; /* onboarding headlines */
   --text-2xl--line-height: 34px;
-  --text-3xl: 36px; /* the initial on the Create New Bot preview */
-  --text-3xl--line-height: 40px;
   --text-display: 60px; /* the wordmark on the welcome screen (reference/screens/01-launch.png) */
   --text-display--line-height: 64px;
 
-  --tracking-tight: -0.025em; /* avatar initials */
   --tracking-title: -0.02em; /* headlines */
   --tracking-normal: 0.01em;
   --tracking-wide: 0.015em; /* 13px UI text */

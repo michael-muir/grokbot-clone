@@ -233,7 +233,7 @@ function BotTile({
         }
       }}
     >
-      <Avatar name={bot.name} avatar={bot.avatar} />
+      <Avatar avatar={bot.avatar} />
       {badge && <span className="tile-badge" data-badge={badge} aria-hidden="true" />}
     </button>
   );

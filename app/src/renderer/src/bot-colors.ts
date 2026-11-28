@@ -14,6 +14,3 @@ export const botColor = (color: string): BotColor => (isBotColor(color) ? color 
 
 /** A bot's shape; names from before shapes existed (or unknown ones) draw as a circle. */
 export const botShape = (shape: string): AvatarShape => (isShape(shape) ? shape : "circle");
-
-/** The avatar letter: the first character, emoji and other astral characters kept whole. */
-export const initial = (name: string): string => (Array.from(name.trim())[0] ?? "?").toUpperCase();
