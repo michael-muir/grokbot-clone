@@ -152,12 +152,17 @@ Above, plus:
 | An answered card locks | `cards: … locked with its answer` (a second answer is `not-pending`); manual check: controls disabled after answering |
 | The answer reaches the same run | `cards: the answer reaches the same run` |
 
-**Manual check:** in the app, on the fake provider.
+**Manual check, 2026-11-27.** In the app, on the fake provider, in an isolated profile on port 9411:
 
-- Send `/widget`, pick Medium. The reply comes in the same run, and the card locks showing Medium.
-- Send `/form`. Submit stays disabled until the name is filled. Submit with the checkbox on: the reply lists both
-  values, and the form locks.
-- Check the keyboard and focus.
+- **Widget:**
+  - `/widget` showed "Which size?" with lettered Small, Medium and Large.
+  - Picking Medium locked the card: every option disabled, Medium highlighted, and "Answered: Medium".
+  - The reply "Got it: "Medium"" came in the same run.
+- **Form:**
+  - `/form` showed "Sign up" with a required Name, marked *, and a checkbox.
+  - "Sign up" (the submit label) stayed disabled until the name was filled.
+  - After filling "Ada", ticking the box and submitting, the reply listed both values.
+  - The form locked (inputs disabled, "Sent"), and focus moved to the result line.
 
 ## Risks and open questions
 
