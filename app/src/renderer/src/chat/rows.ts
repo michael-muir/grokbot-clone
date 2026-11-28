@@ -29,10 +29,16 @@ export type Row =
     }
   | { type: "thinking"; key: string; side: "bot"; group: GroupPos; gap: Gap };
 
-/** What a message's hover bar offers: reply in a thread (main view), roll back to it (your own messages). */
+/**
+ * What a message's hover bar offers (36-msg-hover): react; reply in a thread (main view); and in More, copy, roll
+ * back to it (your own messages) and rate it (the bot's).
+ */
 export interface RowActions {
+  react: boolean;
   thread: boolean;
+  copy: boolean;
   rollBack: boolean;
+  rate: boolean;
 }
 
 /** What one view shows: the main chat (`thread` undefined), or one thread, by its root's id. */
@@ -167,14 +173,15 @@ export function isConfirmed(p: PendingMessage, entries: readonly TranscriptEntry
 const PENDING_PREFIX = "pending-";
 
 /**
- * A message's hover actions. In the main chat: reply in a thread (yours and the bot's), roll back (yours). In a
- * thread: roll back its own messages; its root belongs to the main chat and has none here.
+ * A message's hover actions. Every message: react and copy. Yours: roll back; the bot's: rate. In the main chat:
+ * reply in a thread. A thread's root belongs to the main chat and has none in the thread.
  */
 function actionsFor(entry: TranscriptEntry, thread: string | undefined): RowActions | undefined {
   const kind = entry.body.kind;
   if (kind !== "user_message" && kind !== "assistant_text") return undefined;
   if (thread !== undefined && entry.id === thread) return undefined;
-  return { thread: thread === undefined, rollBack: kind === "user_message" };
+  const mine = kind === "user_message";
+  return { react: true, thread: thread === undefined, copy: true, rollBack: mine, rate: !mine };
 }
 
 export function buildRows(

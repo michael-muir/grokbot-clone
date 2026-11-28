@@ -19,6 +19,8 @@
 //   POST  /bots/:id/interrupt                           -> 202, 409 when idle
 //   POST  /bots/:id/fresh                               -> 200, starts the conversation over; 409 while busy
 //   POST  /bots/:id/rollback             {entryId}      -> 200 {text}; 400 unless a visible user message; 409 busy
+//   POST  /bots/:id/entries/:entryId/reactions {emoji, on} -> 200 {reactions}; 400 unless a known emoji on a message
+//   POST  /bots/:id/entries/:entryId/feedback  {vote}      -> 200 {feedback}; vote "up", "down" or null; bot replies
 //   POST  /bots/:id/approvals/:entryId   {allow, reason?}
 
 import { timingSafeEqual } from "node:crypto";
@@ -254,6 +256,27 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
         : send(res, 409, { error: "Nothing is running" });
 
     default:
+      if (method === "POST" && parts[2] === "entries" && parts[3] && parts.length === 5) {
+        const body = await readJson(req);
+        try {
+          if (parts[4] === "reactions") {
+            if (typeof body.emoji !== "string" || typeof body.on !== "boolean") {
+              return send(res, 400, { error: "emoji and on are required" });
+            }
+            return send(res, 200, { reactions: d.gateway.react(bot.id, parts[3], body.emoji, body.on) });
+          }
+          if (parts[4] === "feedback") {
+            const vote = body.vote;
+            if (vote !== "up" && vote !== "down" && vote !== null) {
+              return send(res, 400, { error: 'vote must be "up", "down" or null' });
+            }
+            return send(res, 200, { feedback: d.gateway.rate(bot.id, parts[3], vote) });
+          }
+        } catch (err) {
+          if (err instanceof BotRuleError) return send(res, 400, { error: err.message });
+          throw err;
+        }
+      }
       if (method === "POST" && parts[2] === "choices" && parts[3] && parts.length === 4) {
         const body = await readJson(req);
         if (typeof body.answer !== "string") return send(res, 400, { error: "answer must be a string" });

@@ -87,8 +87,27 @@ export interface TranscriptEntry {
   threadId?: string;
   /** Rolled back: kept in the log, shown nowhere, and forgotten by the bot. */
   hidden?: true;
+  /** The user's reactions to this message, in the order added, each once (from `REACTIONS`). */
+  reactions?: string[];
+  /** The user's rating of a bot message. Kept on this machine; never shown to the model or sent anywhere. */
+  feedback?: Feedback;
   createdAt: number;
   updatedAt: number;
+}
+
+/** The reactions the hover bar offers (reference/screens/37-reaction.png). */
+export const REACTIONS = ["👍", "👎", "❤️", "😂", "🎉"] as const;
+
+export const isReaction = (v: unknown): v is (typeof REACTIONS)[number] =>
+  (REACTIONS as readonly unknown[]).includes(v);
+
+export type Feedback = "up" | "down";
+
+/** What `TranscriptStore.mark` may change on an entry: everything but its body, position and identity. */
+export interface EntryMarks {
+  hidden?: true;
+  reactions?: string[];
+  feedback?: Feedback;
 }
 
 /** Avatar outlines. Our own simple shapes; the initial sits on top. */

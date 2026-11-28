@@ -274,7 +274,7 @@ test("rows: the main view leaves out hidden and thread entries, and counts repli
   assert.equal(entryRows[1]?.type === "entry" && entryRows[1].replies, undefined);
 });
 
-test("rows: hover actions are a thread for any message in the main chat, and roll back for your own", () => {
+test("rows: the hover bar offers react and more on every message, a thread in the main chat, roll back for yours and ratings for the bot's", () => {
   seq = 0;
   const root = user("apples");
   const reply = bot("Nice.");
@@ -282,17 +282,18 @@ test("rows: hover actions are a thread for any message in the main chat, and rol
   const inThread = { ...user("side note"), threadId: root.id };
   const actions = (rows: Row[]) =>
     rows.flatMap((r) => (r.type === "entry" ? [[r.entry.id, r.actions ?? null] as const] : []));
+  const all = { react: true, copy: true };
 
   assert.deepEqual(actions(buildRows([root, reply, note], NOW, "en-US")), [
-    [root.id, { thread: true, rollBack: true }],
-    [reply.id, { thread: true, rollBack: false }],
+    [root.id, { ...all, thread: true, rollBack: true, rate: false }],
+    [reply.id, { ...all, thread: true, rollBack: false, rate: true }],
     [note.id, null],
   ]);
   assert.deepEqual(
     actions(buildRows([root, inThread], NOW, "en-US", [], { thread: root.id })),
     [
       [root.id, null],
-      [inThread.id, { thread: false, rollBack: true }],
+      [inThread.id, { ...all, thread: false, rollBack: true, rate: false }],
     ],
     "in a thread: no actions on its root (it belongs to the main chat), no threads inside threads",
   );

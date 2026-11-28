@@ -1,5 +1,6 @@
 // The bot tile's context menu (reference/screens/39-sidebar-ctx.png), and the confirmations it and the chat use.
-import { type KeyboardEvent, type ReactNode, useEffect, useId, useLayoutEffect, useRef } from "react";
+import { type KeyboardEvent, type ReactNode, useEffect, useId, useRef } from "react";
+import { PopupMenu } from "./PopupMenu.tsx";
 import type { MenuAction } from "./sidebar-state.ts";
 
 const ICONS: Record<MenuAction, ReactNode> = {
@@ -36,75 +37,20 @@ export function BotMenu({
    */
   onClose(restoreFocus: boolean): void;
 }) {
-  const menu = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    menu.current?.querySelector<HTMLButtonElement>("[role=menuitem]")?.focus();
-    const outside = (e: PointerEvent) => {
-      if (!menu.current?.contains(e.target as Node)) onClose(false);
-    };
-    const away = () => onClose(false);
-    // Capture: a click that lands on another tile still closes this menu first.
-    document.addEventListener("pointerdown", outside, true);
-    window.addEventListener("blur", away);
-    window.addEventListener("resize", away);
-    return () => {
-      document.removeEventListener("pointerdown", outside, true);
-      window.removeEventListener("blur", away);
-      window.removeEventListener("resize", away);
-    };
-  }, [onClose]);
-
-  // Placed before it paints, and kept inside the window: near the bottom it moves up.
-  useLayoutEffect(() => {
-    const el = menu.current;
-    if (!el) return;
-    el.style.left = `${at.x}px`;
-    el.style.top = `${at.y}px`;
-    const overflow = el.getBoundingClientRect().bottom - window.innerHeight;
-    if (overflow > 0) el.style.top = `${Math.max(0, at.y - overflow)}px`;
-  }, [at.x, at.y]);
-
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const buttons = [...(menu.current?.querySelectorAll<HTMLButtonElement>("[role=menuitem]") ?? [])];
-    const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    const move = (to: number) => {
-      e.preventDefault();
-      buttons[(to + buttons.length) % buttons.length]?.focus();
-    };
-    if (e.key === "ArrowDown") move(at + 1);
-    else if (e.key === "ArrowUp") move(at - 1);
-    else if (e.key === "Home") move(0);
-    else if (e.key === "End") move(buttons.length - 1);
-    else if (e.key === "Escape" || e.key === "Tab") {
-      e.preventDefault();
-      onClose(true);
-    }
-  };
-
   return (
-    <div ref={menu} className="bot-menu" role="menu" aria-label={label} onKeyDown={onKeyDown}>
-      {items.map((item, i) => (
-        <div key={item.action} role="none">
-          {i > 0 && STARTS_GROUP.includes(item.action) && <hr className="bot-menu-separator" />}
-          <button
-            type="button"
-            role="menuitem"
-            className="bot-menu-item"
-            data-danger={item.action === "delete" || undefined}
-            tabIndex={-1}
-            onClick={() => onAction(item.action)}
-          >
-            <svg className="icon" viewBox="0 0 16 16" aria-hidden="true">
-              <g fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-                {ICONS[item.action]}
-              </g>
-            </svg>
-            {item.label}
-          </button>
-        </div>
-      ))}
-    </div>
+    <PopupMenu
+      label={label}
+      items={items.map((item) => ({
+        key: item.action,
+        label: item.label,
+        icon: ICONS[item.action],
+        danger: item.action === "delete",
+        startsGroup: STARTS_GROUP.includes(item.action),
+      }))}
+      at={at}
+      onSelect={onAction}
+      onClose={onClose}
+    />
   );
 }
 

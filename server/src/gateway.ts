@@ -12,7 +12,9 @@ import {
   type BotActivity,
   type ConversationSession,
   type EntryBody,
+  type Feedback,
   freeColor,
+  isReaction,
   MAX_BOT_NAME,
   type NewBot,
   type ProviderEvent,
@@ -395,6 +397,38 @@ export class Gateway {
     } else {
       this.bots.update(botId, { threadSessions: { ...bot.threadSessions, [threadId]: session } });
     }
+  }
+
+  /**
+   * Adds (`on`) or removes one of the user's reactions on a message, yours or the bot's. Returns the message's
+   * reactions now. They stay on this machine: the model never sees them.
+   */
+  react(botId: string, entryId: string, emoji: string, on: boolean): string[] {
+    const entry = this.visibleMessage(botId, entryId, "Only messages can have reactions.");
+    if (!isReaction(emoji)) throw new BotRuleError("That reaction isn't one of the choices.");
+    const now = entry.reactions ?? [];
+    const next = on ? (now.includes(emoji) ? now : [...now, emoji]) : now.filter((r) => r !== emoji);
+    if (next.length === now.length && next.every((r, i) => r === now[i])) return now;
+    this.store.mark(botId, entryId, { reactions: next.length ? next : undefined });
+    return next;
+  }
+
+  /** Sets (or with null clears) the user's rating of a bot message. Kept on this machine, never sent anywhere. */
+  rate(botId: string, entryId: string, vote: Feedback | null): Feedback | null {
+    const entry = this.visibleMessage(botId, entryId, "Only the bot's replies can be rated.");
+    if (entry.body.kind !== "assistant_text") throw new BotRuleError("Only the bot's replies can be rated.");
+    if ((entry.feedback ?? null) !== vote) this.store.mark(botId, entryId, { feedback: vote ?? undefined });
+    return vote;
+  }
+
+  /** A message the user can see: theirs or the bot's, not rolled back. `notOne` is what to say about anything else. */
+  private visibleMessage(botId: string, entryId: string, notOne: string): TranscriptEntry {
+    if (!this.bots.get(botId)) throw new BotNotFoundError(`Unknown bot ${botId}`);
+    const entry = this.store.get(botId, entryId);
+    if (!entry || entry.hidden) throw new BotRuleError("That message isn't in the conversation anymore.");
+    const kind = entry.body.kind;
+    if (kind !== "user_message" && kind !== "assistant_text") throw new BotRuleError(notOne);
+    return entry;
   }
 
   /** Stops the bot's current run. Returns false when nothing is running. */

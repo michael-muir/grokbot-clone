@@ -396,6 +396,46 @@
   color: var(--color-danger-text);
 }
 
+.bot-menu-label {
+  flex: 1;
+}
+
+.bot-menu-item .icon.bot-menu-check {
+  color: var(--color-text);
+}
+
+/* A message's reaction picker (37-reaction): one row of emoji in a pill. */
+.reaction-picker {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  gap: var(--space-0-5);
+  padding: var(--space-1);
+  border: var(--size-hairline) solid var(--color-line-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-menu);
+}
+
+.reaction-choice {
+  display: grid;
+  place-items: center;
+  width: var(--size-control);
+  height: var(--size-control);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  font-size: var(--text-lg);
+  cursor: pointer;
+}
+
+.reaction-choice:hover,
+.reaction-choice:focus-visible,
+.reaction-choice[aria-checked="true"] {
+  background: var(--color-fill-strong);
+}
+
 .bot-menu-separator {
   height: var(--size-hairline);
   border: 0;
