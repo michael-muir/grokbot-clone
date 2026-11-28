@@ -9,6 +9,7 @@
 //   result               -> RunOutcome (cost, success or error)
 //   canUseTool           -> approval card in the transcript
 //   AskUserQuestion      -> choice cards (claude-questions.ts)
+//   show_card (MCP)      -> widget and form cards, when the app can show them (claude-cards.ts)
 import { type Options, query, type SDKAssistantMessage, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { apiErrorMessage } from "../agent/openai-compatible.ts";
 import { short } from "../agent/tools.ts";

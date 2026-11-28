@@ -27,8 +27,11 @@ export function ChoiceCard({
 
   // Once answered, the choice the user pressed is disabled: keep keyboard focus on the card's result line instead
   // of letting it fall to the page.
+  // Only when it locks while shown: a card already answered when the chat opened mustn't take focus or scroll to itself.
+  const wasPending = useRef(pending);
   useEffect(() => {
-    if (pending) return;
+    if (pending || !wasPending.current) return;
+    wasPending.current = false;
     if (card.current?.contains(document.activeElement) || document.activeElement === document.body) {
       result.current?.focus();
     }

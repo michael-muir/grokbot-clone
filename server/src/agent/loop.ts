@@ -95,7 +95,7 @@ export class LoopProvider implements AgentProvider {
     };
     const offered = this.offered(req);
     const system = systemPrompt(req.instructions, offered);
-    const specs = offered.map((t) => t.spec);
+    const specs = offered.map((t) => t.specFor?.({ cardKinds: req.cardKinds }) ?? t.spec);
     // The model turn in progress, kept so an interrupt mid-stream still saves what the model said.
     let partial: { blockId: string; text: string; calls: ToolCall[]; meta?: Record<string, unknown> } | undefined;
     /** Ends the turn in progress: closes its streamed text and keeps it in the history. */

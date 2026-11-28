@@ -24,7 +24,8 @@ export class CardRequestError extends Error {}
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 function text(v: unknown, what: string, max: number, required = true): string {
-  if (v === undefined && !required) return "";
+  // Models in strict modes send null for an optional field they leave out.
+  if ((v === undefined || v === null) && !required) return "";
   if (typeof v !== "string" || (required && !v.trim()))
     throw new CardRequestError(`"${what}" must be a non-empty string.`);
   return v.trim().slice(0, max);
@@ -111,6 +112,8 @@ export function checkCardAnswer(
   if (!isRecord(given)) return no("That answer doesn't fit this card.");
   const names = new Set(card.fields.map((f) => f.name));
   if (Object.keys(given).some((k) => !names.has(k))) return no("That answer has fields the form doesn't.");
+  // Exactly the form's fields (own properties only: a field may be named like an Object method).
+  if (card.fields.some((f) => !Object.hasOwn(given, f.name))) return no("That answer is missing some of the form.");
   const values: Record<string, string | boolean> = {};
   for (const f of card.fields) {
     const v = given[f.name];
@@ -143,37 +146,49 @@ export function describeAnswer(card: CardRequest, answer: CardAnswer): string {
   return ["The user filled in the form:", ...lines].join("\n");
 }
 
-/** The tool's input schema (JSON Schema), shared by the built-in loop; Claude's MCP tool mirrors it in zod. */
-export const SHOW_CARD_DESCRIPTION =
-  'Show the user a card in the chat and wait for their answer. kind "widget": a question with 2 to 6 options to ' +
-  'pick one (prompt, options). kind "form": a short form (title, fields: each {name, label, type: text | textarea ' +
-  "| select | checkbox, options for select, required?, placeholder?}, submit_label?). Returns the answer. Never " +
-  "ask for passwords, API keys or other secrets in a form: answers are saved in the chat.";
+const WIDGET_HELP = 'kind "widget": a question with 2 to 6 options to pick one (prompt, options)';
+const FORM_HELP =
+  'kind "form": a short form (title, fields: each {name, label, type: text | textarea | select | checkbox, options ' +
+  "for select, required?, placeholder?}, submit_label?)";
 
-export const SHOW_CARD_SCHEMA = {
-  type: "object",
-  properties: {
-    kind: { type: "string", enum: ["widget", "form"] },
-    prompt: { type: "string", description: "Widget: the question, one short sentence." },
-    options: { type: "array", items: { type: "string" }, description: "Widget: 2 to 6 choices, a few words each." },
-    title: { type: "string", description: "Form: what it's for, a few words." },
-    fields: {
-      type: "array",
-      description: "Form: 1 to 8 fields.",
-      items: {
-        type: "object",
-        properties: {
-          name: { type: "string" },
-          label: { type: "string" },
-          type: { type: "string", enum: ["text", "textarea", "select", "checkbox"] },
-          options: { type: "array", items: { type: "string" } },
-          required: { type: "boolean" },
-          placeholder: { type: "string" },
+/** The tool's description, naming only the kinds this user's app can show. */
+export function showCardDescription(kinds: readonly CardKind[]): string {
+  const help = [kinds.includes("widget") ? WIDGET_HELP : "", kinds.includes("form") ? FORM_HELP : ""].filter(Boolean);
+  return (
+    `Show the user a card in the chat and wait for their answer. ${help.join(". ")}. Returns the answer.` +
+    (kinds.includes("form")
+      ? " Never ask for passwords, API keys or other secrets in a form: answers are saved in the chat."
+      : "")
+  );
+}
+
+/** The tool's input schema (JSON Schema) for the built-in loop, with only the kinds this app can show. */
+export function showCardSchema(kinds: readonly CardKind[]) {
+  return {
+    type: "object",
+    properties: {
+      kind: { type: "string", enum: [...kinds] },
+      prompt: { type: "string", description: "Widget: the question, one short sentence." },
+      options: { type: "array", items: { type: "string" }, description: "Widget: 2 to 6 choices, a few words each." },
+      title: { type: "string", description: "Form: what it's for, a few words." },
+      fields: {
+        type: "array",
+        description: "Form: 1 to 8 fields.",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            label: { type: "string" },
+            type: { type: "string", enum: ["text", "textarea", "select", "checkbox"] },
+            options: { type: "array", items: { type: "string" } },
+            required: { type: "boolean" },
+            placeholder: { type: "string" },
+          },
+          required: ["name", "label", "type"],
         },
-        required: ["name", "label", "type"],
       },
+      submit_label: { type: "string", description: 'Form: the button\'s label, like "Save".' },
     },
-    submit_label: { type: "string", description: 'Form: the button\'s label, like "Save".' },
-  },
-  required: ["kind"],
-} as const;
+    required: ["kind"],
+  };
+}

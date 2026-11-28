@@ -19,25 +19,33 @@ export function Card({
   answer(answer: CardAnswer): Promise<unknown>;
 }) {
   const [sending, setSending] = useState(false);
+  /** Answered, and waiting for the gateway's copy to say so: a second answer would only be refused. */
+  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string>();
   const card = useRef<HTMLElement>(null);
   const result = useRef<HTMLParagraphElement>(null);
   const pending = body.state === "pending";
 
-  // Once answered, the control the user used is disabled: keep keyboard focus on the card's result line instead.
+  // When the card locks, the control the user used is disabled: keep keyboard focus on its result line instead. Only
+  // on that change: a card that was already answered when the chat opened mustn't take focus or scroll to itself.
+  const wasPending = useRef(pending);
   useEffect(() => {
     if (pending) return;
+    setError(undefined);
+    if (!wasPending.current) return;
+    wasPending.current = false;
     if (card.current?.contains(document.activeElement) || document.activeElement === document.body) {
       result.current?.focus();
     }
   }, [pending]);
 
   const send = async (value: CardAnswer) => {
-    if (sending || !pending) return;
+    if (sending || sent || !pending) return;
     setSending(true);
     setError(undefined);
     try {
       await answer(value);
+      setSent(true);
     } catch (err) {
       // What the user filled in stays, so they can fix it and send again.
       setError(err instanceof Error ? err.message : String(err));
@@ -53,14 +61,14 @@ export function Card({
         <Widget
           card={body.card}
           body={body}
-          disabled={!pending || sending}
+          disabled={!pending || sending || sent}
           onPick={(value) => void send({ kind: "widget", value })}
         />
       ) : (
         <Form
           card={body.card}
           body={body}
-          disabled={!pending || sending}
+          disabled={!pending || sending || sent}
           onSubmit={(values) => void send({ kind: "form", values })}
         />
       )}

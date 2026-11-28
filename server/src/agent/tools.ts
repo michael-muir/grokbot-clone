@@ -2,15 +2,9 @@
 import { lstatSync, realpathSync } from "node:fs";
 import { glob, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import {
-  CardRequestError,
-  describeAnswer,
-  parseCardRequest,
-  SHOW_CARD_DESCRIPTION,
-  SHOW_CARD_SCHEMA,
-} from "../cards.ts";
+import { CardRequestError, describeAnswer, parseCardRequest, showCardDescription, showCardSchema } from "../cards.ts";
 import { labelPath } from "../display-path.ts";
-import type { CardAnswer, CardKind, CardRequest, ChoiceRequest } from "../types.ts";
+import { CARD_KINDS, type CardAnswer, type CardKind, type CardRequest, type ChoiceRequest } from "../types.ts";
 import type { ToolSpec } from "./model.ts";
 import { defaultShell, runShell, type ShellInfo } from "./shell.ts";
 
@@ -38,6 +32,8 @@ export interface Tool {
   promptNote?: string;
   /** Whether a run offers this tool at all (default: always). */
   available?(run: { cardKinds?: readonly CardKind[] }): boolean;
+  /** The spec for one run, when it depends on the run (default: `spec`). */
+  specFor?(run: { cardKinds?: readonly CardKind[] }): ToolSpec;
   /** Short label for the status row, like "Running npm test". Paths in it are shown relative to the workspace. */
   summarize(input: Record<string, unknown>, workspaceDir: string): string;
   run(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>;
@@ -398,7 +394,13 @@ export const askUserTool: Tool = {
 
 /** Shows a widget or form card (#19). Offered only when the user's app can show cards. Read-only: nothing changes. */
 export const showCardTool: Tool = {
-  spec: { name: "show_card", description: SHOW_CARD_DESCRIPTION, inputSchema: SHOW_CARD_SCHEMA },
+  spec: { name: "show_card", description: showCardDescription(CARD_KINDS), inputSchema: showCardSchema(CARD_KINDS) },
+  // Only the kinds this user's app can show, so the model isn't offered a form it can't use.
+  specFor: (run) => ({
+    name: "show_card",
+    description: showCardDescription(run.cardKinds ?? []),
+    inputSchema: showCardSchema(run.cardKinds ?? []),
+  }),
   readOnly: true,
   promptNote: "To have the user pick one option or fill in a short form, use show_card.",
   available: (run) => (run.cardKinds?.length ?? 0) > 0,

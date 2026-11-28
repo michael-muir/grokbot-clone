@@ -73,7 +73,7 @@ export function replyCounts(entries: readonly TranscriptEntry[]): Map<string, nu
 }
 
 /**
- * Threads with an approval or choice card waiting for the user, by root id. The main chat doesn't show a thread's
+ * Threads with an approval, choice or other card waiting for the user, by root id. The main chat doesn't show a thread's
  * entries, so it marks the thread instead: otherwise the bot would look stuck.
  */
 export function waitingThreads(entries: readonly TranscriptEntry[]): Set<string> {

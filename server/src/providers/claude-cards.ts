@@ -2,7 +2,7 @@
 // the way the built-in loop's show_card does. Offered only when the user's app can show cards.
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { CardRequestError, describeAnswer, parseCardRequest, SHOW_CARD_DESCRIPTION } from "../cards.ts";
+import { CardRequestError, describeAnswer, parseCardRequest, showCardDescription } from "../cards.ts";
 import type { CardKind, RunCallbacks } from "../types.ts";
 
 export const CARD_SERVER = "smarty";
@@ -59,9 +59,10 @@ export function cardServer(
     tools: [
       tool(
         "show_card",
-        SHOW_CARD_DESCRIPTION,
+        showCardDescription(kinds),
         {
-          kind: z.enum(["widget", "form"]),
+          // Only the kinds this user's app can show (cardServer is used only when there's at least one).
+          kind: z.enum(kinds as [CardKind, ...CardKind[]]),
           prompt: z.string().optional(),
           options: z.array(z.string()).optional(),
           title: z.string().optional(),

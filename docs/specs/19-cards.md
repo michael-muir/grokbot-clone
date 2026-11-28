@@ -170,3 +170,17 @@ Above, plus:
   #20's card, not a form, and the tool description says so.
 - **Two ways to ask a question.** The widget overlaps the choice card. A later change could fold `choice` into
   cards; kept apart now so #64 and #69 keep working untouched.
+
+**Code review:** it found six issues, all fixed. Each has a test, except the two UI changes, which were checked by
+reading the code.
+
+- **Locking:** a card's controls stay locked after a successful answer until the gateway's copy arrives. A second
+  click used to be refused with a 404 that then showed under the locked card.
+- **Focus:** a card takes focus only when it locks while shown. Before, an old answered card grabbed focus and
+  scrolled into view when a chat opened. `ChoiceCard` had the same bug and has the same fix.
+- **Only the kinds the app can show:** `show_card`'s schema enum and description name only the kinds the client
+  declared (`Tool.specFor` for the loop, and the same for Claude's zod schema).
+- **Null fields:** an optional field sent as `null`, as strict-mode models do, counts as left out.
+- **Exact answers:** a form answer must hold exactly the form's fields, read as own properties (a field may be named
+  `constructor`).
+- **Comments:** two stale ones updated.

@@ -9,7 +9,13 @@ import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { LoopProvider } from "../src/agent/loop.ts";
 import { SessionStore } from "../src/agent/sessions.ts";
 import { BotRegistry } from "../src/bots.ts";
-import { CardRequestError, checkCardAnswer, describeAnswer, parseCardRequest } from "../src/cards.ts";
+import {
+  CardRequestError,
+  checkCardAnswer,
+  describeAnswer,
+  parseCardRequest,
+  showCardDescription,
+} from "../src/cards.ts";
 import { LocalFolderComputers } from "../src/computer.ts";
 import { Gateway } from "../src/gateway.ts";
 import { createHttpServer } from "../src/http.ts";
@@ -75,6 +81,19 @@ test("card rules: a widget and a form are cleaned up; anything else gets a messa
     ],
     submitLabel: "Go",
   });
+  // Strict-mode models send null for optional fields they leave out.
+  assert.deepEqual(
+    parseCardRequest(
+      {
+        kind: "form",
+        title: "T",
+        fields: [{ name: "a", label: "A", type: "text", placeholder: null }],
+        submit_label: null,
+      },
+      BOTH,
+    ),
+    { kind: "form", title: "T", fields: [{ name: "a", label: "A", type: "text" }] },
+  );
 
   const refused = (input: unknown, kinds: readonly ("widget" | "form")[] = BOTH) =>
     assert.throws(() => parseCardRequest(input, kinds), CardRequestError);
@@ -108,20 +127,29 @@ test("card rules: an answer must fit its card exactly", () => {
   assert.equal(checkCardAnswer(widget, { kind: "widget", value: "XL" }).ok, false);
   assert.equal(checkCardAnswer(widget, { kind: "form", values: {} }).ok, false);
 
-  assert.deepEqual(checkCardAnswer(FORM, { kind: "form", values: { name: " Ada ", size: "M", news: true } }), {
-    ok: true,
-    answer: { kind: "form", values: { name: "Ada", size: "M", news: true, notes: "" } },
-  });
+  assert.deepEqual(
+    checkCardAnswer(FORM, { kind: "form", values: { name: " Ada ", size: "M", news: true, notes: "" } }),
+    {
+      ok: true,
+      answer: { kind: "form", values: { name: "Ada", size: "M", news: true, notes: "" } },
+    },
+  );
   const why = (values: unknown) => {
     const r = checkCardAnswer(FORM, { kind: "form", values });
     return r.ok ? "" : r.error;
   };
-  assert.match(why({ name: "" }), /Name" is required/);
-  assert.match(why({ name: "Ada", size: "XL" }), /choices for "Size"/);
-  assert.match(why({ name: "Ada", news: "yes" }), /on or off/);
+  const all = { name: "Ada", size: "", news: false, notes: "" };
+  assert.match(why({ ...all, name: "" }), /Name" is required/);
+  assert.match(why({ ...all, size: "XL" }), /choices for "Size"/);
+  assert.match(why({ ...all, news: "yes" }), /on or off/);
   assert.match(why({ name: "Ada", extra: "x" }), /fields the form doesn't/);
-  assert.match(why({ name: "x".repeat(2001) }), /too long/);
-  assert.equal(why({ name: "Ada", notes: "x".repeat(10_000) }), "", "a textarea takes more");
+  assert.match(why({ ...all, name: "x".repeat(2001) }), /too long/);
+  assert.equal(why({ name: "Ada", size: "", news: false, notes: "x".repeat(10_000) }), "", "a textarea takes more");
+  assert.match(why({ name: "Ada" }), /missing some of the form/, "exactly the form's fields");
+  const tricky: FormCard = { kind: "form", title: "x", fields: [{ name: "constructor", label: "C", type: "text" }] };
+  const r = checkCardAnswer(tricky, { kind: "form", values: {} });
+  assert.equal(r.ok ? "" : r.error, "That answer is missing some of the form.", "own properties only");
+  assert.equal(checkCardAnswer(tricky, { kind: "form", values: { constructor: "ok" } }).ok, true);
 });
 
 test("card rules: the model reads the pick, or one line per field", () => {
@@ -365,6 +393,12 @@ test("loop: show_card is offered only with card kinds, and a refused kind tells 
     await run(["widget"]);
     const offered = (i: number) => model.requests[i]?.tools.map((t) => t.name) ?? [];
     assert.ok(offered(0).includes("show_card"));
+    const spec = model.requests[0]?.tools.find((t) => t.name === "show_card");
+    assert.ok(spec);
+    assert.deepEqual((spec.inputSchema as { properties: { kind: { enum: string[] } } }).properties.kind.enum, [
+      "widget",
+    ]);
+    assert.ok(!spec.description.includes("form"), "a widget-only app isn't offered forms");
     const refusal = model.requests[1]?.messages.find((m) => m.role === "tool");
     assert.match(
       refusal?.role === "tool" ? refusal.output : "",
@@ -430,4 +464,10 @@ test("claude: show_card is offered only with card kinds, and answers through req
     options: ["S", "M"],
   });
   assert.equal(stopped.isError, true);
+});
+
+test("card rules: the description names only the kinds the app can show", () => {
+  assert.match(showCardDescription(["widget"]), /widget/);
+  assert.ok(!showCardDescription(["widget"]).includes("form"));
+  assert.match(showCardDescription(["widget", "form"]), /Never ask for passwords/);
 });
