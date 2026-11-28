@@ -103,13 +103,17 @@ SettingsPage | "usage"
 | Tokens and cost on run entries | `usage: a run adds up its usage events, keeps the provider's cost, and records them even when stopped`; `usage: a run that reports nothing has no usage` |
 | Usage page with totals per bot and per day | `usage: summarize puts runs on their local day, fills empty days, ranks bots, and sums only reported cost`; `http: /usage answers the summary for 7, 30 or 90 days and refuses others`; `settings: usage formatting` (numbers, bar heights); manual check |
 
-**Manual check:** on the fake provider, send a few messages to two bots, open Settings → Usage, and check:
+**Manual check, 2026-11-27.** On the fake provider, in an isolated profile on port 9411:
 
-- the totals;
-- today's bar;
-- both bots listed;
-- the 30-day switch;
-- the keyboard.
+- **Data:** three messages to Nova and one to Pip.
+- **Total:** Settings → Usage showed 505 tokens (425 in, 80 out), 4 replies, and $0.00, since the fake reports a
+  zero cost.
+- **By day:** the busiest bar was today, with flat bars for the other six days (Nov 21 to Nov 27).
+- **By bot:** Nova (376 tokens) above Pip (129), each with its avatar.
+- **Keyboard:** from the checked "7 days" radio, the right arrow chose 30 days, the chart redrew with 30 bars, and
+  the focus ring showed on the segment.
+- **Implementation note:** the period switch uses native radio buttons. Lint asked for them, and they bring the
+  arrow keys with them.
 
 ## Risks and open questions
 
