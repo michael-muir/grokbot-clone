@@ -97,6 +97,8 @@ provider emulates them:
 - **The turn log.** It keeps a text log of each session's turns: the prompt, and the reply's text. It uses the
   existing `SessionStore`, under `<cursor-home>/sessions`.
 - **The checkpoint.** After each finished or stopped turn, the checkpoint is how many messages the log holds.
+- **Stopped turns are logged too.** A turn that Stop ends is logged, even when the grace period or the process's
+  exit ends it, because Cursor's session holds it either way.
 - **A fork** (`resumeAt`) opens a new Cursor session. Its first prompt carries the conversation up to that
   checkpoint, as `<earlier_conversation>`, and the original session is left as it was.
 - **What a fork keeps.** Only text carries over; the tool calls of earlier turns don't. A failed turn isn't logged.
@@ -113,6 +115,15 @@ provider emulates them:
 - **Other requests** (`fs/*`, `terminal/*`, `cursor/*`) get a JSON-RPC error.
 
 **Stop:** the `session/cancel` notification. If the prompt hasn't ended within 2 s, the process is killed anyway.
+Setup and the prompt are raced against that end, so a setup step that hangs can't hold a stopped run: a slow
+`session/load` replay, say. Nothing is emitted once the run has returned.
+
+**Steps.** Updates carry only what changed, so each call's kind, title and input are remembered from its
+`tool_call`:
+
+- `think` calls never show;
+- a repeated final update doesn't make a second step;
+- kinds are looked up as own keys only.
 
 ### Isolation from the user's Cursor setup
 
@@ -133,9 +144,11 @@ The sign-in is the user's own and is reused, never read or copied:
   `CURSOR_CONFIG_DIR` still wins for the CLI's config.
 - **macOS:** `~/.cursor/auth.json`. The isolated `.cursor/auth.json` is a symlink to the real file. We never open
   it.
+  - The link is checked on every start. Cursor may refresh the sign-in by writing a new file in the link's place;
+    if it has, that newer file is moved back over the user's own, and the link is made again.
 
-**Hooks in the bot's workspace.** Cursor also runs `<workspace>/.cursor/hooks.json` and the hooks in
-`<workspace>/.claude/settings.json`. A bot can write those files in its own workspace without asking, and the
+**Hooks in the bot's workspace.** Cursor also runs `<workspace>/.cursor/hooks.json`, and the hooks in
+`<workspace>/.claude/settings.json` and `settings.local.json`. A bot can write those files in its own workspace without asking, and the
 hooks would then run programs, unasked, on its next start. So a run refuses to start while the workspace has either
 kind of hook. The message names the file, for the user to look at.
 

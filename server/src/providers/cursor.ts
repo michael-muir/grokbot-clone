@@ -14,7 +14,7 @@
 //
 // Isolation: the CLI reads MCP servers, hooks, plugins and its approval settings from the home folder, so every run
 // gets a home of its own (isolatedEnv). Hooks in the bot's own workspace stop the run (workspaceHooks).
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ChatMessage } from "../agent/model.ts";
@@ -48,7 +48,7 @@ const TOOL_NAMES: Record<string, string> = {
   fetch: "WebFetch",
   search: "Grep",
 };
-const toolName = (kind: string): string => TOOL_NAMES[kind] ?? (kind || "Tool");
+const toolName = (kind: string): string => (Object.hasOwn(TOOL_NAMES, kind) ? TOOL_NAMES[kind] : kind) || "Tool";
 
 /**
  * The environment for a bot's Cursor: the user's env without keys, with a home of its own so their MCP servers,
@@ -69,7 +69,11 @@ export function isolatedEnv(
   return out;
 }
 
-/** Creates the bots' Cursor home. On macOS the sign-in lives in ~/.cursor/auth.json, so it's linked, never read. */
+/**
+ * Creates the bots' Cursor home. On macOS the sign-in lives in ~/.cursor/auth.json, so it's linked, never read.
+ * Checked on every start: if Cursor replaced the link with a file (a refreshed sign-in written by rename), that file
+ * is the newer sign-in, so it's moved back over the user's own, and the link made again.
+ */
 export function prepareHome(
   homeDir: string,
   platform: NodeJS.Platform = process.platform,
@@ -80,26 +84,49 @@ export function prepareHome(
   if (platform !== "darwin") return;
   const real = join(realHome, ".cursor", "auth.json");
   const link = join(dotCursor, "auth.json");
-  if (existsSync(real) && !existsSync(link)) symlinkSync(real, link);
+  let stat: ReturnType<typeof lstatSync> | undefined;
+  try {
+    stat = lstatSync(link);
+  } catch {
+    stat = undefined;
+  }
+  if (stat && !stat.isSymbolicLink()) {
+    try {
+      renameSync(link, real);
+    } catch (err) {
+      // On another volume it can't be moved; it's dropped, and Cursor may ask the user to sign in again.
+      console.warn(`cursor: couldn't move a refreshed sign-in back (${(err as Error).message})`);
+      rmSync(link, { force: true });
+    }
+    stat = undefined;
+  }
+  if (!stat && existsSync(real)) symlinkSync(real, link);
 }
 
-/**
- * The first hook file in the bot's workspace, if any. Cursor runs `.cursor/hooks.json` and the hooks in
- * `.claude/settings.json` without asking, and a bot can write either in its own workspace.
- */
+/** Workspace files whose hooks Cursor runs without asking: its own, and Claude's (it reads those too). */
+const HOOK_FILES = [
+  [".cursor", "hooks.json"],
+  [".claude", "settings.json"],
+  [".claude", "settings.local.json"],
+] as const;
+
+/** The first hook file in the bot's workspace, if any. A bot can write these in its own workspace. */
 export function workspaceHooks(workspaceDir: string): string | undefined {
-  const cursorHooks = join(workspaceDir, ".cursor", "hooks.json");
-  if (existsSync(cursorHooks)) return cursorHooks;
-  const claudeSettings = join(workspaceDir, ".claude", "settings.json");
-  if (!existsSync(claudeSettings)) return undefined;
-  try {
-    const parsed: unknown = JSON.parse(readFileSync(claudeSettings, "utf8"));
-    if (!isRecord(parsed) || parsed.hooks === undefined) return undefined;
-    return isRecord(parsed.hooks) && Object.keys(parsed.hooks).length === 0 ? undefined : claudeSettings;
-  } catch {
-    // Unreadable: it might hold hooks, so it counts as if it did.
-    return claudeSettings;
+  for (const [dir, name] of HOOK_FILES) {
+    const file = join(workspaceDir, dir, name);
+    if (!existsSync(file)) continue;
+    if (name === "hooks.json") return file;
+    try {
+      const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
+      if (!isRecord(parsed) || parsed.hooks === undefined) continue;
+      if (isRecord(parsed.hooks) && Object.keys(parsed.hooks).length === 0) continue;
+      return file;
+    } catch {
+      // Unreadable: it might hold hooks, so it counts as if it did.
+      return file;
+    }
   }
+  return undefined;
 }
 
 const CANCELLED = { outcome: { outcome: "cancelled" } } as const;
@@ -157,7 +184,12 @@ export class CursorProvider implements AgentProvider {
     } finally {
       signal.removeEventListener("abort", abort);
       conn?.close();
-      rmSync(cwd, { recursive: true, force: true });
+      // The killed process may still hold the folder (Windows); retry, and never let cleanup hide the answer.
+      try {
+        rmSync(cwd, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+      } catch (err) {
+        console.warn(`cursor: couldn't remove ${cwd} (${(err as Error).message})`);
+      }
     }
   }
 
@@ -190,36 +222,67 @@ export class CursorProvider implements AgentProvider {
     let block: { id: string; text: string } | undefined;
     const replyParts: string[] = []; // this turn's text, for the turn log
     const openTools = new Set<string>();
-    const toolInputs = new Map<string, Json>(); // tool call id -> its input, for a permission request without one
+    const endedTools = new Set<string>(); // a repeated final update doesn't make a second step
+    const thinking = new Set<string>(); // "think" calls are Cursor's reasoning, not steps
+    const calls = new Map<string, { kind: string; title: string; input?: Json }>(); // what each call's tool_call said
     let finish: (outcome: RunOutcome) => void = () => {};
     const ended = new Promise<RunOutcome>((resolve) => {
       finish = resolve;
     });
     const sid = () => sessionId ?? req.sessionId;
+    // Once run() has returned, the setup steps still settling (rejected as the process closes) report nothing.
+    let over = false;
+    const emit: RunCallbacks["emit"] = (event) => {
+      if (!over) cb.emit(event);
+    };
 
     /** Ends the text block being streamed, so it gets its final text. */
     const endBlock = () => {
       if (block) {
-        cb.emit({ type: "text", blockId: block.id, text: block.text });
+        emit({ type: "text", blockId: block.id, text: block.text });
         if (block.text.trim()) replyParts.push(block.text);
       }
       block = undefined;
     };
     const closeOpen = () => {
       endBlock();
-      for (const id of openTools) cb.emit({ type: "tool_end", toolUseId: id, ok: false });
+      for (const id of openTools) emit({ type: "tool_end", toolUseId: id, ok: false });
       openTools.clear();
     };
     const toolStart = (id: string, kind: string, title: string) => {
-      if (openTools.has(id)) return;
+      if (openTools.has(id) || endedTools.has(id)) return;
       endBlock();
       openTools.add(id);
-      cb.emit({ type: "tool_start", toolUseId: id, tool: toolName(kind), summary: title || toolName(kind) });
+      emit({ type: "tool_start", toolUseId: id, tool: toolName(kind), summary: title || toolName(kind) });
     };
     const toolEnd = (id: string, kind: string, title: string, ok: boolean) => {
+      if (endedTools.has(id)) return;
       toolStart(id, kind, title);
       openTools.delete(id);
-      cb.emit({ type: "tool_end", toolUseId: id, ok });
+      endedTools.add(id);
+      emit({ type: "tool_end", toolUseId: id, ok });
+    };
+
+    // The turn log, for forks. A fork starts from the log of the session it forks; a resume continues the session's.
+    let history: ChatMessage[] = [];
+    let prompting = false; // the prompt went to Cursor, so its session now holds this turn
+    let logged = false;
+    /** Logs this turn (once) and reports the checkpoint: how many messages the log holds. Not for a failed turn. */
+    const logTurn = () => {
+      if (over || logged || !prompting || !sessionId) return;
+      logged = true;
+      const log: ChatMessage[] = [
+        ...history,
+        { role: "user", text: req.prompt },
+        { role: "assistant", text: replyParts.join("\n\n"), toolCalls: [] },
+      ];
+      try {
+        this.turns().save(sessionId, log);
+        emit({ type: "checkpoint", at: String(log.length) });
+      } catch (err) {
+        // Without the log the turn just leaves no checkpoint; the reply itself is fine.
+        console.warn(`cursor: couldn't save the turn log (${(err as Error).message})`);
+      }
     };
 
     rpc.handle(
@@ -234,16 +297,23 @@ export class CursorProvider implements AgentProvider {
           if (!text) return;
           if (!block) block = { id: `cursor-text-${++blockSeq}`, text: "" };
           block.text += text;
-          cb.emit({ type: "text_delta", blockId: block.id, text });
+          emit({ type: "text_delta", blockId: block.id, text });
         } else if (kind === "tool_call" || kind === "tool_call_update") {
           const id = str(update.toolCallId);
-          const toolKind = str(update.kind);
-          if (!id || toolKind === "think") return;
-          if (isRecord(update.rawInput) && Object.keys(update.rawInput).length) toolInputs.set(id, update.rawInput);
+          if (!id) return;
+          // Updates carry only what changed, so the kind and title come from what the call said before.
+          const known = calls.get(id);
+          const call = {
+            kind: str(update.kind) || known?.kind || "",
+            title: str(update.title) || known?.title || "",
+            input: isRecord(update.rawInput) && Object.keys(update.rawInput).length ? update.rawInput : known?.input,
+          };
+          calls.set(id, call);
+          if (call.kind === "think") thinking.add(id);
+          if (thinking.has(id)) return;
           const status = str(update.status);
-          if (status === "completed" || status === "failed")
-            toolEnd(id, toolKind, str(update.title), status === "completed");
-          else if (kind === "tool_call") toolStart(id, toolKind, str(update.title));
+          if (status === "completed" || status === "failed") toolEnd(id, call.kind, call.title, status === "completed");
+          else if (kind === "tool_call") toolStart(id, call.kind, call.title);
         }
       },
       async (method, params) => {
@@ -256,15 +326,13 @@ export class CursorProvider implements AgentProvider {
         if (!options.some((o) => o.optionId === "allow-once")) return rejectAnswer;
         if (req.signal.aborted) return CANCELLED;
         const call = isRecord(params.toolCall) ? params.toolCall : {};
-        const tool = toolName(str(call.kind));
+        const known = calls.get(str(call.toolCallId));
+        const tool = toolName(str(call.kind) || known?.kind || "");
         const decision: ApprovalDecision = await cb.requestApproval(
           {
             tool,
-            summary: str(call.title).slice(0, 200) || tool,
-            input:
-              isRecord(call.rawInput) && Object.keys(call.rawInput).length
-                ? call.rawInput
-                : (toolInputs.get(str(call.toolCallId)) ?? {}),
+            summary: (str(call.title) || known?.title || tool).slice(0, 200),
+            input: isRecord(call.rawInput) && Object.keys(call.rawInput).length ? call.rawInput : (known?.input ?? {}),
           },
           req.signal,
         );
@@ -274,6 +342,7 @@ export class CursorProvider implements AgentProvider {
     );
     conn.onExit(() => {
       closeOpen();
+      if (req.signal.aborted) logTurn();
       finish(
         req.signal.aborted
           ? { status: "interrupted", sessionId: sid() }
@@ -284,72 +353,66 @@ export class CursorProvider implements AgentProvider {
     let graceTimer: ReturnType<typeof setTimeout> | undefined;
     const onAbort = () => {
       if (sessionId) rpc.notify("session/cancel", { sessionId });
-      // Cursor usually ends the prompt at once; if it doesn't, the run ends anyway.
+      // Cursor usually ends the prompt at once; if it doesn't, or setup hangs, the run ends anyway.
       clearTimeout(graceTimer);
       graceTimer = setTimeout(() => {
         closeOpen();
+        logTurn();
         finish({ status: "interrupted", sessionId: sid() });
       }, this.stopGraceMs);
     };
     req.signal.addEventListener("abort", onAbort, { once: true });
 
-    try {
-      await initialize(rpc);
-      // A fork starts a new Cursor session from the log of the one it forks; a resume loads the session itself.
-      let history: ChatMessage[] = [];
-      if (req.sessionId && req.resumeAt !== undefined) {
-        const at = Number(req.resumeAt);
-        if (!Number.isInteger(at) || at < 0)
-          throw new Error(`Cursor can't continue from checkpoint "${req.resumeAt}".`);
-        history = this.turns().load(req.sessionId).slice(0, at);
-      } else if (req.sessionId) {
-        history = this.turns().load(req.sessionId);
-      }
-      const forking = req.sessionId !== undefined && req.resumeAt !== undefined;
-      const where = { cwd: req.workspaceDir, mcpServers: [] };
-      if (req.sessionId && !forking) {
-        await rpc.request("session/load", { ...where, sessionId: req.sessionId });
-        sessionId = req.sessionId;
-      } else {
-        const opened = await rpc.request("session/new", where);
-        sessionId = str(opened.sessionId);
-        if (!sessionId) throw new Error("Cursor didn't open a session.");
-      }
-      live = true;
-      cb.emit({ type: "session", sessionId });
-      if (req.model) await rpc.request("session/set_model", { sessionId, modelId: req.model });
-      if (req.signal.aborted) return { status: "interrupted", sessionId };
-      const text = req.sessionId && !forking ? req.prompt : firstPrompt(req.instructions, history, req.prompt);
-      const opened = sessionId;
-      const prompted = rpc.request("session/prompt", { sessionId, prompt: [{ type: "text", text }] }).then(
-        (result): RunOutcome => {
-          closeOpen();
-          const outcome = outcomeOf(str(result.stopReason), opened);
-          if (outcome.status !== "failed") {
-            // The turn goes in the log, and the checkpoint is how far the log got.
-            const log: ChatMessage[] = [
-              ...history,
-              { role: "user", text: req.prompt },
-              { role: "assistant", text: replyParts.join("\n\n"), toolCalls: [] },
-            ];
-            this.turns().save(opened, log);
-            cb.emit({ type: "checkpoint", at: String(log.length) });
+    /** Setup and the prompt. Raced against `ended`, so Stop or an exit ends the run even while a step hangs. */
+    const work = async (): Promise<RunOutcome> => {
+      try {
+        await initialize(rpc);
+        const forking = req.sessionId !== undefined && req.resumeAt !== undefined;
+        if (req.sessionId && forking) {
+          const at = Number(req.resumeAt);
+          if (!Number.isInteger(at) || at < 0) {
+            throw new Error(`Cursor can't continue from checkpoint "${req.resumeAt}".`);
           }
-          return outcome;
-        },
-        (err: unknown): RunOutcome => {
-          closeOpen();
-          if (req.signal.aborted) return { status: "interrupted", sessionId: sid() };
-          return { status: "failed", sessionId: sid(), error: (err as Error).message };
-        },
-      );
+          history = this.turns().load(req.sessionId).slice(0, at);
+        } else if (req.sessionId) {
+          history = this.turns().load(req.sessionId);
+        }
+        const where = { cwd: req.workspaceDir, mcpServers: [] };
+        if (req.sessionId && !forking) {
+          await rpc.request("session/load", { ...where, sessionId: req.sessionId });
+          sessionId = req.sessionId;
+        } else {
+          const opened = await rpc.request("session/new", where);
+          sessionId = str(opened.sessionId);
+          if (!sessionId) throw new Error("Cursor didn't open a session.");
+        }
+        live = true;
+        emit({ type: "session", sessionId });
+        if (req.model) await rpc.request("session/set_model", { sessionId, modelId: req.model });
+        if (req.signal.aborted) return { status: "interrupted", sessionId };
+        const text = req.sessionId && !forking ? req.prompt : firstPrompt(req.instructions, history, req.prompt);
+        prompting = true;
+        const result = await rpc.request("session/prompt", { sessionId, prompt: [{ type: "text", text }] });
+        closeOpen();
+        const outcome = outcomeOf(str(result.stopReason), sessionId);
+        if (outcome.status !== "failed") logTurn();
+        return outcome;
+      } catch (err) {
+        closeOpen();
+        if (req.signal.aborted) {
+          logTurn();
+          return { status: "interrupted", sessionId: sid() };
+        }
+        return { status: "failed", sessionId: sid(), error: (err as Error).message };
+      }
+    };
+
+    try {
+      const running = work();
       if (req.signal.aborted) onAbort();
-      return await Promise.race([prompted, ended]);
-    } catch (err) {
-      closeOpen();
-      if (req.signal.aborted) return { status: "interrupted", sessionId: sid() };
-      return { status: "failed", sessionId: sid(), error: (err as Error).message };
+      return await Promise.race([running, ended]);
     } finally {
+      over = true;
       req.signal.removeEventListener("abort", onAbort);
       clearTimeout(graceTimer);
       conn.close();

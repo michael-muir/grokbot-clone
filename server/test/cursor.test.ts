@@ -1,10 +1,17 @@
 // Cursor (#26): the provider contract and Cursor's own behavior, on a scripted ACP server that speaks the protocol.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
-import { CursorProvider, firstPrompt, isolatedEnv, outcomeOf, workspaceHooks } from "../src/providers/cursor.ts";
+import {
+  CursorProvider,
+  firstPrompt,
+  isolatedEnv,
+  outcomeOf,
+  prepareHome,
+  workspaceHooks,
+} from "../src/providers/cursor.ts";
 import { type LineConnection, launchSpec } from "../src/providers/stdio-rpc.ts";
 import type { ApprovalDecision, ProviderEvent, RunCallbacks, RunRequest } from "../src/types.ts";
 import { type ContractScenario, describeProviderContract } from "./contract/provider-contract.ts";
@@ -380,6 +387,8 @@ test("cursor: a workspace with hooks Cursor would run refuses to start", async (
     mkdirSync(join(dir, ".claude"));
     writeFileSync(join(dir, ".claude", "settings.json"), JSON.stringify({ permissions: {} }));
     assert.equal(workspaceHooks(dir), undefined, "settings without hooks are fine");
+    writeFileSync(join(dir, ".claude", "settings.local.json"), JSON.stringify({ hooks: { PreToolUse: [] } }));
+    assert.equal(workspaceHooks(dir), join(dir, ".claude", "settings.local.json"), "the local settings count too");
     writeFileSync(join(dir, ".claude", "settings.json"), JSON.stringify({ hooks: { Stop: [] } }));
     assert.equal(workspaceHooks(dir), join(dir, ".claude", "settings.json"));
     mkdirSync(join(dir, ".cursor"));
@@ -467,10 +476,156 @@ test("cursor: npm's Windows shim starts through the shell with plain arguments o
         shell: true,
       });
       assert.throws(() => launchSpec(shim, ["acp & calc"]), /can't be passed through the shell/);
+      const odd = join(dir, "100%tools");
+      mkdirSync(odd);
+      writeFileSync(join(odd, "cursor-agent.cmd"), "@echo off");
+      assert.throws(() => launchSpec(join(odd, "cursor-agent.cmd"), ["acp"]), /Windows shell would change/);
     } else {
       assert.equal(spec.shell, false, "only Windows needs a shell for it");
     }
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("cursor: Stop while a setup step hangs still ends the run promptly", async () => {
+  class SilentLoad extends ScriptedAcp {
+    override send(line: string): void {
+      if ((JSON.parse(line) as Json).method === "session/load") return; // never answered, like a stuck replay
+      super.send(line);
+    }
+  }
+  const server = new SilentLoad(SCRIPTS.reply);
+  const controller = new AbortController();
+  const events: ProviderEvent[] = [];
+  let resolved = false;
+  const done = new CursorProvider({ homeDir: HOME, connect: async () => server, stopGraceMs: 100 }).run(
+    {
+      botId: "b",
+      botName: "B",
+      prompt: "hi",
+      workspaceDir: tmpdir(),
+      instructions: "",
+      signal: controller.signal,
+      sessionId: "s-stuck",
+    },
+    {
+      emit: (e) => {
+        assert.equal(resolved, false, `no "${e.type}" after the run ended`);
+        events.push(e);
+      },
+      requestApproval: async () => ({ allow: true }),
+    },
+  );
+  await sleep(30);
+  const stoppedAt = Date.now();
+  controller.abort();
+  const outcome = await done;
+  resolved = true;
+  assert.equal(outcome.status, "interrupted");
+  assert.ok(Date.now() - stoppedAt < 1000, "within the grace period");
+  assert.equal(server.closed, true);
+});
+
+test("cursor: a turn stopped after the grace period is still logged, so a later fork keeps it", async () => {
+  // Cursor never answers the cancel: the grace timer ends the run.
+  class IgnoresCancel extends ScriptedAcp {
+    override send(line: string): void {
+      if ((JSON.parse(line) as Json).method === "session/cancel") return;
+      super.send(line);
+    }
+  }
+  const server = new IgnoresCancel(
+    {
+      prompt: async (s, sid) => {
+        chunk(s, sid, "Halfway");
+        return new Promise(() => {});
+      },
+    },
+    "s-cut",
+  );
+  const controller = new AbortController();
+  const events: ProviderEvent[] = [];
+  const done = new CursorProvider({ homeDir: HOME, connect: async () => server, stopGraceMs: 100 }).run(
+    { botId: "b", botName: "B", prompt: "Start.", workspaceDir: tmpdir(), instructions: "", signal: controller.signal },
+    { emit: (e) => events.push(e), requestApproval: async () => ({ allow: true }) },
+  );
+  await sleep(50);
+  controller.abort();
+  assert.equal((await done).status, "interrupted");
+  assert.deepEqual(
+    events.filter((e) => e.type === "checkpoint"),
+    [{ type: "checkpoint", at: "2" }],
+  );
+  const fork = runWith(SCRIPTS.reply, { prompt: "Go on.", sessionId: "s-cut", resumeAt: "2" }, undefined, "s-cut2");
+  await fork.done;
+  assert.match(promptText(fork.server), /User: Start\.\n\nYou: Halfway/);
+});
+
+test("cursor: think calls never show, updates keep their call's kind, and a repeated end is one step", async () => {
+  const r = runWith({
+    prompt: async (s, sid) => {
+      s.update(sid, {
+        sessionUpdate: "tool_call",
+        toolCallId: "k1",
+        title: "Thinking",
+        kind: "think",
+        status: "pending",
+      });
+      s.update(sid, { sessionUpdate: "tool_call_update", toolCallId: "k1", status: "completed" });
+      s.update(sid, { sessionUpdate: "tool_call", toolCallId: "e1", title: "ls", kind: "execute", status: "pending" });
+      s.update(sid, { sessionUpdate: "tool_call_update", toolCallId: "e1", status: "completed" });
+      s.update(sid, { sessionUpdate: "tool_call_update", toolCallId: "e1", status: "completed" });
+      s.update(sid, {
+        sessionUpdate: "tool_call",
+        toolCallId: "c1",
+        title: "odd",
+        kind: "constructor",
+        status: "completed",
+      });
+      await sleep(5);
+      return "end_turn";
+    },
+  });
+  await r.done;
+  assert.deepEqual(
+    r.events.filter((e) => e.type === "tool_start" || e.type === "tool_end"),
+    [
+      { type: "tool_start", toolUseId: "e1", tool: "Bash", summary: "ls" },
+      { type: "tool_end", toolUseId: "e1", ok: true },
+      { type: "tool_start", toolUseId: "c1", tool: "constructor", summary: "odd" },
+      { type: "tool_end", toolUseId: "c1", ok: true },
+    ],
+  );
+});
+
+test("cursor: on macOS the sign-in is linked, and a refreshed copy is moved back over the user's own", (t) => {
+  const root = mkdtempSync(join(tmpdir(), "cursor-mac-"));
+  try {
+    const realHome = join(root, "me");
+    const home = join(root, "bots");
+    mkdirSync(join(realHome, ".cursor"), { recursive: true });
+    writeFileSync(join(realHome, ".cursor", "auth.json"), "old");
+    try {
+      prepareHome(home, "darwin", realHome);
+    } catch (err) {
+      // Windows without symlink rights: the macOS path can't be exercised here.
+      if ((err as NodeJS.ErrnoException).code === "EPERM") return t.skip("no symlink rights");
+      throw err;
+    }
+    const link = join(home, ".cursor", "auth.json");
+    assert.equal(lstatSync(link).isSymbolicLink(), true);
+    // Cursor refreshes the sign-in by writing a new file in the link's place.
+    rmSync(link);
+    writeFileSync(link, "new");
+    prepareHome(home, "darwin", realHome);
+    assert.equal(lstatSync(link).isSymbolicLink(), true, "linked again");
+    assert.equal(
+      readFileSync(join(realHome, ".cursor", "auth.json"), "utf8"),
+      "new",
+      "the newer sign-in is the user's",
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });

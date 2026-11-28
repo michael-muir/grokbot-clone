@@ -27,7 +27,13 @@ const TAIL_CHARS = 400;
 export function launchSpec(command: string, args: readonly string[]): { file: string; args: string[]; shell: boolean } {
   const file = findExecutable(command) ?? command;
   if (!(process.platform === "win32" && /\.(cmd|bat)$/i.test(file))) return { file, args: [...args], shell: false };
-  // Through the shell the arguments are one command line, so each must be plain: nothing a shell would read.
+  // Through the shell the arguments are one command line, so each must be plain: nothing a shell would read. The
+  // path is quoted, but cmd still expands % and ! inside quotes and ends them at a quote.
+  if (/[%!^&|<>"]/.test(file)) {
+    throw new Error(
+      `The path ${JSON.stringify(file)} has characters the Windows shell would change. Move it, or set its path without them.`,
+    );
+  }
   const odd = args.find((a) => !/^[\w.=:/[\]-]+$/.test(a));
   if (odd !== undefined) throw new Error(`An argument can't be passed through the shell: ${JSON.stringify(odd)}`);
   return { file: [`"${file}"`, ...args].join(" "), args: [], shell: true };
