@@ -7,8 +7,22 @@ typed or sent.
 
 **Why no video.** The app sat hidden in the tray (`document.visibilityState` was `hidden`), so the browser had
 paused its animation frames and a 25-second sample of the marks saw no change. Showing the window would have meant
-taking over the owner's desktop. The scripts give the exact timings and easings instead, which is what #44 needs;
-a side-by-side video can be recorded during #44's review with the owner's say-so.
+taking over the owner's desktop. The scripts give the exact timings and easings instead, which is what #44 needs.
+The side-by-side recording is a task in #44.
+
+**To repeat this capture** (after an app update, say):
+
+1. Start the reference with `--remote-debugging-port=<port>`. The method is in the project's design notes, and
+   the app minimizes to the tray, so quit it fully first.
+2. Check that `http://127.0.0.1:<port>/json` lists a page titled "Grok Bot".
+3. Read, never act:
+   - `Runtime.evaluate` for the DOM and `getComputedStyle`;
+   - `document.styleSheets` for keyframes and hover rules;
+   - `Debugger.enable` + `Debugger.getScriptSource` for the renderer bundles.
+4. Search the bundles for `grok-state`, `surprised`, `` `bounce` `` and `r_t+s()*3700`. The minified names change
+   between builds; the string constants don't.
+
+Don't send messages or tasks while capturing.
 
 Reference only (ground rules): this records *behavior and timing*. The reference's drawings and its authored clip
 keyframes are not copied into the product. #44 builds our own motion on our own faces (#82) to these behaviors.
@@ -37,9 +51,13 @@ keyframes are not copied into the product. #44 builds our own motion on our own 
 | Shape | lids close over the first 31 % (smoothstep), stay shut 27 %, then open over the last 42 % with a 6 % overshoot (to 1.06, settling back) |
 | Where the lid closes | 40 % of the way down the eye (just above the middle), so the eye squashes into a line there |
 
-Authored idle clips also blink and drift: `Idle_A` 6 s, `Idle_B` 4 s (small sway: about 1°/9°/3° rotation, a
-slight scale breath), `Idle_D` 6 s (bigger looks around: up to 34°/40°/25°). Idle picks from
-`Idle_B, Idle_B, Idle_D, Idle_B, Idle_A`; compact sizes use only `Idle_B`.
+Idle also has slow body motion: loops of 4–6 s that blink and drift. The common one is a small sway, a few
+degrees, with a slight scale "breath"; now and then a bigger look around; small sizes use only the small sway.
+(The reference's clips are authored keyframes: we take their pace, not their motion.)
+
+A sleeping bot shown small (24 px, in the bot's computer card) breathes:
+`@keyframes { 0%, 100% { opacity: .85; scale: 1 } 50% { opacity: 1; scale: 1.04 } }`, 2.4 s, `ease-in-out`,
+infinite.
 
 ## 3. Hover and pointer
 
@@ -50,10 +68,19 @@ slight scale breath), `Idle_D` 6 s (bigger looks around: up to 34°/40°/25°). 
 | Pointer moves anywhere in the window | eyes look toward it: offset = direction × 0.75 × e(2 − e), e = min(1, distance / 240 px); dead zone 4 px; holds 2.5 s after the last move, then returns |
 | Typing in the composer | eyes glance at the text field (30 % across it, at least 0.5 sideways, slightly down) for 1.2 s after the last keystroke |
 | Bigger marks (panel) | a stronger variant: offset up to 1.5 with a body tilt up to 6° toward the pointer, over 320 px, dead zone 6 px |
-| Sidebar tile (the button) | `transition: transform .2s cubic-bezier(.22, 1, .36, 1)` (also width and padding) |
 
 Expression changes ("morphs") take **0.28 s** with `cubic-bezier(.4, .06, .18, 1)`; changes that pass through a
 blink take 0.35 s.
+
+Per place, the CSS around the icon (computed styles and hover rules):
+
+| Place | Size | CSS motion |
+| --- | --- | --- |
+| Sidebar tile | 36 px | the button: `transition: transform .2s cubic-bezier(.22, 1, .36, 1)` (also width, padding); the mark itself has none |
+| Bot panel | 64 px | hover or focus on the avatar button: `filter: brightness(.3)` over `.14s`, with a pencil on top (edit) |
+| Header chip | 24 px | a static image of the mark, not a live one; the chip slides in and out with width, margin and opacity over `.3s` on a spring-like `linear()` curve (fast start, settles by about 50 %) |
+| Messages | none | assistant rows carry no avatar; the live mark shows only in the typing and working row (`data-grok-state` on the row) |
+| Bot's computer card | 24 px | the breathing loop in section 2, while the bot sleeps |
 
 ## 4. Expressions (eyes)
 
@@ -74,18 +101,18 @@ Each state picks clips (body motion), an optional face and an optional overlay (
 
 | State | Motion | Face / overlay |
 | --- | --- | --- |
-| idle | Idle clips (above) | neutral |
-| listening | `Idle_D` | calm |
-| thinking | `Idle_B` | `dots` overlay |
-| streaming | `Streaming_A/B/C` (2.4–2.6 s; sway up to about 17°/15°/20°, small bob) | |
-| reading, working, coding, running, computing, controlling | `Working_A–F` (4–8 s; includes full 360° turns, glances, a surprised beat) | |
-| searching | `Idle_B` | `radar` overlay |
-| waiting | `Idle_B` | `orbit` overlay |
-| blocked | `Blocked_A` (2.1 s), then `drowsy` after 120 s | confused |
-| finished | `Done_A/B` (squash and stretch hop) | happy, then idle |
-| failed | `Blocked_B` (3 s), then idle | |
-| sleeping | `Idle_B` | sleepy, gray |
-| waking | `Idle_B`, 1.6 s | surprised, then idle |
+| idle | idle loops (above) | neutral |
+| listening | a slow look around | calm |
+| thinking | small sway | `dots` overlay |
+| streaming | a lively sway and bob, 2.4–2.6 s loops | |
+| reading, working, coding, running, computing, controlling | busy loops of 4–8 s: turns, glances, a surprised beat | |
+| searching | small sway | `radar` overlay |
+| waiting | small sway | `orbit` overlay |
+| blocked | a puzzled wobble (about 2 s), then `drowsy` after 120 s | confused |
+| finished | a squash-and-stretch hop | happy, then idle |
+| failed | a slump (about 3 s), then idle | |
+| sleeping | small sway | sleepy, gray |
+| waking | 1.6 s | surprised, then idle |
 
 ## 6. Pokes (one-off reactions)
 
