@@ -4,6 +4,8 @@ import type {
   ApprovalDecision,
   AvatarColor,
   AvatarShape,
+  CardAnswer,
+  CardKind,
   Feedback,
   NewBot,
   ProviderId,
@@ -88,11 +90,18 @@ export class GatewayClient {
    * pending local copy can be matched to it (the id covers gateways that don't echo nonces). With `threadId` (a
    * main-chat message's id) it goes in that message's thread.
    */
-  async sendMessage(botId: string, text: string, clientNonce?: string, threadId?: string): Promise<string> {
+  async sendMessage(
+    botId: string,
+    text: string,
+    clientNonce?: string,
+    threadId?: string,
+    cardKinds?: readonly CardKind[],
+  ): Promise<string> {
     const res = await this.request<{ entryId?: unknown }>("POST", `/bots/${enc(botId)}/messages`, {
       text,
       ...(clientNonce ? { clientNonce } : {}),
       ...(threadId ? { threadId } : {}),
+      ...(cardKinds?.length ? { cardKinds } : {}),
     });
     return typeof res?.entryId === "string" ? res.entryId : "";
   }
@@ -129,6 +138,11 @@ export class GatewayClient {
 
   async answerApproval(botId: string, entryId: string, decision: ApprovalDecision): Promise<void> {
     await this.request("POST", `/bots/${enc(botId)}/approvals/${enc(entryId)}`, decision);
+  }
+
+  /** Answers a card; refused (400) with the reason when the answer doesn't fit it. */
+  async answerCard(botId: string, entryId: string, answer: CardAnswer): Promise<void> {
+    await this.request("POST", `/bots/${enc(botId)}/cards/${enc(entryId)}`, { answer });
   }
 
   async answerChoice(botId: string, entryId: string, answer: string): Promise<void> {

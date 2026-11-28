@@ -59,6 +59,23 @@ test("wrong argument types or counts are refused", () => {
   assert.deepEqual(checkCall("rate", ["nova", "e-1", "down"]), { name: "rate", args: ["nova", "e-1", "down"] });
   refused("rate", ["nova", "e-1", "meh"]);
   refused("rate", ["nova", "e-1"]);
+  assert.deepEqual(checkCall("sendMessage", ["nova", "hi", "n-1", undefined, ["widget", "form"]]), {
+    name: "sendMessage",
+    args: ["nova", "hi", "n-1", undefined, ["widget", "form"]],
+  });
+  refused("sendMessage", ["nova", "hi", "n-1", undefined, ["poll"]]);
+  refused("sendMessage", ["nova", "hi", "n-1", undefined, "widget"]);
+  const widget = { kind: "widget", value: "M" };
+  const form = { kind: "form", values: { name: "Ada", news: true } };
+  assert.deepEqual(checkCall("answerCard", ["nova", "c-1", widget]), {
+    name: "answerCard",
+    args: ["nova", "c-1", widget],
+  });
+  assert.deepEqual(checkCall("answerCard", ["nova", "c-1", form]), { name: "answerCard", args: ["nova", "c-1", form] });
+  refused("answerCard", ["nova", "c-1", { kind: "poll" }]);
+  refused("answerCard", ["nova", "c-1", { kind: "form", values: { a: 3 } }]);
+  refused("answerCard", ["nova", "c-1", { kind: "form", values: { a: "x".repeat(10_001) } }]);
+  refused("answerCard", ["nova", "c-1"]);
   refused("rollBack", ["nova", ""]);
   assert.deepEqual(checkCall("answerChoice", ["nova", "card-1", "red"]), {
     name: "answerChoice",

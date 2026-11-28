@@ -2,8 +2,9 @@
 import { lstatSync, realpathSync } from "node:fs";
 import { glob, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { CardRequestError, describeAnswer, parseCardRequest, showCardDescription, showCardSchema } from "../cards.ts";
 import { labelPath } from "../display-path.ts";
-import type { ChoiceRequest } from "../types.ts";
+import { CARD_KINDS, type CardAnswer, type CardKind, type CardRequest, type ChoiceRequest } from "../types.ts";
 import type { ToolSpec } from "./model.ts";
 import { defaultShell, runShell, type ShellInfo } from "./shell.ts";
 
@@ -12,6 +13,10 @@ export interface ToolContext {
   signal: AbortSignal;
   /** Asks the user a question with choices; undefined if the run was stopped. Absent where nobody can answer. */
   ask?(request: ChoiceRequest): Promise<string | undefined>;
+  /** The card kinds the user's app can show. */
+  cardKinds?: readonly CardKind[];
+  /** Shows a card and waits; undefined if the run was stopped. */
+  card?(card: CardRequest): Promise<CardAnswer | undefined>;
 }
 
 export interface ToolResult {
@@ -25,6 +30,10 @@ export interface Tool {
   readOnly: boolean;
   /** A line for the system prompt, when the model needs to know something about this tool. */
   promptNote?: string;
+  /** Whether a run offers this tool at all (default: always). */
+  available?(run: { cardKinds?: readonly CardKind[] }): boolean;
+  /** The spec for one run, when it depends on the run (default: `spec`). */
+  specFor?(run: { cardKinds?: readonly CardKind[] }): ToolSpec;
   /** Short label for the status row, like "Running npm test". Paths in it are shown relative to the workspace. */
   summarize(input: Record<string, unknown>, workspaceDir: string): string;
   run(input: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>;
@@ -383,6 +392,43 @@ export const askUserTool: Tool = {
   },
 };
 
+/** Shows a widget or form card (#19). Offered only when the user's app can show cards. Read-only: nothing changes. */
+export const showCardTool: Tool = {
+  spec: { name: "show_card", description: showCardDescription(CARD_KINDS), inputSchema: showCardSchema(CARD_KINDS) },
+  // Only the kinds this user's app can show, so the model isn't offered a form it can't use.
+  specFor: (run) => ({
+    name: "show_card",
+    description: showCardDescription(run.cardKinds ?? []),
+    inputSchema: showCardSchema(run.cardKinds ?? []),
+  }),
+  readOnly: true,
+  promptNote: "To have the user pick one option or fill in a short form, use show_card.",
+  available: (run) => (run.cardKinds?.length ?? 0) > 0,
+  summarize: (input) => `Asking: ${short(input.prompt ?? input.title)}`,
+  async run(input, ctx) {
+    let card: CardRequest;
+    try {
+      card = parseCardRequest(input, ctx.cardKinds ?? []);
+    } catch (err) {
+      if (err instanceof CardRequestError) throw new ToolInputError(err.message);
+      throw err;
+    }
+    if (!ctx.card) return { ok: false, output: "Cards can't be shown here. Ask in plain text instead." };
+    const answer = await ctx.card(card);
+    if (answer === undefined) return { ok: false, output: "The run was stopped before the user answered." };
+    return { ok: true, output: describeAnswer(card, answer) };
+  },
+};
+
 export function defaultTools(): Tool[] {
-  return [readFileTool, listFilesTool, searchFilesTool, writeFileTool, editFileTool, shellTool(), askUserTool];
+  return [
+    readFileTool,
+    listFilesTool,
+    searchFilesTool,
+    writeFileTool,
+    editFileTool,
+    shellTool(),
+    askUserTool,
+    showCardTool,
+  ];
 }

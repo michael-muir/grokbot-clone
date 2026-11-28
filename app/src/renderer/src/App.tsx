@@ -7,6 +7,7 @@ import type {
   AvatarColor,
   AvatarShape,
   BotActivity,
+  CardAnswer,
   ProviderSummary,
   PublicBot,
   TranscriptEntry,
@@ -14,6 +15,7 @@ import type {
 import type { ConnectionInfo } from "../../shared/ipc.ts";
 import { type AppSettings, DEFAULT_SETTINGS } from "../../shared/settings.ts";
 import { botColor } from "./bot-colors.ts";
+import { RENDERED_CARD_KINDS } from "./chat/Card.tsx";
 import type { RowContext } from "./chat/ChatRow.tsx";
 import { Composer } from "./chat/Composer.tsx";
 import { conversation, isConfirmed, type PendingMessage, replyCounts, waitingThreads } from "./chat/rows.ts";
@@ -503,6 +505,8 @@ function Chat({
           setProblem(message(err));
           throw err;
         }),
+      // The card shows the reason itself, next to what the user filled in.
+      answerCard: (entry: TranscriptEntry, answer: CardAnswer) => call("answerCard", bot.id, entry.id, answer),
       openThread: (entry: TranscriptEntry) => setThread(entry.id),
       rollBack: (entry: TranscriptEntry) => setRolling({ entry, busy: false }),
       react: (entry: TranscriptEntry, emoji: string, on: boolean) =>
@@ -550,9 +554,8 @@ function Chat({
       try {
         let entryId = "";
         await report(async () => {
-          entryId = thread
-            ? await call("sendMessage", bot.id, text, nonce, thread)
-            : await call("sendMessage", bot.id, text, nonce);
+          // Every message says which card kinds this app can show, so the bot knows what it may post.
+          entryId = await call("sendMessage", bot.id, text, nonce, thread, [...RENDERED_CARD_KINDS]);
         });
         // The id matches the entry even if this gateway doesn't echo nonces.
         if (entryId) setPending((list) => list.map((p) => (p.nonce === nonce ? { ...p, entryId } : p)));

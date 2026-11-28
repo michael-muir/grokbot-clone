@@ -14,7 +14,8 @@
 //   GET   /bots/:id/transcript?since=N   entries changed after updatedSeq N
 //   GET   /bots/:id/events?since=N       Server-Sent Events: backlog, then live entries, in updatedSeq order;
 //                                        each event's id is its updatedSeq (Last-Event-ID resumes)
-//   POST  /bots/:id/messages             {text, clientNonce?, threadId?} -> 202 {entryId}; 409 while the bot is
+//   POST  /bots/:id/cards/:entryId       {answer}       -> 200; 400 with why it doesn't fit; 404 when not waiting
+//   POST  /bots/:id/messages             {text, clientNonce?, threadId?, cardKinds?} -> 202 {entryId}; 409 while the bot is
 //                                        busy; 400 when threadId isn't a message that can start a thread
 //   POST  /bots/:id/interrupt                           -> 202, 409 when idle
 //   POST  /bots/:id/fresh                               -> 200, starts the conversation over; 409 while busy
@@ -45,6 +46,7 @@ import {
   type BotActivity,
   isAvatarColor,
   isAvatarShape,
+  isCardKind,
   isProviderId,
   MAX_BOT_NAME,
   type ProviderSummary,
@@ -219,7 +221,9 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
         return send(res, 400, { error: "threadId must be a message id" });
       }
       try {
-        const { entry } = await d.gateway.sendMessage(bot.id, body.text, nonce, threadId);
+        // The card kinds the client can show; names this gateway doesn't know are dropped.
+        const kinds = Array.isArray(body.cardKinds) ? [...new Set(body.cardKinds.filter(isCardKind))] : [];
+        const { entry } = await d.gateway.sendMessage(bot.id, body.text, nonce, threadId, kinds);
         return send(res, 202, { entryId: entry.id });
       } catch (err) {
         if (err instanceof BotBusyError) return send(res, 409, { error: err.message });
@@ -276,6 +280,14 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
           if (err instanceof BotRuleError) return send(res, 400, { error: err.message });
           throw err;
         }
+      }
+      if (method === "POST" && parts[2] === "cards" && parts[3] && parts.length === 4) {
+        const body = await readJson(req);
+        const r = d.gateway.answerCard(bot.id, parts[3], body.answer);
+        if (r.result === "invalid") return send(res, 400, { error: r.error });
+        return r.result === "ok"
+          ? send(res, 200, { ok: true })
+          : send(res, 404, { error: "No waiting card with that id" });
       }
       if (method === "POST" && parts[2] === "choices" && parts[3] && parts.length === 4) {
         const body = await readJson(req);

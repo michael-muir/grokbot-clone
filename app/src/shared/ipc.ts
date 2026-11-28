@@ -5,9 +5,12 @@ import type { StreamState } from "../../../server/src/client/subscribe.ts";
 import {
   type ApprovalDecision,
   type BotActivity,
+  type CardAnswer,
+  type CardKind,
   type Feedback,
   isAvatarColor,
   isAvatarShape,
+  isCardKind,
   isProviderId,
   type NewBot,
   type ProviderId,
@@ -44,7 +47,12 @@ export interface Calls {
   deleteBot: { args: [botId: string]; result: undefined };
   transcript: { args: [botId: string, since: number]; result: TranscriptEntry[] };
   /** Returns the id of the user entry the message became. With `threadId`, the message goes in that thread. */
-  sendMessage: { args: [botId: string, text: string, clientNonce?: string, threadId?: string]; result: string };
+  sendMessage: {
+    args: [botId: string, text: string, clientNonce?: string, threadId?: string, cardKinds?: CardKind[]];
+    result: string;
+  };
+  /** Answers a widget or form card. */
+  answerCard: { args: [botId: string, entryId: string, answer: CardAnswer]; result: undefined };
   interrupt: { args: [botId: string]; result: undefined };
   /** Starts the bot's conversation over; the old one stays readable. */
   startFresh: { args: [botId: string]; result: undefined };
@@ -154,6 +162,19 @@ function isPatch(v: unknown): v is BotPatch {
   );
 }
 
+const isCardKinds = (v: unknown): v is CardKind[] => Array.isArray(v) && v.length <= 10 && v.every(isCardKind);
+
+function isCardAnswer(v: unknown): v is CardAnswer {
+  if (!isRecord(v)) return false;
+  if (v.kind === "widget") return isString(v.value) && v.value.length <= 200;
+  if (v.kind !== "form" || !isRecord(v.values)) return false;
+  const entries = Object.entries(v.values);
+  return (
+    entries.length <= 20 &&
+    entries.every(([k, x]) => k.length <= 40 && (isBoolean(x) || (isString(x) && x.length <= 10_000)))
+  );
+}
+
 function isDecision(v: unknown): v is ApprovalDecision {
   if (!isRecord(v)) return false;
   return v.allow === true || (v.allow === false && isString(v.reason));
@@ -166,14 +187,18 @@ const ARGS: { [K in CallName]: (a: unknown[]) => a is Calls[K]["args"] } = {
   updateBot: (a): a is [string, BotPatch] => a.length === 2 && isId(a[0]) && isPatch(a[1]),
   deleteBot: (a): a is [string] => a.length === 1 && isId(a[0]),
   transcript: (a): a is [string, number] => a.length === 2 && isId(a[0]) && isCursor(a[1]),
-  sendMessage: (a): a is [string, string, string?, string?] =>
+  sendMessage: (a): a is [string, string, string?, string?, CardKind[]?] =>
     a.length >= 2 &&
-    a.length <= 4 &&
+    a.length <= 5 &&
     isId(a[0]) &&
     isString(a[1]) &&
     a[1].trim() !== "" &&
     optional(isNonce)(a[2]) &&
-    optional(isId)(a[3]),
+    optional(isId)(a[3]) &&
+    optional(isCardKinds)(a[4]),
+  // The gateway checks the answer against its card; here only its shape and size.
+  answerCard: (a): a is [string, string, CardAnswer] =>
+    a.length === 3 && isId(a[0]) && isId(a[1]) && isCardAnswer(a[2]),
   interrupt: (a): a is [string] => a.length === 1 && isId(a[0]),
   startFresh: (a): a is [string] => a.length === 1 && isId(a[0]),
   rollBack: (a): a is [string, string] => a.length === 2 && isId(a[0]) && isId(a[1]),

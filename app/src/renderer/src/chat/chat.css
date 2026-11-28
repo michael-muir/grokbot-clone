@@ -458,6 +458,66 @@
   line-height: var(--text-xs--line-height);
 }
 
+/* A form card's fields (#19). */
+.card-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.card-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.card-label {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--text-sm--line-height);
+}
+
+.card-input {
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--size-hairline) solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-md);
+  line-height: var(--text-md--line-height);
+}
+
+.card-input:disabled {
+  color: var(--color-text-secondary);
+}
+
+textarea.card-input {
+  resize: vertical;
+}
+
+.card-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+  line-height: var(--text-md--line-height);
+}
+
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.card-error {
+  margin: var(--space-3) 0 0;
+  color: var(--color-danger-text);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+}
+
 .card-result {
   margin: var(--space-3) 0 0;
   color: var(--color-text-secondary);
