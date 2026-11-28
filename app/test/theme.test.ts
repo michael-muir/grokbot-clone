@@ -134,7 +134,12 @@ test("theme: the window background is the theme's app color", () => {
 });
 
 test("light theme: a white bot turns black with white eyes, readable on every light surface", () => {
-  const rule = declared(css.slice(lightAt), '.avatar[data-bot-color="white"]');
+  // One rule for the avatar and the swatch that picks it (its last selector opens the block).
+  const rule = declared(css.slice(lightAt), '.color-swatch[data-bot-color="white"]');
+  assert.ok(
+    /\.avatar\[data-bot-color="white"\],\s*\.color-swatch\[data-bot-color="white"\] \{/.test(css.slice(lightAt)),
+    "the avatar shares the rule",
+  );
   assert.equal(rule.get("--bot"), "var(--color-contrast)");
   assert.equal(rule.get("--color-on-bot"), "var(--color-on-contrast)");
   const body = color(rule.get("--bot"), light);

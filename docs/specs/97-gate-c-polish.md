@@ -29,26 +29,37 @@ Where labels show:
 - the gateway's "Switched to …" notice.
 
 Cursor's `default[]` ("Auto") repeats our own "Default" entry, which lets the provider choose. So
-`listedModels(ids)` drops it from lists. A bot that already has it saved still shows it, as "default".
+`listedModels(ids)` drops it from lists. A bot that already has it saved shows it as "Auto".
+
+- **Collisions.** Where two ids would read the same (a `false` setting is left out), the picker shows those ids as
+  they are (`modelOptions`).
+- **Onboarding.** Codex and Cursor now offer "Default", because each CLI picks its own model. Before, onboarding
+  had only a disabled "Choose a model".
 
 ### The main bot is "SmartyPrompt"
 
 - **New installs** start with "SmartyPrompt".
 - **Existing installs.** A default bot still named exactly "Smarty" (id `smarty`) is renamed once, as the earlier
   rename from the reference's name was. A name the user chose is left alone.
+- **Only once.** The registry records that the rename ran, in `<dataDir>/migrations.json`, so a user who later names
+  the bot "Smarty" keeps that name.
 
 ### Light mode: the white bot is black
 
 On the light theme a white bot's avatar turns black (`--color-contrast`), and its eyes turn white
-(`--color-on-contrast`). This is a token rule scoped to `.avatar[data-bot-color="white"]`. Its chat bubble, Send
-button and swatch are left as they are.
+(`--color-on-contrast`). This is a token rule scoped to `.avatar[data-bot-color="white"]` and the avatar picker's
+white swatch, so the picker shows what you get. Its chat bubble and Send button are left as they are.
 
 ### No menu bar
 
 The reference shows no menu bar. Ours stays set, because it carries the Settings shortcut and the edit and view
-roles (copy, paste, zoom). But it's hidden: `setMenuBarVisibility(false)`, with `autoHideMenuBar` off, so Alt
-doesn't bring it back. Alt is part of our own shortcuts (Alt+↑/↓). This applies on Windows and Linux; macOS keeps its
-menu in the system bar.
+roles (copy, paste, zoom). Each OS gets a `menuBar` setting:
+
+- **Windows:** `hidden`, with `setMenuBarVisibility(false)`. Auto-hide stays off, so Alt doesn't bring the bar back;
+  Alt is part of our own shortcuts (Alt+↑/↓). This was checked with real keystrokes.
+- **Linux:** `auto-hide`. On GTK, a hidden bar's shortcuts may not fire, and they're known to work with auto-hide.
+  The bar stays out of sight until Alt.
+- **macOS:** `system`. Its menu is in the system bar.
 
 ### The "›" after the bot's name
 

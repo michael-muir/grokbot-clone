@@ -1,7 +1,7 @@
 // The first-run flow: welcome, pick a provider and model (with the key if one is needed), and name the bot. It
 // saves everything on the main bot in one change at the end, so leaving early changes nothing.
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from "react";
-import { listedModels, modelLabel } from "../../../../../server/src/model-label.ts";
+import { modelOptions as labelled, listedModels } from "../../../../../server/src/model-label.ts";
 import type { ProviderId, ProviderSummary, PublicBot } from "../../../../../server/src/types.ts";
 import { call } from "../gateway.ts";
 import { Select } from "../settings/controls.tsx";
@@ -267,7 +267,7 @@ function ModelStep({
     chosen && allowsDefaultModel(chosen)
       ? { value: "", label: "Default" }
       : { value: "", label: "Choose a model", disabled: true },
-    ...models.map((m) => ({ value: m, label: modelLabel(m) })),
+    ...labelled(models),
   ];
   const note =
     providerError ??

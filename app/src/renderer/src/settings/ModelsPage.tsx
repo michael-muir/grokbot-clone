@@ -1,7 +1,7 @@
 // Settings › Models & keys: each bot's provider, model and server; each provider's API key. A key typed here goes
 // straight to the gateway (and the OS keychain) and is cleared from the page; it's never shown or read back.
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from "react";
-import { listedModels, modelLabel } from "../../../../../server/src/model-label.ts";
+import { modelOptions as labelled, listedModels } from "../../../../../server/src/model-label.ts";
 import type { ProviderId, ProviderSummary, PublicBot } from "../../../../../server/src/types.ts";
 import { call } from "../gateway.ts";
 import { Row, Section, Select } from "./controls.tsx";
@@ -123,10 +123,7 @@ export function ModelsPage({
     return { value: p.id, label: hint ? `${p.label} · ${hint}` : p.label, disabled: isPlaceholder(p) };
   });
   const listed = models.state === "ok" ? listedModels(models.models) : [];
-  const modelOptions = [
-    { value: "", label: "Default" },
-    ...modelChoices(listed, bot.model).map((m) => ({ value: m, label: modelLabel(m) })),
-  ];
+  const modelOptions = [{ value: "", label: "Default" }, ...labelled(modelChoices(listed, bot.model))];
 
   const saveServer = () => {
     const checked = checkServerAddress(server);

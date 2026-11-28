@@ -264,6 +264,10 @@ test("rename: an existing default bot still named Grok Bot or Smarty becomes Sma
     assert.equal(bots.get("other")?.name, "Grok Bot", "only the old default is renamed");
     assert.equal(bots.get("mine")?.name, "Smarty", "a bot the user named Smarty keeps its name");
     assert.equal(new BotRegistry(dir).get("smarty")?.name, "SmartyPrompt", "saved");
+    // Renamed once: a user who then names it Smarty keeps that name.
+    const again = new BotRegistry(dir);
+    again.update("smarty", { name: "Smarty" });
+    assert.equal(new BotRegistry(dir).get("smarty")?.name, "Smarty", "not renamed a second time");
 
     const fresh = mkdtempSync(join(tmpdir(), "smarty-bots-new-"));
     try {

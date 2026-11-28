@@ -11,8 +11,8 @@ test("macOS keeps running with no windows; Windows and Linux quit", () => {
   assert.equal(platformFor("freebsd"), platformFor("linux"));
 });
 
-test("the menu bar is hidden where it sits in the window (Windows, Linux); macOS keeps the system bar", () => {
-  assert.equal(platformFor("win32").hideMenuBar, true);
-  assert.equal(platformFor("linux").hideMenuBar, true);
-  assert.equal(platformFor("darwin").hideMenuBar, false);
+test("no menu bar shows in the window: hidden on Windows, auto-hidden on Linux; macOS keeps the system bar", () => {
+  assert.equal(platformFor("win32").menuBar, "hidden");
+  assert.equal(platformFor("linux").menuBar, "auto-hide");
+  assert.equal(platformFor("darwin").menuBar, "system");
 });

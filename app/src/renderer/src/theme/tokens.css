@@ -315,9 +315,10 @@
     --shadow-modal: 0 24px 64px rgb(0 0 0 / 0.18);
   }
 
-  /* A white bot turns black on a light surface, with white eyes (the owner's call, #97). Only the avatar: its
-     bubble and Send button keep their own colors. */
-  .avatar[data-bot-color="white"] {
+  /* A white bot turns black on a light surface, with white eyes (the owner's call, #97): the avatar, and the
+     swatch that picks it, so the picker shows what you get. Its bubble and Send button keep their own colors. */
+  .avatar[data-bot-color="white"],
+  .color-swatch[data-bot-color="white"] {
     --bot: var(--color-contrast);
     --color-on-bot: var(--color-on-contrast);
   }

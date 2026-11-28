@@ -9,13 +9,17 @@ const DEFAULT_BOTS: Bot[] = [
 
 /**
  * The default bot under an older default name: the reference app's (which must not ship), then "Smarty" (the owner
- * chose "SmartyPrompt", #97). Renamed once, only while it still has that exact name (a name the user chose is left
- * alone). Its id stays: transcripts use it.
+ * chose "SmartyPrompt", #97). Renamed only while it still has that exact name (a name the user chose is left alone),
+ * and only once: the registry records that this ran, so a user who later names it "Smarty" keeps that. Its id
+ * stays: transcripts use it.
  */
 function renameOldDefault(bot: Bot): Bot {
   const old = (bot.id === "grok-bot" && bot.name === "Grok Bot") || (bot.id === "smarty" && bot.name === "Smarty");
   return old ? { ...bot, name: "SmartyPrompt" } : bot;
 }
+
+/** One-time changes to saved bots, by name; the names done are kept in <dataDir>/migrations.json. */
+const RENAME_DEFAULT = "rename-default-to-smartyprompt";
 
 export class BotRegistry {
   private readonly file: string;
@@ -24,9 +28,20 @@ export class BotRegistry {
   constructor(dataDir: string, seed: Bot[] = DEFAULT_BOTS) {
     mkdirSync(dataDir, { recursive: true });
     this.file = join(dataDir, "bots.json");
-    const initial = existsSync(this.file) ? (JSON.parse(readFileSync(this.file, "utf8")) as Bot[]) : seed;
-    for (const bot of initial) this.bots.set(bot.id, renameOldDefault(bot));
+    const saved = existsSync(this.file);
+    const initial = saved ? (JSON.parse(readFileSync(this.file, "utf8")) as Bot[]) : seed;
+    const migrations = join(dataDir, "migrations.json");
+    const done = new Set<string>(
+      existsSync(migrations) ? (JSON.parse(readFileSync(migrations, "utf8")) as string[]) : [],
+    );
+    // A new install starts with the current name, so there's nothing to rename.
+    const rename = saved && !done.has(RENAME_DEFAULT);
+    for (const bot of initial) this.bots.set(bot.id, rename ? renameOldDefault(bot) : bot);
     this.save();
+    if (!done.has(RENAME_DEFAULT)) {
+      done.add(RENAME_DEFAULT);
+      writeFileSync(migrations, JSON.stringify([...done]));
+    }
   }
 
   list(): Bot[] {

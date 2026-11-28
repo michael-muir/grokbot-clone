@@ -103,9 +103,11 @@ function createWindow(): BrowserWindow {
     backgroundColor: windowBackground(nativeTheme.shouldUseDarkColors),
     webPreferences: { preload: preloadFile, sandbox: true, contextIsolation: true, nodeIntegration: false },
   });
-  // Hidden, not removed: the menu carries the Settings shortcut and the edit and view roles. Not auto-hide either,
-  // which would bring the bar back on Alt, a key our own shortcuts use.
-  if (platform.hideMenuBar) win.setMenuBarVisibility(false);
+  // Out of sight, not removed: the menu carries the Settings shortcut and the edit and view roles. Hidden where its
+  // shortcuts still fire (Windows: auto-hide would bring the bar back on Alt, a key our shortcuts use); auto-hidden
+  // on Linux, where a hidden bar's shortcuts may not.
+  if (platform.menuBar === "hidden") win.setMenuBarVisibility(false);
+  if (platform.menuBar === "auto-hide") win.setAutoHideMenuBar(true);
   win.once("ready-to-show", () => {
     readyWindows.add(win);
     if (!SMOKE) win.show();
