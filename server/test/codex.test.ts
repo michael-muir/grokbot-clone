@@ -2,7 +2,13 @@
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { test } from "node:test";
-import { type CodexConnection, CodexProvider, codexArgs, findExecutable } from "../src/providers/codex.ts";
+import {
+  type CodexConnection,
+  CodexProvider,
+  codexArgs,
+  enabledMcpNames,
+  findExecutable,
+} from "../src/providers/codex.ts";
 import type { ProviderEvent, RunCallbacks, RunRequest } from "../src/types.ts";
 import { type ContractScenario, describeProviderContract } from "./contract/provider-contract.ts";
 
@@ -304,14 +310,27 @@ test("codex: listModels lists the signed-in Codex's visible models", async () =>
 });
 
 test("codex: every run switches off plugins, hooks, the notify program and the user's MCP servers", () => {
-  const args = codexArgs(["paper", "node_repl", "bad name;rm"]);
+  const args = codexArgs(["paper", "node_repl"]);
   for (const f of ["plugins", "apps", "computer_use", "browser_use", "hooks"]) {
     assert.ok(args.join(" ").includes(`--disable ${f}`), f);
   }
   assert.ok(args.includes("notify=[]"));
   assert.ok(args.includes("mcp_servers.paper.enabled=false"));
   assert.ok(args.includes("mcp_servers.node_repl.enabled=false"));
-  assert.ok(!args.join(" ").includes("bad name"), "a name that isn't a plain word is never passed on");
+  // A name `-c` can't address would stay on, so the run refuses to start rather than skip it.
+  assert.throws(() => codexArgs(["paper", "my.tools"]), /can't switch off/);
+  assert.throws(() => codexArgs(["bad name;rm"]), /can't switch off/);
+});
+
+test("codex: the MCP list is read strictly, and a server is on unless it says it's off", () => {
+  assert.deepEqual(
+    enabledMcpNames(JSON.stringify([{ name: "a", enabled: true }, { name: "b" }, { name: "c", enabled: false }])),
+    ["a", "b"],
+  );
+  assert.deepEqual(enabledMcpNames("[]"), []);
+  for (const odd of ['{"servers":[]}', "not json", '[{"enabled":true}]']) {
+    assert.throws(() => enabledMcpNames(odd), /form this app doesn't read/, odd);
+  }
 });
 
 test("codex: Codex counts as set up only when its executable is found", () => {
@@ -322,4 +341,96 @@ test("codex: Codex counts as set up only when its executable is found", () => {
   assert.equal(findExecutable("codex", { PATH: join("elsewhere") }, exists), undefined);
   assert.equal(findExecutable(exe, {}, exists), exe, "a path is checked as it is");
   assert.equal(new CodexProvider({ command: join("no", "such", "codex") }).info().configured, false);
+});
+
+test("codex: Stop while Codex is starting ends the run without opening a thread", async () => {
+  const controller = new AbortController();
+  let server: ScriptedServer | undefined;
+  const provider = new CodexProvider({
+    connect: async (_cwd, signal) => {
+      controller.abort();
+      assert.equal(signal.aborted, true, "connect gets the run's signal");
+      server = new ScriptedServer(SCRIPTS.reply);
+      return server;
+    },
+  });
+  const outcome = await provider.run(
+    { botId: "b", botName: "B", prompt: "hi", workspaceDir: "/work", instructions: "", signal: controller.signal },
+    { emit: () => {}, requestApproval: async () => ({ allow: true }) },
+  );
+  assert.equal(outcome.status, "interrupted");
+  assert.deepEqual(server?.requests, [], "nothing was sent to Codex");
+  assert.equal(server?.closed, true);
+});
+
+test("codex: a turn without an id fails; a block that streamed only spaces still gets its final text", async () => {
+  class NoTurnId extends ScriptedServer {
+    override emit(msg: Json): void {
+      const result = msg.result as Json | undefined;
+      if (result && typeof result === "object" && "turn" in result) super.emit({ ...msg, result: { turn: {} } });
+      else super.emit(msg);
+    }
+  }
+  const provider = new CodexProvider({ connect: async () => new NoTurnId({ turn: async () => {} }) });
+  const outcome = await provider.run(
+    {
+      botId: "b",
+      botName: "B",
+      prompt: "hi",
+      workspaceDir: "/work",
+      instructions: "",
+      signal: new AbortController().signal,
+    },
+    { emit: () => {}, requestApproval: async () => ({ allow: true }) },
+  );
+  assert.equal(outcome.status, "failed");
+  assert.match(outcome.error ?? "", /didn't start a turn/);
+
+  const blank = runWith({
+    turn: async (s, t, turn) => {
+      s.notify("item/agentMessage/delta", { threadId: t, turnId: turn, itemId: "m", delta: "\n" });
+      s.notify("item/completed", { threadId: t, turnId: turn, item: { type: "agentMessage", id: "m", text: "\n" } });
+      s.notify("turn/completed", { threadId: t, turn: { id: turn, status: "completed", error: null } });
+    },
+  });
+  await blank.done;
+  assert.deepEqual(
+    blank.events.filter((e) => e.type === "text"),
+    [{ type: "text", blockId: "m", text: "\n" }],
+  );
+});
+
+test("codex: a forked thread's events that come before Codex's answer aren't dropped", async () => {
+  class EarlyFork extends ScriptedServer {
+    override send(line: string): void {
+      const msg = JSON.parse(line) as Json;
+      if (msg.method === "thread/fork") {
+        // The new thread's first event, sent before the reply to thread/fork.
+        this.notify("item/agentMessage/delta", {
+          threadId: "thread-7-fork",
+          turnId: "turn-1",
+          itemId: "e",
+          delta: "Early",
+        });
+      }
+      super.send(line);
+    }
+  }
+  const server = new EarlyFork(SCRIPTS.reply);
+  const events: ProviderEvent[] = [];
+  const outcome = await new CodexProvider({ connect: async () => server }).run(
+    {
+      botId: "b",
+      botName: "B",
+      prompt: "hi",
+      workspaceDir: "/work",
+      instructions: "",
+      signal: new AbortController().signal,
+      sessionId: "thread-7",
+      resumeAt: "turn-3",
+    },
+    { emit: (e) => events.push(e), requestApproval: async () => ({ allow: true }) },
+  );
+  assert.equal(outcome.sessionId, "thread-7-fork");
+  assert.ok(events.some((e) => e.type === "text_delta" && e.text === "Early"));
 });

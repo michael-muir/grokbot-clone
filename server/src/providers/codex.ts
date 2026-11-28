@@ -31,13 +31,25 @@ export const DISABLED_FEATURES = [
   "code_mode_host",
 ] as const;
 
-/** The flags that isolate a run from the user's own Codex extras; `mcpNames` are the MCP servers still enabled. */
+/** An MCP server name Codex's `-c` can address: its key path splits on dots and has no quoting. */
+export const isPlainMcpName = (name: string): boolean => /^[\w-]+$/.test(name);
+
+/**
+ * The flags that isolate a run from the user's own Codex extras; `mcpNames` are the MCP servers still enabled.
+ * Throws for a name `-c` can't address: that server would stay on, so the run must not start.
+ */
 export function codexArgs(mcpNames: readonly string[]): string[] {
+  const odd = mcpNames.filter((n) => !isPlainMcpName(n));
+  if (odd.length) {
+    throw new Error(
+      `Codex has an MCP server this app can't switch off for bots (${odd.map((n) => JSON.stringify(n.slice(0, 40))).join(", ")}). Rename it in Codex's config, or turn it off there.`,
+    );
+  }
   return [
     ...DISABLED_FEATURES.flatMap((f) => ["--disable", f]),
     "-c",
     "notify=[]",
-    ...mcpNames.filter((n) => /^[\w-]+$/.test(n)).flatMap((n) => ["-c", `mcp_servers.${n}.enabled=false`]),
+    ...mcpNames.flatMap((n) => ["-c", `mcp_servers.${n}.enabled=false`]),
   ];
 }
 
@@ -51,8 +63,8 @@ export interface CodexConnection {
 }
 
 export interface CodexOptions {
-  /** Opens the connection for a run in `cwd`. Defaults to spawning `codex app-server`. */
-  connect?: (cwd: string) => Promise<CodexConnection>;
+  /** Opens the connection for a run in `cwd`, giving up when `signal` fires. Defaults to spawning `codex app-server`. */
+  connect?: (cwd: string, signal: AbortSignal) => Promise<CodexConnection>;
   /** The Codex executable: CODEX_PATH, or `codex` on the PATH. */
   command?: string;
   /** How long Stop waits for Codex to end the turn before the process is killed. */
@@ -67,11 +79,22 @@ const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
 /** The process's last stderr lines, kept for an error message. Codex gets no keys (childEnv), so none can show. */
 const TAIL_CHARS = 400;
 
+/**
+ * How to launch `command`: npm installs Codex on Windows as a `.cmd` shim, which only a shell can start. That's safe
+ * here because every argument is one of ours: fixed flags, and MCP names already limited to word characters.
+ */
+function launchSpec(command: string): { file: string; shell: boolean } {
+  const file = findExecutable(command) ?? command;
+  return { file, shell: process.platform === "win32" && /\.(cmd|bat)$/i.test(file) };
+}
+
 function spawnCodex(command: string, args: string[], cwd: string): CodexConnection {
-  const child: ChildProcess = spawn(command, args, {
+  const { file, shell } = launchSpec(command);
+  const child: ChildProcess = spawn(shell ? `"${file}"` : file, args, {
     cwd,
     env: childEnv(),
     windowsHide: true,
+    shell,
     stdio: ["pipe", "pipe", "pipe"],
   });
   let buffer = "";
@@ -98,6 +121,11 @@ function spawnCodex(command: string, args: string[], cwd: string): CodexConnecti
     tail = (tail + chunk).slice(-TAIL_CHARS);
   });
   child.on("error", (err) => exit(err.message));
+  // A write after Codex died, before "exit" arrives, is EPIPE: that ends the run, not the gateway.
+  child.stdin?.on("error", (err) => {
+    console.warn(`codex: couldn't write to Codex (${err.message})`);
+    exit(tail.trim().split("\n").at(-1) || err.message);
+  });
   child.on("exit", () => exit(tail.trim().split("\n").at(-1) ?? ""));
   return {
     send: (line) => {
@@ -191,12 +219,12 @@ class Rpc {
 export class CodexProvider implements AgentProvider {
   readonly id = "codex" as const;
   private readonly command: string;
-  private readonly connectFn: (cwd: string) => Promise<CodexConnection>;
+  private readonly connectFn: (cwd: string, signal: AbortSignal) => Promise<CodexConnection>;
   private readonly stopGraceMs: number;
 
   constructor(opts: CodexOptions = {}) {
     this.command = opts.command ?? process.env.CODEX_PATH ?? "codex";
-    this.connectFn = opts.connect ?? ((cwd) => this.spawnIsolated(cwd));
+    this.connectFn = opts.connect ?? ((cwd, signal) => this.spawnIsolated(cwd, signal));
     this.stopGraceMs = opts.stopGraceMs ?? 2000;
   }
 
@@ -208,11 +236,16 @@ export class CodexProvider implements AgentProvider {
   async listModels(signal: AbortSignal): Promise<string[]> {
     let conn: CodexConnection;
     try {
-      conn = await this.connectFn(process.cwd());
+      conn = await this.connectFn(process.cwd(), signal);
     } catch (err) {
+      if (signal.aborted) throw err;
       throw new NotConfiguredError(
         `Couldn't start Codex: ${(err as Error).message}. Install it and run "codex login".`,
       );
+    }
+    if (signal.aborted) {
+      conn.close();
+      throw new Error("Stopped.");
     }
     const rpc = new Rpc(conn);
     const abort = () => conn.close();
@@ -235,12 +268,17 @@ export class CodexProvider implements AgentProvider {
     if (req.signal.aborted) return { status: "interrupted", sessionId: req.sessionId };
     let conn: CodexConnection;
     try {
-      conn = await this.connectFn(req.workspaceDir);
+      conn = await this.connectFn(req.workspaceDir, req.signal);
     } catch (err) {
+      if (req.signal.aborted) return { status: "interrupted", sessionId: req.sessionId };
       return { status: "failed", error: `Couldn't start Codex: ${(err as Error).message}` };
     }
+    if (req.signal.aborted) {
+      conn.close();
+      return { status: "interrupted", sessionId: req.sessionId };
+    }
     const rpc = new Rpc(conn);
-    let threadId = req.sessionId;
+    let threadId: string | undefined; // set from Codex's answer; until then nothing is filtered by thread
     let turnId: string | undefined;
     const openText = new Map<string, string>(); // item id -> text streamed so far
     const openTools = new Set<string>();
@@ -289,9 +327,10 @@ export class CodexProvider implements AgentProvider {
           const type = str(item.type);
           if (!id) return;
           if (type === "agentMessage" && method === "item/completed") {
+            const streamed = openText.has(id);
             const text = str(item.text) || openText.get(id) || "";
             openText.delete(id);
-            if (text.trim()) cb.emit({ type: "text", blockId: id, text });
+            if (text.trim() || streamed) cb.emit({ type: "text", blockId: id, text });
           } else if (type === "commandExecution") {
             const summary = `Running ${str(item.command).slice(0, 120)}`;
             if (method === "item/started") toolStart(id, "Bash", summary);
@@ -318,12 +357,12 @@ export class CodexProvider implements AgentProvider {
           const turnError = isRecord(turn.error) ? str(turn.error.message) : "";
           finish(
             status === "completed"
-              ? { status: "finished", sessionId: threadId }
+              ? { status: "finished", sessionId: threadId ?? req.sessionId }
               : status === "interrupted"
-                ? { status: "interrupted", sessionId: threadId }
+                ? { status: "interrupted", sessionId: threadId ?? req.sessionId }
                 : {
                     status: "failed",
-                    sessionId: threadId,
+                    sessionId: threadId ?? req.sessionId,
                     error: turnError || lastError || "Codex stopped with an error.",
                   },
           );
@@ -352,17 +391,23 @@ export class CodexProvider implements AgentProvider {
       closeOpen();
       finish(
         req.signal.aborted
-          ? { status: "interrupted", sessionId: threadId }
-          : { status: "failed", sessionId: threadId, error: `Codex stopped: ${rpc.ended || "no reason given"}` },
+          ? { status: "interrupted", sessionId: threadId ?? req.sessionId }
+          : {
+              status: "failed",
+              sessionId: threadId ?? req.sessionId,
+              error: `Codex stopped: ${rpc.ended || "no reason given"}`,
+            },
       );
     });
 
+    let graceTimer: ReturnType<typeof setTimeout> | undefined;
     const onAbort = () => {
       if (threadId && turnId) rpc.request("turn/interrupt", { threadId, turnId }).catch(() => {});
       // Codex usually ends the turn at once; if it doesn't, the run ends anyway.
-      setTimeout(() => {
+      clearTimeout(graceTimer);
+      graceTimer = setTimeout(() => {
         closeOpen();
-        finish({ status: "interrupted", sessionId: threadId });
+        finish({ status: "interrupted", sessionId: threadId ?? req.sessionId });
       }, this.stopGraceMs).unref?.();
     };
     req.signal.addEventListener("abort", onAbort, { once: true });
@@ -384,21 +429,23 @@ export class CodexProvider implements AgentProvider {
             : await rpc.request("thread/start", threadParams);
       threadId = isRecord(opened.thread) ? str(opened.thread.id) : "";
       if (!threadId) throw new Error("Codex didn't open a thread.");
-      cb.emit({ type: "session", sessionId: threadId });
-      if (req.signal.aborted) return { status: "interrupted", sessionId: threadId };
+      cb.emit({ type: "session", sessionId: threadId ?? req.sessionId });
+      if (req.signal.aborted) return { status: "interrupted", sessionId: threadId ?? req.sessionId };
       const started = await rpc.request("turn/start", {
         threadId,
         input: [{ type: "text", text: req.prompt, text_elements: [] }],
       });
       turnId = isRecord(started.turn) ? str(started.turn.id) : "";
+      if (!turnId) throw new Error("Codex didn't start a turn.");
       for (const params of earlyUsage.splice(0)) countUsage(params);
       if (req.signal.aborted) onAbort();
       return await done;
     } catch (err) {
-      if (req.signal.aborted) return { status: "interrupted", sessionId: threadId };
-      return { status: "failed", sessionId: threadId, error: (err as Error).message };
+      if (req.signal.aborted) return { status: "interrupted", sessionId: threadId ?? req.sessionId };
+      return { status: "failed", sessionId: threadId ?? req.sessionId, error: (err as Error).message };
     } finally {
       req.signal.removeEventListener("abort", onAbort);
+      clearTimeout(graceTimer);
       conn.close();
     }
   }
@@ -412,30 +459,45 @@ export class CodexProvider implements AgentProvider {
   }
 
   /** Spawns `codex app-server` with the user's plugins, hooks and MCP servers switched off. */
-  private async spawnIsolated(cwd: string): Promise<CodexConnection> {
-    const names = await this.enabledMcpServers(cwd);
+  private async spawnIsolated(cwd: string, signal: AbortSignal): Promise<CodexConnection> {
+    const names = await this.enabledMcpServers(cwd, signal);
+    signal.throwIfAborted();
     return spawnCodex(this.command, ["app-server", ...codexArgs(names)], cwd);
   }
 
   /** The MCP servers the user's Codex config still enables, once plugins are off: only their names are read. */
-  private enabledMcpServers(cwd: string): Promise<string[]> {
+  private enabledMcpServers(cwd: string, signal: AbortSignal): Promise<string[]> {
     const args = [...codexArgs([]), "mcp", "list", "--json"];
+    const { file, shell } = launchSpec(this.command);
+    const opts = { cwd, env: childEnv(), windowsHide: true, timeout: 20_000, signal, shell };
     return new Promise((resolve, reject) => {
-      execFile(this.command, args, { cwd, env: childEnv(), windowsHide: true, timeout: 20_000 }, (err, stdout) => {
+      execFile(shell ? `"${file}"` : file, args, opts, (err, stdout) => {
         if (err) return reject(new Error(err.message.split("\n")[0] ?? "codex mcp list failed"));
         try {
-          const list: unknown = JSON.parse(stdout);
-          resolve(
-            (Array.isArray(list) ? list : [])
-              .filter((s): s is Json => isRecord(s) && s.enabled === true)
-              .map((s) => str(s.name)),
-          );
-        } catch {
-          reject(new Error("Codex listed its MCP servers in a form this app doesn't read."));
+          resolve(enabledMcpNames(stdout));
+        } catch (e) {
+          reject(e);
         }
       });
     });
   }
+}
+
+/**
+ * The servers to switch off, from `codex mcp list --json`. Strict: a list in another form is an error, and a server
+ * counts as enabled unless it says otherwise, so a change in Codex's output can't quietly leave servers on.
+ */
+export function enabledMcpNames(stdout: string): string[] {
+  let list: unknown;
+  try {
+    list = JSON.parse(stdout);
+  } catch {
+    list = undefined;
+  }
+  if (!Array.isArray(list) || !list.every((s) => isRecord(s) && typeof s.name === "string")) {
+    throw new Error("Codex listed its MCP servers in a form this app doesn't read.");
+  }
+  return list.filter((s: Json) => s.enabled !== false).map((s: Json) => str(s.name));
 }
 
 /** Where `command` resolves: a path that exists, or the first match on the PATH (with Windows' extensions). */

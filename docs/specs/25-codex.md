@@ -108,7 +108,14 @@ A bot must not inherit tools that act outside its workspace (ground rules). So e
 - `-c notify=[]`.
 
 It also switches off each MCP server Codex still lists as enabled. Those come from `codex mcp list --json`, run with
-the same flags. Only the names are read, and each gets `-c mcp_servers.<name>.enabled=false`. All of this is checked
+the same flags. Only the names are read, and each gets `-c mcp_servers.<name>.enabled=false`.
+
+The list is read strictly, so a change in Codex can't quietly leave a server on:
+
+- **Unreadable output.** If the list comes back in a form we don't read, the run fails.
+- **Missing `enabled`.** A server counts as enabled unless it says `enabled: false`.
+- **Odd names.** `-c` key paths split on dots and can't be quoted. So a name that isn't word characters and dashes
+  makes the run fail with a clear message, rather than starting with that server on. All of this is checked
 live: with these flags no MCP server starts, and a thread still opens.
 
 The user's model choice, reasoning effort and trusted projects are kept. Their sign-in is reused, never read or
@@ -119,15 +126,24 @@ copied by us.
 - **The provider:** `codex` becomes `CodexProvider`.
 - **Settings:**
   - **Configured** when the `codex` executable is found: `CODEX_PATH` or the PATH.
+- **npm's shim on Windows.** There, npm installs Codex as a `codex.cmd` shim, which only a shell can start. So a
+  `.cmd` or `.bat` target is launched through the shell. Every argument is ours (fixed flags, and word-only MCP names),
+  so nothing can be injected.
   - **Models:** `listModels` calls `model/list` (non-hidden ids). If Codex isn't signed in, its error is shown.
 
 ## Interfaces
 
 ```ts
 class CodexProvider implements AgentProvider   // id "codex"
-  constructor(opts?: { connect?: () => CodexConnection; command?: string })
-interface CodexConnection { send(line: string): void; onLine(fn: (line: string) => void): void; onExit(fn: (info: string) => void): void; close(): void }
-codexArgs(mcpNames: string[]): string[]        // the isolation flags
+  constructor(opts?: {
+    connect?: (cwd: string, signal: AbortSignal) => Promise<CodexConnection>; // default: spawn `codex app-server`
+    command?: string;                                                          // default: CODEX_PATH or `codex`
+    stopGraceMs?: number;                                                      // default 2000
+  })
+interface CodexConnection { send(line: string): void; onLine(fn: (line: string) => void): void; onExit(fn: (detail: string) => void): void; close(): void }
+codexArgs(mcpNames: string[]): string[]        // the isolation flags; throws for a name `-c` can't address
+enabledMcpNames(stdout: string): string[]      // reads `codex mcp list --json` strictly
+findExecutable(command, env?, exists?): string | undefined
 ```
 
 ## Test plan
