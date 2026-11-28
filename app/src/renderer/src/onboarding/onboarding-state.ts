@@ -23,10 +23,12 @@ export const showKeyField = (p: ProviderSummary, testFailed: boolean): boolean =
   p.needsKey && (!p.configured || testFailed);
 
 /**
- * "Default" works only where something picks a model without being told: Claude's own default, or a local server's
- * first installed model. Hosted OpenAI-compatible and Gemini providers need a model named.
+ * "Default" works only where something picks a model without being told: Claude's own default, a local server's
+ * first installed model, or the Codex and Cursor CLIs' own choice. Hosted OpenAI-compatible and Gemini providers
+ * need a model named.
  */
-export const allowsDefaultModel = (p: ProviderSummary): boolean => p.local || p.id === "claude";
+export const allowsDefaultModel = (p: ProviderSummary): boolean =>
+  p.local || p.id === "claude" || p.id === "codex" || p.id === "cursor";
 
 /** The bot's model if the provider lists it, else "" (Default, or "choose one" where there's no default). */
 export const firstModel = (models: readonly string[], current: string | undefined): string =>

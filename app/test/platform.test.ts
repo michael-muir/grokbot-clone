@@ -10,3 +10,9 @@ test("macOS keeps running with no windows; Windows and Linux quit", () => {
   assert.equal(platformFor("linux").quitWhenAllWindowsClosed, true);
   assert.equal(platformFor("freebsd"), platformFor("linux"));
 });
+
+test("no menu bar shows in the window: hidden on Windows, auto-hidden on Linux; macOS keeps the system bar", () => {
+  assert.equal(platformFor("win32").menuBar, "hidden");
+  assert.equal(platformFor("linux").menuBar, "auto-hide");
+  assert.equal(platformFor("darwin").menuBar, "system");
+});

@@ -177,6 +177,7 @@
   --size-swatch: 24px; /* a color in the avatar picker */
   --size-create-dialog-w: 440px;
   --size-badge: 12px; /* the corner badge on a sidebar tile */
+  --size-chevron: 12px; /* the chevron after the bot's name in the header pill */
   --size-thumb-w: 64px; /* the computer card's thumbnail */
   --size-thumb-h: 40px;
   --size-settings-w: 898px; /* the Settings window */
@@ -312,6 +313,14 @@
     --shadow-raised: 0 2px 8px -1px rgb(0 0 0 / 0.08), 0 1px 2px rgb(0 0 0 / 0.05);
     --shadow-menu: 0 8px 24px rgb(0 0 0 / 0.12);
     --shadow-modal: 0 24px 64px rgb(0 0 0 / 0.18);
+  }
+
+  /* A white bot turns black on a light surface, with white eyes (the owner's call, #97): the avatar, and the
+     swatch that picks it, so the picker shows what you get. Its bubble and Send button keep their own colors. */
+  .avatar[data-bot-color="white"],
+  .color-swatch[data-bot-color="white"] {
+    --bot: var(--color-contrast);
+    --color-on-bot: var(--color-on-contrast);
   }
 }
 

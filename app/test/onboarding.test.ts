@@ -66,6 +66,9 @@ test("onboarding: the model step needs a test, and a model where there's no defa
   assert.equal(allowsDefaultModel(ollama), true);
   assert.equal(allowsDefaultModel(claude), true);
   assert.equal(allowsDefaultModel(xai), false);
+  for (const id of ["codex", "cursor"] as const) {
+    assert.equal(allowsDefaultModel({ ...xai, id, label: id }), true, `${id} picks its own model`);
+  }
 
   assert.equal(canContinue(ollama, false, ""), false, "not tested yet");
   assert.equal(canContinue(ollama, true, ""), true);
