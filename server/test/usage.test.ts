@@ -121,6 +121,9 @@ test("claude: the result's usage and cost become usage events, with the run's sh
   const unknown = await events(claudeRun(0.8), { sessionId: "s-1" });
   assert.deepEqual(unknown.usage, [{ type: "usage", inputTokens: 1060, outputTokens: 30, sessionCostUsd: 0.8 }]);
   assert.equal(unknown.outcome.costUsd, undefined, "no base, no cost rather than a wrong one");
+
+  const lower = await events(claudeRun(0.05), { sessionId: "s-1", costBase: 1.2 });
+  assert.equal(lower.outcome.costUsd, undefined, "a total below the base is no cost, not a made-up $0");
 });
 
 // ---------- gateway
@@ -162,8 +165,8 @@ test("usage: a run adds up its usage events, keeps the share of cost, and record
   try {
     await (await t.gateway.sendMessage("nova", "one")).done;
     assert.deepEqual(
-      { usage: runBody(t.store)?.usage, cost: runBody(t.store)?.costUsd, session: runBody(t.store)?.sessionCostUsd },
-      { usage: { inputTokens: 150, outputTokens: 15 }, cost: 0.02, session: 0.07 },
+      { usage: runBody(t.store)?.usage, cost: runBody(t.store)?.costUsd, session: runBody(t.store)?.sessionCost },
+      { usage: { inputTokens: 150, outputTokens: 15 }, cost: 0.02, session: { sessionId: "s-1", usd: 0.07 } },
       "the events' cost wins over the outcome's",
     );
     await (await t.gateway.sendMessage("nova", "two")).done;
@@ -201,12 +204,17 @@ test("usage: a run that reports nothing has no usage; a fork's base is the run a
         kind: "run",
         provider: "claude",
         state: "finished",
-        sessionCostUsd: total,
-        checkpoint: { sessionId: "s", at },
+        sessionCost: { sessionId: "s", usd: total },
+        ...(at ? { checkpoint: { sessionId: "s", at } } : {}),
       },
     }) as TranscriptEntry;
   const runs = [run("a", 0.1), run("b", 0.3)];
   assert.deepEqual(costBase(runs, "s"), { costBase: 0.3 }, "a plain resume: the last total");
+  assert.deepEqual(
+    costBase([...runs, run("", 0.45)], "s"),
+    { costBase: 0.45 },
+    "a run that failed before any checkpoint still moves the base, so its cost isn't counted twice",
+  );
   assert.deepEqual(costBase(runs, "s", "a"), { costBase: 0.1 }, "a fork at a: that run's total");
   assert.deepEqual(costBase(runs, "other"), {});
 });
@@ -254,7 +262,7 @@ test("usage: summarize puts runs on their local day, fills empty days, ranks bot
   assert.equal(summarizeUsage(entries.slice(2, 3), { days: 7, now }).costReported, false);
 });
 
-test("http: /usage answers the summary for 7, 30 or 90 days with bot names, and refuses others", async () => {
+test("http: /usage answers the summary for 7, 30 or 90 days, and refuses others", async () => {
   const t = setup();
   const server = createHttpServer({
     gateway: t.gateway,
@@ -272,15 +280,10 @@ test("http: /usage answers the summary for 7, 30 or 90 days with bot names, and 
     await (await t.gateway.sendMessage("pip", "hi")).done;
     const res = await get("/usage?days=30");
     assert.equal(res.status, 200);
-    const body = (await res.json()) as {
-      days: unknown[];
-      total: { runs: number; inputTokens: number };
-      botNames: Record<string, string>;
-    };
+    const body = (await res.json()) as { days: unknown[]; total: { runs: number; inputTokens: number } };
     assert.equal(body.days.length, 30);
     assert.equal(body.total.runs, 2);
     assert.equal(body.total.inputTokens, 105 + 102);
-    assert.deepEqual(body.botNames, { nova: "Nova", pip: "Pip" });
     assert.equal((await get("/usage")).status, 200, "7 by default");
     assert.equal((await get("/usage?days=5")).status, 400);
   } finally {
@@ -288,4 +291,31 @@ test("http: /usage answers the summary for 7, 30 or 90 days with bot names, and 
     server.close();
     t.cleanup();
   }
+});
+
+test("claude: a run stopped before its result still reports the tokens of the calls it made", async () => {
+  const controller = new AbortController();
+  const query: QueryFn = async function* () {
+    yield sdk({ type: "system", subtype: "init", session_id: "s-1" });
+    yield sdk({
+      type: "assistant",
+      parent_tool_use_id: null,
+      uuid: "u1",
+      message: {
+        id: "m1",
+        role: "assistant",
+        usage: { input_tokens: 40, output_tokens: 4 },
+        content: [{ type: "text", text: "Working" }],
+      },
+    });
+    controller.abort();
+    await new Promise(() => {}); // never ends on its own
+  };
+  const out: ProviderEvent[] = [];
+  const outcome = await new ClaudeProvider(query, () => "k").run(
+    { botId: "b", botName: "B", prompt: "hi", workspaceDir: ".", instructions: "", signal: controller.signal },
+    { emit: (e) => out.push(e), requestApproval: async () => ({ allow: true }) },
+  );
+  assert.equal(outcome.status, "interrupted");
+  assert.deepEqual(usageOf(out), [{ type: "usage", inputTokens: 40, outputTokens: 4 }]);
 });

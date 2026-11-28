@@ -55,7 +55,7 @@ function answer(name: string, args: readonly unknown[]): unknown {
   if (name === "react") return [];
   if (name === "usage") {
     const zero = { inputTokens: 0, outputTokens: 0, costUsd: 0, runs: 0 };
-    return { from: "", to: "", days: [], bots: [], total: zero, costReported: false, botNames: {} };
+    return { from: "", to: "", days: [], bots: [], total: zero, costReported: false };
   }
   if (name === "createBot") {
     const [input] = args as [{ name: string; avatar?: { shape: string; color: string } }];

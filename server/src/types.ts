@@ -61,8 +61,11 @@ export type EntryBody =
       costUsd?: number;
       /** Tokens this run used, where the provider reports them (#21). */
       usage?: TokenUsage;
-      /** The provider's running cost total for the session at the run's end, so the next run can take its share. */
-      sessionCostUsd?: number;
+      /**
+       * The provider's running cost total for its session at the run's end, with the session it belongs to: the next
+       * run on that session takes its share from here (kept whether or not the run reached a checkpoint).
+       */
+      sessionCost?: { sessionId: string; usd: number };
       /** Where the provider session stood when the run ended: a later run can fork from here (roll back, threads). */
       checkpoint?: { sessionId: string; at: string };
     };

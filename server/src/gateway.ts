@@ -585,7 +585,7 @@ export class Gateway {
     /** This run's usage so far (#21). */
     let tokens: TokenUsage | undefined;
     let reportedCost: number | undefined;
-    let sessionCost: number | undefined;
+    let sessionCost: { sessionId: string; usd: number } | undefined;
     const textEntries = new Map<string, string>(); // provider blockId -> entry id
     const toolEntries = new Map<string, string>(); // toolUseId -> entry id
 
@@ -604,7 +604,8 @@ export class Gateway {
             };
           }
           if (ev.costUsd !== undefined) reportedCost = (reportedCost ?? 0) + ev.costUsd;
-          if (ev.sessionCostUsd !== undefined) sessionCost = ev.sessionCostUsd;
+          if (ev.sessionCostUsd !== undefined && sessionNow)
+            sessionCost = { sessionId: sessionNow, usd: ev.sessionCostUsd };
           return;
         case "checkpoint": {
           if (!sessionNow) return;
@@ -784,7 +785,7 @@ export class Gateway {
             state: outcome.status,
             ...((reportedCost ?? outcome.costUsd) !== undefined ? { costUsd: reportedCost ?? outcome.costUsd } : {}),
             ...(tokens ? { usage: tokens } : {}),
-            ...(sessionCost !== undefined ? { sessionCostUsd: sessionCost } : {}),
+            ...(sessionCost ? { sessionCost } : {}),
             ...(checkpoint ? { checkpoint } : {}),
           }
         : b,
@@ -799,9 +800,10 @@ export class Gateway {
 export function costBase(entries: readonly TranscriptEntry[], sessionId: string, at?: string): { costBase?: number } {
   for (let i = entries.length - 1; i >= 0; i--) {
     const b = entries[i]?.body;
-    if (b?.kind !== "run" || b.sessionCostUsd === undefined || b.checkpoint?.sessionId !== sessionId) continue;
-    if (at !== undefined && b.checkpoint.at !== at) continue;
-    return { costBase: b.sessionCostUsd };
+    if (b?.kind !== "run" || b.sessionCost?.sessionId !== sessionId) continue;
+    // A fork starts from the run at its checkpoint; a plain resume from the latest run, checkpoint or not.
+    if (at !== undefined && b.checkpoint?.at !== at) continue;
+    return { costBase: b.sessionCost.usd };
   }
   return {};
 }

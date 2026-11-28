@@ -1,6 +1,6 @@
 // Settings › Usage (#21): tokens and reported cost for the last 7, 30 or 90 days, per day and per bot. Cost shows
 // only where the provider reports it (Claude); every provider reports tokens.
-import { type CSSProperties, useCallback, useEffect, useId, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useId, useRef, useState } from "react";
 import type { UsageReport } from "../../../../../server/src/client/gateway-client.ts";
 import type { PublicBot } from "../../../../../server/src/types.ts";
 import { call } from "../gateway.ts";
@@ -19,12 +19,17 @@ export function UsagePage({ bots }: { bots: readonly PublicBot[] }) {
   const [report, setReport] = useState<UsageReport>();
   const [error, setError] = useState<string>();
 
+  // Only the latest request may land: a slow answer for an earlier period mustn't replace the current one.
+  const latest = useRef(0);
   const load = useCallback(async (days: Period) => {
+    const n = ++latest.current;
     setError(undefined);
+    setReport((r) => (r?.days.length === days ? r : undefined));
     try {
-      setReport(await call("usage", days));
+      const got = await call("usage", days);
+      if (n === latest.current) setReport(got);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if (n === latest.current) setError(err instanceof Error ? err.message : String(err));
     }
   }, []);
 
@@ -93,7 +98,7 @@ export function UsagePage({ bots }: { bots: readonly PublicBot[] }) {
                   <div key={b.botId} className="settings-row">
                     <div className="usage-bot">
                       {bot && <Avatar avatar={bot.avatar} size="small" />}
-                      <span className="settings-label">{bot?.name ?? report.botNames[b.botId] ?? b.botId}</span>
+                      <span className="settings-label">{bot?.name ?? b.botId}</span>
                     </div>
                     <span className="settings-value">
                       {formatTokens(b.inputTokens + b.outputTokens)} tokens

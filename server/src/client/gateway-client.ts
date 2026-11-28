@@ -30,8 +30,8 @@ export type BotPatch = Partial<
   }
 >;
 
-/** GET /usage: the summary, with the name of each bot in it. */
-export type UsageReport = UsageSummary & { botNames: Record<string, string> };
+/** GET /usage. */
+export type UsageReport = UsageSummary;
 
 export type ProviderTest = { ok: true; models: string[] } | { ok: false; error: string };
 

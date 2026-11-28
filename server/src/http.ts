@@ -7,7 +7,7 @@
 //   PUT   /providers/:id/key             {key}  -> 204, saved in the OS keychain (never returned)
 //   DELETE /providers/:id/key                   -> 204
 //   POST  /providers/:id/test            {baseUrl?} -> {ok, models} or {ok: false, error}
-//   GET   /usage?days=7|30|90             token and cost totals per day and per bot, with the bots' names
+//   GET   /usage?days=7|30|90             token and cost totals per day and per bot
 //   GET   /bots
 //   POST  /bots                          {name, avatar?: {shape, color}}    -> 201 with the bot
 //   PATCH /bots/:id                      {name?, provider?, model?, baseUrl?, pinned?, hidden?, avatar?, main?: true}
@@ -120,7 +120,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
       bots.flatMap((b) => d.store.list(b.id)),
       { days, now: new Date() },
     );
-    return send(res, 200, { ...summary, botNames: Object.fromEntries(bots.map((b) => [b.id, b.name])) });
+    return send(res, 200, summary);
   }
   if (parts[0] !== "bots") return send(res, 404, { error: "Not found" });
   if (parts.length === 1 && method === "GET") return send(res, 200, d.bots.list().map(publicBot));

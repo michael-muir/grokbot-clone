@@ -42,7 +42,7 @@ Settings nav with a bar-chart icon.
   - **Tokens:** the sum of each API call's own `usage` on the assistant messages of the main loop, once per message
     id (a message can arrive in parts). Cache reads and writes count as input.
   - **Cost:** the run's share, `total_cost_usd` minus the session's total before this run. That earlier total is
-    kept on run entries as `sessionCostUsd`, and the gateway hands it in as `RunRequest.costBase`: the last run on
+    kept on run entries as `sessionCost`, and the gateway hands it in as `RunRequest.costBase`: the last run on
     that session, or, for a fork, the run at the fork point.
   - **No known base:** a resumed session without one (runs from before this change) gets no cost rather than a
     wrong one. A new session's base is 0.
@@ -51,7 +51,8 @@ Settings nav with a bar-chart icon.
 - **Fake:** reports a small fixed usage, so tests and manual checks have numbers.
 
 **Run entry:** `usage?: { inputTokens: number; outputTokens: number }` next to `costUsd` (now the run's own cost),
-plus `sessionCostUsd?` (the provider's running total for the session, so the next run can work out its share).
+plus `sessionCost?: { sessionId, usd }` (the provider's running total for the session, with the session it belongs to,
+so the next run on it can work out its share whether or not this run reached a checkpoint).
 
 - It's written when the run ends, whatever the outcome. An interrupted run still used what it used.
 - It's left out when the run reported nothing.
@@ -81,7 +82,8 @@ plus `sessionCostUsd?` (the provider's running total for the session, so the nex
 - **By bot:** each bot's avatar, name, tokens and cost.
 - **Note:** "Cost is shown where the provider reports it (Claude). Other providers report tokens only."
 - **States:** empty ("No usage yet in this period.") and failed (a retry banner).
-- **Tokens:** only existing ones are used, so no new token values.
+- **Tokens:** one new token, `--size-usage-chart` (120px, the chart's height), since no existing size fits a
+  chart. Everything else uses existing tokens.
 
 ## Interfaces
 

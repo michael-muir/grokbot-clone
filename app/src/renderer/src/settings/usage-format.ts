@@ -2,8 +2,9 @@
 
 /** "950", "12.3K", "4.5M": tokens, short enough for a card. */
 export function formatTokens(n: number): string {
-  if (n < 1_000) return String(Math.round(n));
-  if (n < 1_000_000) return `${trim(n / 1_000)}K`;
+  if (Math.round(n) < 1_000) return String(Math.round(n));
+  // The unit is chosen after rounding, so 999,700 reads "1M", not "1000K".
+  if (Number(trim(n / 1_000)) < 1_000) return `${trim(n / 1_000)}K`;
   return `${trim(n / 1_000_000)}M`;
 }
 
