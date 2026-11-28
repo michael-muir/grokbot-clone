@@ -36,10 +36,22 @@ Settings nav with a bar-chart icon.
 - A run may emit several, one per model turn, and the gateway adds them up.
 - Cost from `RunOutcome.costUsd` still counts when no event carries one, so existing providers keep working.
 - **Built-in loop:** each model turn's `done` usage becomes an event.
-- **Claude:** the `result` message's `usage` becomes the run's tokens. Cache reads and writes count as input.
+- **Claude:** its numbers are not per run, so they're taken apart. The SDK documents that `total_cost_usd` (and
+  `modelUsage`) are the running total of the session: a resumed or forked session continues from the total its
+  transcript saved.
+  - **Tokens:** the sum of each API call's own `usage` on the assistant messages of the main loop, once per message
+    id (a message can arrive in parts). Cache reads and writes count as input.
+  - **Cost:** the run's share, `total_cost_usd` minus the session's total before this run. That earlier total is
+    kept on run entries as `sessionCostUsd`, and the gateway hands it in as `RunRequest.costBase`: the last run on
+    that session, or, for a fork, the run at the fork point.
+  - **No known base:** a resumed session without one (runs from before this change) gets no cost rather than a
+    wrong one. A new session's base is 0.
+  - **The existing bug:** `costUsd` used to be that running total, which overstated every resumed Claude run. This
+    fixes it.
 - **Fake:** reports a small fixed usage, so tests and manual checks have numbers.
 
-**Run entry:** `usage?: { inputTokens: number; outputTokens: number }` next to `costUsd`.
+**Run entry:** `usage?: { inputTokens: number; outputTokens: number }` next to `costUsd` (now the run's own cost),
+plus `sessionCostUsd?` (the provider's running total for the session, so the next run can work out its share).
 
 - It's written when the run ends, whatever the outcome. An interrupted run still used what it used.
 - It's left out when the run reported nothing.
@@ -74,7 +86,8 @@ Settings nav with a bar-chart icon.
 ## Interfaces
 
 ```ts
-ProviderEvent | { type: "usage"; inputTokens?: number; outputTokens?: number; costUsd?: number }
+ProviderEvent | { type: "usage"; inputTokens?: number; outputTokens?: number; costUsd?: number; sessionCostUsd?: number }
+RunRequest.costBase?: number      // the session's reported cost total before this run
 EntryBody run: { …; usage?: { inputTokens: number; outputTokens: number } }
 summarizeUsage(runs: TranscriptEntry[], opts: { days: number; now: Date }): UsageSummary
 GET /usage?days=N -> UsageSummary & { botNames: Record<string, string> }
