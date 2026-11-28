@@ -142,11 +142,25 @@ SHORTCUTS, matchShortcut(e, isMac), keyLabels(keys, isMac)   (shell/shortcuts.ts
 | Palette searches bots and messages | `search: previews are each bot's latest visible message; messages match any case, skip hidden entries, newest first, with a snippet around the hit`; `http: /search answers previews and hits, and refuses an overlong query`; `palette: bots and actions filter by name` (pure `filterPalette`); manual check |
 | Shortcuts sheet and bindings | `shortcuts: each binding matches its keys with the platform's modifier, and nothing else`; `shortcuts: every shortcut on the sheet is bound or handled elsewhere`; manual check (the sheet, Ctrl+K, Ctrl+N, Ctrl+1, Alt+↓, Ctrl+I, Ctrl+Alt+B, Esc to stop) |
 
-**Manual check:**
+**Manual check, 2026-11-28.** By keyboard, in the app on the fake provider, in an isolated profile on port 9411:
 
-- Find a message in another bot by a word in it, and check that it opens scrolled to the message and highlighted.
-- Find one inside a thread, and check that the thread opens.
-- Use every listed shortcut, by keyboard alone.
+- **Ctrl+K:** opened the palette with focus in the field. It listed the Bots (Nova and Pip, each with its latest
+  message) and the Actions.
+- **Message in another bot:** typing "lighthouses" listed Pip's two messages. Enter opened Pip, scrolled to the
+  message and highlighted it.
+- **Message in a thread:** from Pip, "zebra" plus Enter opened Nova's thread with that message highlighted.
+- **Ctrl+/:** opened the sheet in two columns, and Escape closed it.
+- **Other shortcuts:**
+  - Ctrl+Alt+B opened the details panel.
+  - Ctrl+N opened Create New Bot.
+  - Ctrl+I focused the message box.
+  - Alt+↓ went from Nova to Pip.
+  - Ctrl+1 went back to Nova.
+  - Esc in the empty box left a thread, and stopped a running `/slow` reply ("Stopped").
+
+The check found one bug, fixed before review. Opening a thread from another bot fell back to the main chat. The
+chat closed a thread whose root it couldn't see yet while the transcript was still arriving. Now only a root that's
+there and rolled back closes the thread.
 
 ## Risks and open questions
 

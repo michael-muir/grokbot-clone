@@ -587,10 +587,11 @@ function Chat({
   const waiting = useMemo(() => waitingThreads(entries), [entries]);
   const shownPending = useMemo(() => pending.filter((p) => p.threadId === thread), [pending, thread]);
 
-  // A thread whose root is gone (rolled back, perhaps in another window) has nothing to show: back to the chat.
+  // A thread whose root was rolled back (perhaps in another window) has nothing to show: back to the chat. Only a root
+  // that's there and hidden counts: while the transcript is still arriving, the root may simply not be in yet.
   useEffect(() => {
-    if (thread !== undefined && shown.length === 0 && entries.length > 0) setThread(undefined);
-  }, [thread, shown, entries]);
+    if (thread !== undefined && view.get(thread)?.hidden) setThread(undefined);
+  }, [thread, entries, view]);
 
   const context = useMemo<RowContext>(
     () => ({
