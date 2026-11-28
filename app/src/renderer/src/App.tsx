@@ -555,6 +555,7 @@ function Chat({
   );
 
   const backToChat = useCallback(() => setThread(undefined), []);
+  const consumeFill = useCallback(() => setFill(undefined), []);
 
   return (
     <div className="chat-body" data-bot-color={colorOf(bot)}>
@@ -585,7 +586,8 @@ function Chat({
         </h2>
       </header>
       <Transcript
-        key={thread ?? "main"}
+        // Keys unique among the siblings (the composer has its own): each view mounts afresh, scrolled to its end.
+        key={`transcript:${thread ?? "main"}`}
         entries={shown}
         pending={shownPending}
         context={context}
@@ -605,7 +607,7 @@ function Chat({
         )
       )}
       <Composer
-        key={thread ?? "main"}
+        key={`composer:${thread ?? "main"}`}
         draftKey={thread === undefined ? bot.id : `${bot.id}#${thread}`}
         placeholder={thread === undefined ? `Message ${bot.name}` : "Reply in thread"}
         busy={busy}
@@ -613,6 +615,7 @@ function Chat({
         onStop={() => report(() => call("interrupt", bot.id))}
         onEscape={thread === undefined ? undefined : backToChat}
         fill={fill}
+        onFilled={consumeFill}
         sendWithCtrlEnter={settings.sendWithCtrlEnter}
         spellcheck={settings.spellcheck}
       />

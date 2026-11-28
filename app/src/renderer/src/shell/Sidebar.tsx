@@ -15,6 +15,9 @@ import {
   workingButton,
 } from "./sidebar-state.ts";
 
+/** Menu actions that open a confirmation instead of acting at once. */
+const OPENS_DIALOG: ReadonlySet<MenuAction> = new Set(["delete", "start-fresh"]);
+
 export function Sidebar({
   bots,
   selected,
@@ -130,9 +133,9 @@ export function Sidebar({
           onClose={closeMenu}
           onAction={(action) => {
             setMenu(undefined);
-            // Delete opens a dialog, which takes focus and gives it back itself.
+            // Delete and Start fresh open a dialog, which takes focus and gives it back itself.
             void onMenuAction(menuBot, action).then(() => {
-              if (action !== "delete") focusTile(menuBot.id);
+              if (!OPENS_DIALOG.has(action)) focusTile(menuBot.id);
             });
           }}
         />

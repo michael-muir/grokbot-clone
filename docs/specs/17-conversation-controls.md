@@ -210,14 +210,36 @@ Other tests:
 - The fake's `/history`, as used by the gateway tests above. These tests show, end to end, what the next run
   remembers.
 
-Manual check: in the app, with the fake provider in an isolated profile:
+**Manual check, 2026-11-27.** In the app, with the fake provider, in an isolated profile on port 9411:
 
-1. Send three messages.
-2. Roll back to the second. Check that its text is back in the composer and that `/history` lists only the first.
-3. Reply in a thread to the first reply. Check that the root shows "1 reply" and that "Back to chat" returns.
-4. Start fresh. Check that the notice shows, the old messages are still there, and `/history` is empty.
+- **Roll back:**
+  - I sent "apples", "pears" and "plums".
+  - Hovering "pears" showed the hover bar beside the bubble, where the reference puts it.
+  - "Roll back to here" asked first, with Cancel focused.
+  - After confirming, only "apples" and its reply were left, and "pears" was back in the composer, focused.
+  - `/history` answered that it remembered "apples" and nothing after it.
+- **Thread:**
+  - "Reply in a thread" on the first reply opened the thread view: "Back to chat", "Thread", the root, and "Reply in
+    thread".
+  - The first reply in the thread quoted the root.
+  - Back in the chat, the root showed "2 replies".
+  - Escape in the empty composer went back to the chat.
+- **Start fresh:**
+  - "Start fresh" in the bot's menu asked "Start a new conversation?", with Cancel focused.
+  - After confirming, the notice marked the boundary and the old messages stayed above.
+  - `/history` answered that it remembered nothing.
+- **Keyboard:**
+  - Tab from the chat reaches "Reply in a thread", then "Roll back to here". The bar shows with a focus ring.
+  - In the dialogs, Tab stays inside, Escape cancels, and focus returns to the tile.
+- **Reduced motion:** the hover bar only fades in (opacity), like the row times. There's no movement to turn off.
 
-Also check keyboard use (Tab to the hover buttons, the dialogs), focus, and reduced motion.
+The check found three bugs, all fixed before review:
+
+- **Two transcripts on screen.** Opening a thread left the main chat's transcript in place. The transcript and the
+  composer had the same React key, so they now have distinct ones.
+- **A roll back's text reappeared.** It came back in the next composer shown (a thread's). It's now used once.
+- **Focus in the start fresh dialog.** Choosing Start fresh from the menu gave focus back to the tile instead of
+  the dialog's Cancel. It's now handled like Delete.
 
 ## Risks and open questions
 

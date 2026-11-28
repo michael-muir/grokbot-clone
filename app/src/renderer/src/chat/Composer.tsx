@@ -10,6 +10,7 @@ export function Composer({
   onStop,
   onEscape,
   fill,
+  onFilled,
   sendWithCtrlEnter = false,
   spellcheck = true,
 }: {
@@ -22,6 +23,8 @@ export function Composer({
   onEscape?(): void;
   /** Text to put in the field when it's empty (a rolled-back message); `n` makes the same text count again. */
   fill?: { text: string; n: number };
+  /** The fill was used: it mustn't come back in the next composer shown (another thread's, say). */
+  onFilled?(): void;
   /** The "Send with Ctrl+Enter" setting. */
   sendWithCtrlEnter?: boolean;
   spellcheck?: boolean;
@@ -50,7 +53,8 @@ export function Composer({
       return fill.text;
     });
     field.current?.focus();
-  }, [fill, draftKey]);
+    onFilled?.();
+  }, [fill, draftKey, onFilled]);
 
   const button = primaryButton({ draft, busy, sending, stopping });
 
