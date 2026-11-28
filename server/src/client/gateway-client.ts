@@ -110,6 +110,11 @@ export class GatewayClient {
     return typeof res?.entryId === "string" ? res.entryId : "";
   }
 
+  /** Resumes a reply the app cut off (#22), in the same conversation. */
+  async resumeRun(botId: string, runId: string, cardKinds?: readonly CardKind[]): Promise<void> {
+    await this.request("POST", `/bots/${enc(botId)}/runs/${enc(runId)}/resume`, cardKinds?.length ? { cardKinds } : {});
+  }
+
   /** Starts the bot's conversation over. The old one stays in the transcript. Refused (409) while it's working. */
   async startFresh(botId: string): Promise<void> {
     await this.request("POST", `/bots/${enc(botId)}/fresh`, {});

@@ -19,6 +19,7 @@
 //   POST  /bots/:id/messages             {text, clientNonce?, threadId?, cardKinds?} -> 202 {entryId}; 409 while the bot is
 //                                        busy; 400 when threadId isn't a message that can start a thread
 //   POST  /bots/:id/interrupt                           -> 202, 409 when idle
+//   POST  /bots/:id/runs/:runId/resume  {cardKinds?}    -> 202; 400 unless the latest cut-off run; 409 while busy
 //   POST  /bots/:id/fresh                               -> 200, starts the conversation over; 409 while busy
 //   POST  /bots/:id/rollback             {entryId}      -> 200 {text}; 400 unless a visible user message; 409 busy
 //   POST  /bots/:id/entries/:entryId/reactions {emoji, on} -> 200 {reactions}; 400 unless a known emoji on a message
@@ -290,6 +291,18 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
             return send(res, 200, { feedback: d.gateway.rate(bot.id, parts[3], vote) });
           }
         } catch (err) {
+          if (err instanceof BotRuleError) return send(res, 400, { error: err.message });
+          throw err;
+        }
+      }
+      if (method === "POST" && parts[2] === "runs" && parts[3] && parts[4] === "resume" && parts.length === 5) {
+        const body = await readJson(req);
+        const kinds = Array.isArray(body.cardKinds) ? [...new Set(body.cardKinds.filter(isCardKind))] : [];
+        try {
+          d.gateway.resumeRun(bot.id, parts[3], kinds);
+          return send(res, 202, { ok: true });
+        } catch (err) {
+          if (err instanceof BotBusyError) return send(res, 409, { error: err.message });
           if (err instanceof BotRuleError) return send(res, 400, { error: err.message });
           throw err;
         }

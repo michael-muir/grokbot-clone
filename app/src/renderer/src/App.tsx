@@ -510,6 +510,8 @@ function Chat({
         }),
       // The card shows the reason itself, next to what the user filled in.
       answerCard: (entry: TranscriptEntry, answer: CardAnswerIn) => call("answerCard", bot.id, entry.id, answer),
+      resumeRun: (entry: TranscriptEntry) =>
+        call("resumeRun", bot.id, entry.id, [...RENDERED_CARD_KINDS]).catch((err: unknown) => setProblem(message(err))),
       openThread: (entry: TranscriptEntry) => setThread(entry.id),
       rollBack: (entry: TranscriptEntry) => setRolling({ entry, busy: false }),
       react: (entry: TranscriptEntry, emoji: string, on: boolean) =>

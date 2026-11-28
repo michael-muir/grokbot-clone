@@ -56,6 +56,8 @@ export interface Calls {
   interrupt: { args: [botId: string]; result: undefined };
   /** Starts the bot's conversation over; the old one stays readable. */
   startFresh: { args: [botId: string]; result: undefined };
+  /** Resumes a reply the app cut off, in the same conversation (#22). */
+  resumeRun: { args: [botId: string, runId: string, cardKinds?: CardKind[]]; result: undefined };
   /** Rolls back to before one of the user's messages; returns its text. */
   rollBack: { args: [botId: string, entryId: string]; result: string };
   /** Adds or removes a reaction on a message; returns its reactions now. */
@@ -206,6 +208,8 @@ const ARGS: { [K in CallName]: (a: unknown[]) => a is Calls[K]["args"] } = {
   interrupt: (a): a is [string] => a.length === 1 && isId(a[0]),
   startFresh: (a): a is [string] => a.length === 1 && isId(a[0]),
   rollBack: (a): a is [string, string] => a.length === 2 && isId(a[0]) && isId(a[1]),
+  resumeRun: (a): a is [string, string, CardKind[]?] =>
+    (a.length === 2 || a.length === 3) && isId(a[0]) && isId(a[1]) && optional(isCardKinds)(a[2]),
   react: (a): a is [string, string, string, boolean] =>
     a.length === 4 && isId(a[0]) && isId(a[1]) && isString(a[2]) && a[2].length <= 16 && isBoolean(a[3]),
   rate: (a): a is [string, string, Feedback | null] =>

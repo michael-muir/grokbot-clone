@@ -79,6 +79,13 @@ test("wrong argument types or counts are refused", () => {
   assert.deepEqual(checkCall("usage", [30]), { name: "usage", args: [30] });
   refused("usage", [5]);
   refused("usage", []);
+  assert.deepEqual(checkCall("resumeRun", ["nova", "r-1"]), { name: "resumeRun", args: ["nova", "r-1"] });
+  assert.deepEqual(checkCall("resumeRun", ["nova", "r-1", ["widget"]]), {
+    name: "resumeRun",
+    args: ["nova", "r-1", ["widget"]],
+  });
+  refused("resumeRun", ["nova"]);
+  refused("resumeRun", ["nova", "r-1", ["poll"]]);
   const secret = { kind: "secret", value: "hunter2" };
   assert.deepEqual(checkCall("answerCard", ["nova", "c-1", secret]), {
     name: "answerCard",

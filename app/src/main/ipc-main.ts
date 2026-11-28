@@ -32,6 +32,7 @@ const HANDLERS: Handlers = {
   interrupt: (c, [botId]) => done(c.interrupt(botId)),
   startFresh: (c, [botId]) => done(c.startFresh(botId)),
   rollBack: (c, [botId, entryId]) => c.rollBack(botId, entryId),
+  resumeRun: (c, [botId, runId, cardKinds]) => done(c.resumeRun(botId, runId, cardKinds)),
   react: (c, [botId, entryId, emoji, on]) => c.react(botId, entryId, emoji, on),
   rate: (c, [botId, entryId, vote]) => done(c.rate(botId, entryId, vote)),
   answerApproval: (c, [botId, entryId, decision]) => done(c.answerApproval(botId, entryId, decision)),

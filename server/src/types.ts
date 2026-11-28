@@ -59,6 +59,12 @@ export type EntryBody =
       state: "running" | "finished" | "interrupted" | "failed";
       /** What this run cost, where the provider reports it. */
       costUsd?: number;
+      /** The app stopped this run (a crash, quitting), not the user: it can be resumed (#22). */
+      cutOff?: true;
+      /** This cut-off run was resumed by a later run. */
+      resumed?: true;
+      /** The cut-off run this one resumes. */
+      resumes?: string;
       /** Tokens this run used, where the provider reports them (#21). */
       usage?: TokenUsage;
       /**
