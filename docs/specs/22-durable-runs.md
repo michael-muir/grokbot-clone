@@ -97,12 +97,14 @@ Other tests:
 - `http: resume answers 202, 400 or 409`.
 - `rows: a cut-off run shows the app stopped mid-reply, with Resume while it's the latest run`.
 
-**Manual check:**
+**Manual check, 2026-11-28.** In the app, on the fake provider, in an isolated profile on port 9411:
 
-1. Start `/slow` in the app.
-2. Kill the gateway process mid-reply and restart the app.
-3. Check that the notice and Resume show.
-4. Press Resume, and check that the bot continues in the same chat.
+1. **Crash:** I sent `/slow` and killed only the gateway process (`node src\main.ts`, the app's child) 300 ms
+   later. The transcript's last run line read `"state":"running"` with its checkpoint, which is what a crash leaves.
+2. **Restart:** after restarting the app, the half reply ("Nova here. You") was final, and the run showed "The app
+   stopped mid-reply" with a Resume button.
+3. **Resume:** pressing it started a new reply in the same chat, the resume prompt, as the fake echoes. The notice
+   became "The app stopped mid-reply · Resumed", without the button.
 
 ## Risks and open questions
 
