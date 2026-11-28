@@ -65,11 +65,94 @@ textarea {
   stroke-linejoin: round;
 }
 
-/* Each eye scales around its own middle, ready for blinking (#44). */
+/* The eyes as a pair: they move when the bot turns to face you, and follow the pointer while it's over the bot. */
+.avatar-eyes {
+  transition: translate var(--duration-face-morph) var(--ease-face);
+}
+
+/* Each eye grows around its own middle for the surprised look. */
 .avatar-eye {
   fill: var(--color-on-bot);
   transform-box: fill-box;
   transform-origin: center;
+  transition: scale var(--duration-face-morph) var(--ease-face);
+}
+
+/* A live bot's tilt, as CSS (set by face-director.ts), so it can change smoothly. */
+.avatar[data-live] .avatar-tilt {
+  transform: rotate(var(--face-tilt, 0deg));
+  transform-origin: var(--face-pivot, center);
+  transition: transform var(--duration-face-morph) var(--ease-face);
+}
+
+/* A live bot looks up when the pointer is over it or the control it sits in: it turns upright and its eyes grow. */
+.avatar[data-live]:hover .avatar-eye,
+:hover > .avatar[data-live] .avatar-eye {
+  scale: var(--face-surprised-scale);
+}
+
+.avatar[data-live]:hover .avatar-tilt,
+:hover > .avatar[data-live] .avatar-tilt {
+  transform: rotate(0deg);
+}
+
+/* …and its eyes come to the middle and watch the pointer (--face-front-*, --gaze-*: set by face-director.ts). */
+.avatar[data-live]:hover .avatar-eyes,
+:hover > .avatar[data-live] .avatar-eyes {
+  translate: calc(var(--face-front-x) + var(--gaze-x)) calc(var(--face-front-y) + var(--gaze-y));
+}
+
+/* A gentle sway while idle, a livelier one while working; each bot on its own phase (--face-phase). Reactions
+   (face-director.ts) animate `transform`, which adds to these. */
+.avatar[data-live] .avatar-face {
+  transform-origin: 50% 90%;
+  animation: face-idle var(--duration-face-idle) ease-in-out var(--face-phase, 0s) infinite;
+}
+
+.avatar[data-live][data-motion="working"] .avatar-face {
+  animation: face-working var(--duration-face-working) ease-in-out var(--face-phase, 0s) infinite;
+}
+
+@keyframes face-idle {
+  0%,
+  100% {
+    rotate: 0deg;
+    scale: 1;
+  }
+  50% {
+    rotate: 2deg;
+    scale: 1.02;
+  }
+}
+
+@keyframes face-working {
+  0%,
+  100% {
+    rotate: -3deg;
+    translate: 0 0;
+  }
+  25% {
+    translate: 0 -4%;
+  }
+  50% {
+    rotate: 3deg;
+    translate: 0 0;
+  }
+  75% {
+    translate: 0 -4%;
+  }
+}
+
+/* As specific as the rules above (and later), so it wins over the live and working ones. */
+@media (prefers-reduced-motion: reduce) {
+  .avatar[data-live][data-motion] .avatar-face,
+  .avatar[data-live] .avatar-face,
+  .avatar[data-live] .avatar-tilt,
+  .avatar .avatar-eyes,
+  .avatar .avatar-eye {
+    animation: none;
+    transition: none;
+  }
 }
 
 .avatar.small {

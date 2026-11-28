@@ -165,6 +165,8 @@ export type PublicBot = Omit<Bot, "sessionId" | "sessionProvider">;
 export interface BotActivity {
   botId: string;
   running: boolean;
+  /** How the bot's last run since the gateway started ended; absent before its first. Lets a client react to it. */
+  lastRun?: RunOutcome["status"];
 }
 
 /** Where a provider's API key came from. */

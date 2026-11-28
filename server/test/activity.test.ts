@@ -39,6 +39,7 @@ async function setup() {
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   return {
     gateway,
+    store,
     server,
     url,
     cleanup() {
@@ -144,4 +145,80 @@ test("subscribeActivity drops malformed items and reports them, keeping the good
   await following;
   assert.deepEqual(got, [[{ botId: "nova", running: true }]]);
   assert.ok(errors.some((e) => e.includes("2 malformed")));
+});
+
+test("activity says how each bot's last run ended, so the app can react", async () => {
+  const t = await setup();
+  try {
+    assert.deepEqual(t.gateway.activity(), [
+      { botId: "nova", running: false },
+      { botId: "rex", running: false },
+    ]);
+    await (await t.gateway.sendMessage("rex", "hello")).done;
+    const started = await t.gateway.sendMessage("nova", "a long one");
+    t.gateway.interrupt("nova");
+    await started.done;
+    assert.deepEqual(t.gateway.activity(), [
+      { botId: "nova", running: false, lastRun: "interrupted" },
+      { botId: "rex", running: false, lastRun: "finished" },
+    ]);
+    await t.gateway.deleteBot("rex");
+    assert.deepEqual(
+      t.gateway.activity().map((a) => a.botId),
+      ["nova"],
+    );
+  } finally {
+    t.cleanup();
+  }
+});
+
+test("a run that breaks before it ends counts as failed, not as the last run's outcome", async () => {
+  const t = await setup();
+  try {
+    await (await t.gateway.sendMessage("rex", "hello")).done;
+    assert.equal(t.gateway.activity().find((a) => a.botId === "rex")?.lastRun, "finished");
+    // The store refuses the next run's entry, so the run throws before it can say how it ended.
+    const append = t.store.append.bind(t.store);
+    t.store.append = (botId, body, ...rest) => {
+      if (body.kind === "run") throw new Error("disk full");
+      return append(botId, body, ...rest);
+    };
+    const { done } = await t.gateway.sendMessage("rex", "again");
+    await done.catch(() => {});
+    assert.equal(t.gateway.activity().find((a) => a.botId === "rex")?.lastRun, "failed");
+  } finally {
+    t.cleanup();
+  }
+});
+
+test("subscribeActivity keeps a known lastRun, and an item with an unknown one without it", async () => {
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      c.enqueue(
+        new TextEncoder().encode(
+          'data: [{"botId":"nova","running":false,"lastRun":"finished"},{"botId":"rex","running":false,"lastRun":"exploded"}]\n\n',
+        ),
+      );
+      c.close();
+    },
+  });
+  const fakeFetch = (async () => new Response(body, { status: 200 })) as typeof fetch;
+  const abort = new AbortController();
+  const got: BotActivity[][] = [];
+  const following = subscribeActivity("http://gateway", {
+    signal: abort.signal,
+    fetch: fakeFetch,
+    onError: () => {},
+    onActivity: (bots) => {
+      got.push(bots);
+      abort.abort();
+    },
+  });
+  await following;
+  assert.deepEqual(got, [
+    [
+      { botId: "nova", running: false, lastRun: "finished" },
+      { botId: "rex", running: false },
+    ],
+  ]);
 });

@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { AVATAR_SHAPES } from "../../server/src/types.ts";
 import {
+  EYE,
   eyeRects,
   FACES,
   type Face,
@@ -14,6 +15,7 @@ import {
   STROKE,
   VIEW,
 } from "../src/renderer/src/shell/avatar-faces.ts";
+import { GAZE, SURPRISED_SCALE } from "../src/renderer/src/shell/face-motion.ts";
 
 /** A point turned `deg` degrees clockwise around `pivot`, as SVG's rotate() does (y points down). */
 function turn([x, y]: Point, deg: number, [px, py]: Point): Point {
@@ -64,6 +66,47 @@ function insidePart([x, y]: Point, part: Part): boolean {
 
 const onBody = (p: Point, face: Face) => face.parts.some((part) => insidePart(p, part));
 
+/** Distance from p to the segment a–b. */
+function toSegment([px, py]: Point, [ax, ay]: Point, [bx, by]: Point): number {
+  const [dx, dy] = [bx - ax, by - ay];
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+/** On the body as drawn: the fill plus up to `grow` of its outline stroke. */
+function onDrawnBody(p: Point, face: Face, grow: number): boolean {
+  return onBody(p, face) || face.parts.some((part) => nearPart(p, part, grow));
+}
+
+function nearPart(p: Point, part: Part, grow: number): boolean {
+  switch (part.kind) {
+    case "circle":
+      return Math.hypot(p[0] - part.cx, p[1] - part.cy) <= part.r + grow;
+    case "rect":
+      return (
+        p[0] >= part.x - grow &&
+        p[0] <= part.x + part.width + grow &&
+        p[1] >= part.y - grow &&
+        p[1] <= part.y + part.height + grow
+      );
+    case "polygon":
+      return part.points.some((a, i) => {
+        const b = part.points[(i + 1) % part.points.length] ?? a;
+        return toSegment(p, a, b) <= grow;
+      });
+  }
+}
+
+/** Corners and edge midpoints of an eye `e`, moved by (dx, dy), grown by `scale`, slanted as drawn (EYE.slant). */
+function eyePoints(e: { x: number; y: number; width: number; height: number }, scale = 1, dx = 0, dy = 0): Point[] {
+  const c: Point = [e.x + e.width / 2 + dx, e.y + e.height / 2 + dy];
+  const [hw, hh] = [(e.width * scale) / 2, (e.height * scale) / 2];
+  const out: Point[] = [];
+  for (const fx of [-1, 0, 1])
+    for (const fy of [-1, 0, 1]) out.push(turn([c[0] + fx * hw, c[1] + fy * hh], EYE.slant, c));
+  return out;
+}
+
 test("faces: every shape has a face", () => {
   assert.deepEqual(Object.keys(FACES).sort(), [...AVATAR_SHAPES].sort());
 });
@@ -87,11 +130,37 @@ test("faces: both eyes sit wholly on the body, side by side", () => {
     assert.ok(left && right && left.x + left.width < right.x, `${shape}: the eyes don't overlap`);
     for (const e of eyes) {
       // Corners and edge midpoints: the eyes are small enough that these settle it.
-      const xs = [e.x, e.x + e.width / 2, e.x + e.width];
-      const ys = [e.y, e.y + e.height / 2, e.y + e.height];
-      for (const x of xs)
-        for (const y of ys) assert.ok(onBody([x, y], face), `${shape}: eye point ${x},${y} is off the body`);
+      for (const [x, y] of eyePoints(e))
+        assert.ok(onBody([x, y], face), `${shape}: eye point ${x},${y} is off the body`);
     }
+  }
+});
+
+test("faces: a hovered bot turns to face you; its eyes, wide open, stay on it as they watch the pointer", () => {
+  // From the middle (where hovering brings them), the furthest they look (GAZE.maxUnits) in eight directions.
+  const directions = Array.from({ length: 8 }, (_, i) => (i * Math.PI) / 4);
+  for (const shape of AVATAR_SHAPES) {
+    const face = FACES[shape];
+    const front: Point = [face.pivot[0] - face.eyes[0], face.pivot[1] - face.eyes[1]];
+    for (const a of [null, ...directions]) {
+      const [dx, dy] = a === null ? [0, 0] : [Math.cos(a) * GAZE.maxUnits, Math.sin(a) * GAZE.maxUnits];
+      for (const e of eyeRects(face, front)) {
+        for (const [x, y] of eyePoints(e, SURPRISED_SCALE, dx, dy)) {
+          // At least one unit of the bot's color stays around the eye.
+          assert.ok(onDrawnBody([x, y], face, STROKE / 2 - 1), `${shape}: looking ${a?.toFixed(2)}, ${x},${y} is off`);
+        }
+      }
+    }
+  }
+});
+test("faces: at rest every bot faces up and to the right on screen, as in the reference", () => {
+  for (const shape of AVATAR_SHAPES) {
+    const face = FACES[shape];
+    assert.ok(face.tilt < 0, `${shape} leans back (counterclockwise), not forward`);
+    // Where the eyes sit relative to the body's middle, as drawn on screen (turned by the tilt).
+    const [x, y] = turn(face.eyes, face.tilt, face.pivot);
+    const [dx, dy] = [x - face.pivot[0], y - face.pivot[1]];
+    assert.ok(dx > 0.25 && dy < -0.25, `${shape}: the eyes sit ${dx.toFixed(2)}, ${dy.toFixed(2)} from the middle`);
   }
 });
 

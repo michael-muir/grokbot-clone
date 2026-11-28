@@ -96,7 +96,7 @@ export async function subscribeActivity(baseUrl: string, opts: ActivityOptions):
         return; // the next snapshot replaces it anyway
       }
       if (!Array.isArray(bots)) return reportError(new Error("Skipped an activity event that isn't a list"));
-      const valid = bots.filter(isBotActivity);
+      const valid = bots.map(toBotActivity).filter((b) => b !== null);
       if (valid.length < bots.length)
         reportError(new Error(`Skipped ${bots.length - valid.length} malformed activity items`));
       try {
@@ -110,10 +110,15 @@ export async function subscribeActivity(baseUrl: string, opts: ActivityOptions):
 
 const trimSlash = (url: string) => url.replace(/\/+$/, "");
 
-function isBotActivity(v: unknown): v is BotActivity {
-  if (typeof v !== "object" || v === null) return false;
+/** An activity item, or null when it lacks a bot id or running flag. A `lastRun` this client doesn't know (from a
+ *  newer gateway, say) is dropped rather than losing the whole item. */
+function toBotActivity(v: unknown): BotActivity | null {
+  if (typeof v !== "object" || v === null) return null;
   const a = v as Record<string, unknown>;
-  return typeof a.botId === "string" && typeof a.running === "boolean";
+  if (typeof a.botId !== "string" || typeof a.running !== "boolean") return null;
+  const lastRun = a.lastRun;
+  const known = lastRun === "finished" || lastRun === "interrupted" || lastRun === "failed";
+  return { botId: a.botId, running: a.running, ...(known ? { lastRun } : {}) };
 }
 
 type StreamOptions = Pick<SubscribeOptions, "onState" | "signal" | "token" | "backoff" | "staleAfterMs" | "fetch">;

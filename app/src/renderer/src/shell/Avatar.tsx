@@ -1,8 +1,9 @@
 // A bot's avatar (its shape in its color, with a face) and the picker for shape and color.
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useId, useLayoutEffect, useRef } from "react";
 import { AVATAR_COLORS, AVATAR_SHAPES, type AvatarColor, type AvatarShape } from "../../../../../server/src/types.ts";
 import { botColor, botShape } from "../bot-colors.ts";
-import { eyeRects, FACES, type Part, STROKE, VIEW } from "./avatar-faces.ts";
+import { EYE, eyeRects, FACES, type Part, STROKE, VIEW } from "./avatar-faces.ts";
+import { liven } from "./face-director.ts";
 
 /** How shapes and colors are named to screen readers. */
 export const SHAPE_NAMES: Record<AvatarShape, string> = {
@@ -32,33 +33,46 @@ function drawPart(part: Part, key: number): ReactNode {
 }
 
 /**
- * Decorative: wherever it appears, the bot's name is next to it or on the control around it. The eyes are their
- * own elements (`.avatar-eye`) so they can blink and glance (#44).
+ * Decorative: wherever it appears, the bot's name is next to it or on the control around it. With `botId` the face
+ * is alive (it faces you and watches the pointer over it, sways and reacts to runs; see face-director.ts); without it,
+ * it's still, as in the shape picker.
  */
 export function Avatar({
   avatar,
   size,
+  botId,
 }: {
   avatar: { shape: string; color: string };
   size?: "small" | "large" | "xl";
+  botId?: string;
 }) {
   const shape = botShape(avatar.shape);
   const face = FACES[shape];
+  const ref = useRef<HTMLSpanElement>(null);
+  // Before paint: the tilt it's drawn with comes from CSS variables `liven` sets, so it mustn't first show upright.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    return el && botId !== undefined ? liven(el, botId, face) : undefined;
+  }, [botId, face]);
   return (
     <span
+      ref={ref}
       className={size ? `avatar ${size}` : "avatar"}
       data-shape={shape}
       data-bot-color={botColor(avatar.color)}
+      data-live={botId === undefined ? undefined : ""}
       aria-hidden="true"
     >
       <svg className="avatar-face" viewBox={`0 0 ${VIEW} ${VIEW}`} aria-hidden="true">
-        <g transform={`rotate(${face.tilt} ${face.pivot[0]} ${face.pivot[1]})`}>
+        <g className="avatar-tilt" transform={`rotate(${face.tilt} ${face.pivot[0]} ${face.pivot[1]})`}>
           <g className="avatar-body" strokeWidth={STROKE}>
             {face.parts.map(drawPart)}
           </g>
           <g className="avatar-eyes">
             {eyeRects(face).map((eye) => (
-              <rect key={eye.x} className="avatar-eye" {...eye} rx={eye.width / 2} />
+              <g key={eye.x} transform={`rotate(${EYE.slant} ${eye.x + eye.width / 2} ${eye.y + eye.height / 2})`}>
+                <rect className="avatar-eye" {...eye} rx={eye.width / 2} />
+              </g>
             ))}
           </g>
         </g>

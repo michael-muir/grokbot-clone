@@ -145,6 +145,11 @@
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --duration-shimmer: 1600ms; /* one sweep of the running-status shimmer */
   --duration-spin: 900ms; /* one turn of the working spinner */
+  --duration-face-morph: 280ms; /* a bot's eyes changing expression (the surprised look) */
+  --duration-face-idle: 4000ms; /* one idle sway; face-director.ts SWAY_MS matches it */
+  --duration-face-working: 1400ms; /* one sway while the bot works */
+  --ease-face: cubic-bezier(0.4, 0.06, 0.18, 1);
+  --face-surprised-scale: 1.25; /* face-motion.ts SURPRISED_SCALE matches it */
   --opacity-muted: 0.6; /* placeholders standing in for content that isn't there yet */
   /* The shimmer sweeping across a running status label: dim, bright, dim. */
   --gradient-shimmer: linear-gradient(

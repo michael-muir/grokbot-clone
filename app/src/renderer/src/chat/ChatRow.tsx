@@ -10,6 +10,7 @@ import { Markdown } from "./Markdown.tsx";
 import type { Row } from "./rows.ts";
 
 export interface RowContext {
+  botId: string;
   botName: string;
   botAvatar: { shape: string; color: string };
   answerApproval(entry: TranscriptEntry, allow: boolean, reason?: string): Promise<unknown>;
@@ -88,7 +89,7 @@ function StatusLine({ context, label, state }: { context: RowContext; label: str
   return (
     <div className="status-line" data-state={state}>
       <span className="status-slot" aria-hidden="true">
-        <Avatar avatar={context.botAvatar} size="small" />
+        <Avatar avatar={context.botAvatar} size="small" botId={context.botId} />
       </span>
       <span className="status-label">{label}</span>
       {state === "failed" && <span className="visually-hidden">(failed)</span>}
