@@ -23,8 +23,10 @@ This issue makes sure both themes hold up, now that many screens have been added
   - Window backgrounds that follow the theme.
   - A contrast test for both themes.
   - Light captures in the review harness.
-  - A light check of every screen and component added since #13: hover bar, reactions, menus, cards (widget, form,
-    secret), threads, the cut-off notice, the Usage page, the palette and the shortcuts sheet.
+  - A light check of the components added since #13: the hover bar, reactions, menus, the widget and form cards,
+    the Usage page, the palette and the shortcuts sheet.
+    - The secret card and the cut-off notice weren't looked at in light. They're built from the same form, notice
+      and button styles that were checked.
   - Fixes for anything those turn up (one: popups kept inside the window at the top).
 - **Out:**
   - **Changing the user bubble colors for contrast.** That's the owner's call; see Risks.
