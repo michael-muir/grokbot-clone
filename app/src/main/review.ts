@@ -1,6 +1,6 @@
 // Captures the core screens at the reference size and writes a side-by-side report. Not the app's entry point.
 import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, ipcMain, Menu, nativeTheme } from "electron";
 import type { BotPatch } from "../../../server/src/client/gateway-client.ts";
@@ -29,6 +29,10 @@ const repoRoot = join(here, "../../..");
 const theme = process.env.REVIEW_THEME === "light" ? "light" : "dark";
 const outDir = theme === "light" ? join(repoRoot, "review", "out", "light") : join(repoRoot, "review", "out");
 const captureDir = join(outDir, "captures");
+/** The reference shots, as the report (in outDir) links to them. */
+const referenceDir = relative(outDir, join(repoRoot, "reference", "screens"))
+  .split(sep)
+  .join("/");
 
 // A retina display would capture at 2× and no longer match the 1040×760 reference shots.
 app.commandLine.appendSwitch("force-device-scale-factor", "1");
@@ -219,14 +223,14 @@ function report(shots: readonly Shot[]): string {
   const cards = shots
     .map((shot) => {
       const ref = shot.scene.reference
-        ? `<figure><figcaption>Reference</figcaption><img src="../../reference/screens/${esc(shot.scene.reference)}" alt=""></figure>`
+        ? `<figure><figcaption>Reference</figcaption><img src="${referenceDir}/${esc(shot.scene.reference)}" alt=""></figure>`
         : `<figure><figcaption>Reference</figcaption><p class="missing">No reference shot.</p></figure>`;
       const appShot = shot.image
         ? `<figure><figcaption>This app${shot.width === CAPTURE_WIDTH && shot.height === CAPTURE_HEIGHT ? "" : ` (${shot.width}×${shot.height})`}</figcaption><img src="captures/${esc(shot.image)}" alt=""></figure>`
         : `<figure><figcaption>This app</figcaption><p class="missing">${esc(shot.error ?? "Not captured")}</p></figure>`;
       const overlay =
         shot.image && shot.scene.reference
-          ? `<div class="overlay"><img src="captures/${esc(shot.image)}" alt=""><img src="../../reference/screens/${esc(shot.scene.reference)}" alt=""></div>`
+          ? `<div class="overlay"><img src="captures/${esc(shot.image)}" alt=""><img src="${referenceDir}/${esc(shot.scene.reference)}" alt=""></div>`
           : "";
       return `<article id="${esc(shot.scene.id)}"><h2>${esc(shot.scene.title)}</h2><p>${esc(shot.scene.note)}</p><div class="pair">${ref}${appShot}</div>${overlay}</article>`;
     })

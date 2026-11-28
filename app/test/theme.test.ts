@@ -9,6 +9,7 @@ const css = readFileSync(new URL("../src/renderer/src/theme/tokens.css", import.
 
 function declared(text: string, selector: string): Map<string, string> {
   const start = text.indexOf(`${selector} {`);
+  assert.ok(start >= 0, `tokens.css has a ${selector} block`);
   let depth = 0;
   let end = start;
   for (let i = text.indexOf("{", start); i < text.length; i++) {
@@ -25,7 +26,9 @@ function declared(text: string, selector: string): Map<string, string> {
 }
 
 const dark = declared(css, ":root");
-const light = new Map([...dark, ...declared(css.slice(css.indexOf("prefers-color-scheme: light")), ":root")]);
+const lightAt = css.indexOf("prefers-color-scheme: light");
+assert.ok(lightAt >= 0, "tokens.css has a light block");
+const light = new Map([...dark, ...declared(css.slice(lightAt), ":root")]);
 const themes = [
   ["dark", dark],
   ["light", light],
@@ -103,13 +106,24 @@ test("theme: text, icons and the focus ring meet WCAG contrast in both themes", 
 });
 
 test("theme: the user bubble's text never gets less readable than today", () => {
-  // The bubble is color-mix(bot 81%, black) with white text; the white bot's is light gray with dark text.
+  // The bubble and its text as tokens.css defines them: color-mix(bot N%, black), and the text color (the white
+  // bot's is its own). The bot colors and these are the same in both themes.
   const FLOOR = 3.4; // amber, the default, as measured from the reference
+  const bots = declared(css, "[data-bot-color]");
+  const mix = /color-mix\(in srgb, var\(--bot\) (\d+)%, black\)/.exec(bots.get("--color-user-bubble") ?? "");
+  assert.ok(mix, "the user bubble is a mix of the bot color with black");
+  const share = Number(mix[1]) / 100;
+  const textOn = (key: string) =>
+    color(
+      key === "--color-bot-white"
+        ? declared(css, '[data-bot-color="white"]').get("--color-on-user-bubble")
+        : dark.get("--color-on-user-bubble"),
+      dark,
+    );
   for (const key of [...dark.keys()].filter((k) => k.startsWith("--color-bot-"))) {
     const bot = color(dark.get(key), dark);
-    const bubble: Rgba = [bot[0] * 0.81, bot[1] * 0.81, bot[2] * 0.81, 1];
-    const text: Rgba = key === "--color-bot-white" ? [18, 18, 18, 1] : [255, 255, 255, 1];
-    const r = ratio(text, bubble);
+    const bubble: Rgba = [bot[0] * share, bot[1] * share, bot[2] * share, 1];
+    const r = ratio(textOn(key), bubble);
     assert.ok(r >= FLOOR, `${key}: ${r.toFixed(2)} < ${FLOOR}`);
   }
 });

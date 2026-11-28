@@ -40,7 +40,7 @@ This issue makes sure both themes hold up, now that many screens have been added
 - When the setting changes or the system theme changes (`nativeTheme` "updated"), every window gets the new one.
   Before, the main window had Electron's default (white): a dark app flashed white as it opened.
 
-**Contrast test** (`tokens.test.ts`): for both themes, the tokens are resolved (including `var()` references and
+**Contrast test** (`app/test/theme.test.ts`): for both themes, the tokens are resolved (including `var()` references and
 alpha over the app background) and the WCAG ratio is checked:
 
 - **4.5:1 for text:** text, soft text, secondary text, links and danger text, on the app, surface, sidebar and
@@ -99,3 +99,14 @@ top of the window. Popups now stay inside it at the top too, as they already did
   It's the same in both themes. Amber's bubble color was measured from the reference (#c8770c), so raising contrast
   (darker bubbles or dark text on light ones) would change the look. This is left as the reference has it, and the
   test stops it from getting worse. Raising it is the owner's call.
+
+**Code review:** it found six issues, all fixed. The two test changes were each confirmed by a mutation check.
+
+- **Light report images:** the report links its reference shots relative to its own folder, so
+  `review/out/light/index.html` shows them (checked: the paths resolve).
+- **Misplaced comment:** the hardware-acceleration comment is back above the settings read it explains.
+- **Left edge:** popups also stay inside the window on the left.
+- **Missing blocks:** the theme test fails loudly if a block it reads is missing, instead of reading the wrong one.
+- **Bubble values:** the bubble test reads the mix percentage and the text colors from `tokens.css`. Mutation
+  check: a 95% mix fails it.
+- **Spec:** this spec names the right test file.

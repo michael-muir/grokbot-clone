@@ -60,8 +60,9 @@ function usePopup(
     if (below > 0) el.style.top = `${Math.max(0, at.y - below)}px`;
     const right = box.right - window.innerWidth;
     if (right > 0) el.style.left = `${Math.max(0, at.x - right)}px`;
-    // An opener scrolled partly out of view above can't push the popup off the top either.
+    // An opener scrolled partly out of view (above, or to the left) can't push the popup off those edges either.
     if (at.y < 0) el.style.top = "0px";
+    if (at.x < 0) el.style.left = "0px";
   }, [ref, at.x, at.y]);
 }
 

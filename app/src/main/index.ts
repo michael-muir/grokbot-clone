@@ -27,13 +27,13 @@ const rendererUrl = process.env.ELECTRON_RENDERER_URL;
 const rendererFile = fileURLToPath(new URL("../renderer/index.html", import.meta.url));
 const preloadFile = fileURLToPath(new URL("../preload/index.cjs", import.meta.url));
 
-// Read before the app is ready: hardware acceleration can only be turned off this early.
 // The system theme can change under "Follow System": the windows' backgrounds follow it.
 nativeTheme.on("updated", () => {
   for (const win of BrowserWindow.getAllWindows())
     win.setBackgroundColor(windowBackground(nativeTheme.shouldUseDarkColors));
 });
 
+// Read before the app is ready: hardware acceleration can only be turned off this early.
 const settingsFile = join(app.getPath("userData"), "settings.json");
 // The app was called "grokbot-clone-app" before; bring its settings along once.
 adoptOldSettings(join(app.getPath("appData"), "grokbot-clone-app", "settings.json"), settingsFile);
