@@ -64,7 +64,7 @@ notifications, and answers server requests.
 | `item/started` fileChange | `tool_start` "Changing files" |
 | `item/completed` commandExecution | `tool_end` (ok = completed with exit 0) |
 | `item/completed` fileChange | `tool_end` (ok = completed) |
-| `thread/tokenUsage/updated` | `usage`, from `last` (that response's tokens) |
+| `thread/tokenUsage/updated` | `usage`, from `last` (that response's tokens), for this turn only |
 | `turn/completed` | `checkpoint` (the turn's id), then the outcome |
 
 The outcome comes from the turn's status:
@@ -72,6 +72,9 @@ The outcome comes from the turn's status:
 - `completed` gives `finished`;
 - `interrupted` gives `interrupted`;
 - `failed` gives `failed` with the turn's error message.
+
+A resumed thread first replays its last turn's usage, tagged with that turn's id. Only updates for the current turn
+count; ones that come before its id is known wait for it.
 
 An `error` notification that won't be retried is kept as the failure's message.
 
@@ -141,7 +144,8 @@ Other tests (`codex.test.ts`):
   - Stop during an approval sends `cancel`.
 - **Sessions:** resume uses `thread/resume`; `resumeAt` uses `thread/fork` with `lastTurnId`; the checkpoint is
   the turn id.
-- **Usage:** sums `last` per update.
+- **Usage:** sums `last` per update; the usage a resumed thread replays isn't counted again.
+- **Settings:** Codex counts as set up only when its executable is found.
 - **Failures:** a failed turn fails with its message; an unexpected exit fails with stderr.
 - **Server requests:** unsupported ones get an error reply.
 - **Isolation:** `codexArgs` disables plugins and hooks, clears `notify`, and turns each listed MCP server off.
@@ -155,3 +159,17 @@ with no tools. Check that it streams, finishes and records usage, and that a sec
   fields above, and unknown notifications are ignored.
 - **Global instructions.** The user's `~/.codex/AGENTS.md`, if any, still applies, as Codex's own instructions.
   Codex has no switch to leave it out without moving `CODEX_HOME`, which would lose the sign-in.
+
+## Manual check (2026-11-28)
+
+On the owner's signed-in Codex (0.172.0), through a gateway on a throwaway data dir. The bot is "Codex check",
+switched to Codex:
+
+1. **"Reply with … the word hello. Use no tools."** It streamed "hello" and finished in about 3.5 s. The run
+   recorded usage (14,474 in, 5 out) and a checkpoint (thread id, turn id).
+2. **A second message.** It resumed the same thread and replied "again".
+   - This found a bug: the run counted 28,975 in and 10 out. A raw probe showed that `thread/resume` replays the
+     last turn's usage, tagged with the old turn id. That replay is now left out, and a test covers it.
+3. **A third message, after the fix.** Same thread, "third", 14,524 in and 5 out: only that turn's usage.
+4. **Models.** `GET /providers/codex/models` lists the account's models (`gpt-6.2-sol` …).
+
