@@ -93,7 +93,9 @@ export function matchShortcut(e: KeyLike, isMac: boolean): { action: ShortcutAct
     const digit = /^Digit([1-9])$/.exec(e.code ?? "")?.[1] ?? (/^[1-9]$/.test(key) ? key : undefined);
     if (digit && !e.shiftKey) return { action: "go-to-bot", index: Number(digit) - 1 };
   }
-  if (mod && e.altKey && !e.shiftKey && (key === "b" || e.code === "KeyB")) return { action: "details" };
+  // On Windows, AltGr arrives as Ctrl+Alt and types a character there (AltGr+B is "{" in Hungarian): only a plain
+  // b counts. On macOS, Option changes the key (⌥B is "∫"), so the physical key counts.
+  if (mod && e.altKey && !e.shiftKey && (key === "b" || (isMac && e.code === "KeyB"))) return { action: "details" };
   if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
     if (key === "ArrowUp") return { action: "previous-bot" };
     if (key === "ArrowDown") return { action: "next-bot" };

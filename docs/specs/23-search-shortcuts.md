@@ -166,3 +166,20 @@ there and rolled back closes the thread.
 
 - **Search cost:** search reads every bot's transcript in memory. That's fine at our sizes; an index can come if
   transcripts grow large.
+
+**Code review:** it found ten issues, all fixed. Each has a test or was re-checked in the app.
+
+- **The highlight:** it has its own timer, so re-renders can't keep it on. Re-checked: it clears after 2 s.
+- **Old jumps:** a jump is cleared once shown (`onFocused`), so switching bots or threads doesn't replay it.
+  Re-checked.
+- **Open dialogs and menus:** while any `[role=dialog]`, `[role=alertdialog]` or `[role=menu]` is on screen, the
+  shortcuts stand down. This covers a chat's roll-back confirmation and the menus.
+- **AltGr on Windows:** on Windows only a real b counts for Ctrl+Alt+B, since AltGr+B types a character on some
+  layouts. On macOS the physical key counts. Tested.
+- **Alt+↑/↓ while typing:** in a field with text, these stay the field's (Option+↑/↓ moves the caret on macOS).
+- **IME:** the palette ignores keys that finish an IME composition.
+- **Stale hits:** message hits show only for the query they answer, not one typed since.
+- **Hidden bots:**
+  - Previous/next from a hidden bot goes to the last or first bot, not off by one.
+  - Hidden bots aren't searched, so their hits can't take the results' places. Tested.
+- **Onboarding:** shortcuts are off during onboarding.

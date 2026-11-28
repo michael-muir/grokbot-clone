@@ -30,6 +30,8 @@ test("shortcuts: each binding matches its keys with the platform's modifier, and
   assert.deepEqual(win("3", { code: "Digit3" }), { action: "go-to-bot", index: 2 });
   assert.deepEqual(win("!", { code: "Digit1" }), { action: "go-to-bot", index: 0 }, "by the physical key");
   assert.deepEqual(win("b", { altKey: true }), { action: "details" });
+  assert.equal(win("{", { altKey: true, code: "KeyB" }), undefined, "AltGr+B types a brace on some layouts");
+  assert.deepEqual(matchShortcut(key("∫", { metaKey: true, altKey: true, code: "KeyB" }), true), { action: "details" });
   assert.deepEqual(matchShortcut(key("ArrowDown", { altKey: true }), false), { action: "next-bot" });
   assert.deepEqual(matchShortcut(key("ArrowUp", { altKey: true }), false), { action: "previous-bot" });
 

@@ -97,6 +97,9 @@ test("http: /search answers previews and hits, and refuses an overlong query", a
     assert.equal(body.previews.length, 1);
     assert.equal(body.messages.length, 2, "the message and the bot's echo");
     assert.equal((await get("x".repeat(201))).status, 400);
+    bots.update("nova", { hidden: true });
+    const hidden = (await (await get("garden")).json()) as { previews: unknown[]; messages: unknown[] };
+    assert.deepEqual([hidden.previews.length, hidden.messages.length], [0, 0], "hidden bots aren't searched");
   } finally {
     server.closeAllConnections();
     server.close();

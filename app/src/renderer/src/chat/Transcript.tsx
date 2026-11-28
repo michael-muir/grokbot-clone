@@ -41,6 +41,7 @@ export function Transcript({
   replies,
   waiting,
   focus,
+  onFocused,
   label,
 }: {
   /** The entries of this view (see rows.ts conversation()). */
@@ -56,6 +57,8 @@ export function Transcript({
   waiting?: ReadonlySet<string>;
   /** A message to scroll to and highlight (from the search palette); `n` makes the same one count again. */
   focus?: { entryId: string; n: number };
+  /** The focus was shown: the caller drops it, so it doesn't come back with the next mount. */
+  onFocused?(): void;
   /** Accessible name of the log, e.g. "Conversation with Nova". */
   label: string;
 }) {
@@ -108,9 +111,14 @@ export function Transcript({
     following.current = false;
     virtualizer.scrollToIndex(index, { align: "center" });
     setHighlight(focus.entryId);
+    onFocused?.();
+  }, [focus, rows, virtualizer, onFocused]);
+  // Its own timer, so re-renders (streaming text, a new focus object) can't keep the highlight on.
+  useEffect(() => {
+    if (!highlight) return;
     const timer = setTimeout(() => setHighlight(undefined), HIGHLIGHT_MS);
     return () => clearTimeout(timer);
-  }, [focus, rows, virtualizer]);
+  }, [highlight]);
 
   return (
     <div

@@ -298,14 +298,20 @@ export function App() {
     const { top, rest } = sidebarLayout(bots, false);
     return [...top, ...rest];
   }, [bots]);
+  const onboarding = settingsLoaded && !settings.onboarded;
   const anyDialog = paletteOpen || shortcutsOpen || creating || !!deleting || !!freshening || !!settingsOpen;
 
   // The app's keyboard shortcuts (#23): one listener, only while no dialog is open (a dialog keeps its keys).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || anyDialog) return;
+      if (e.defaultPrevented || anyDialog || onboarding) return;
+      // Any dialog or menu on screen keeps the keys, including ones App doesn't track (a chat's confirmation, menus).
+      if (document.querySelector("[role=dialog], [role=alertdialog], [role=menu]")) return;
       const hit = matchShortcut(e, isMac);
       if (!hit) return;
+      // In a field with text, Alt (Option) + arrows move the caret: they stay the field's.
+      const field = e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement ? e.target : null;
+      if ((hit.action === "previous-bot" || hit.action === "next-bot") && field && field.value !== "") return;
       e.preventDefault();
       switch (hit.action) {
         case "search":
@@ -328,7 +334,9 @@ export function App() {
           if (order.length === 0) return;
           const at = order.findIndex((b) => b.id === selected);
           const step = hit.action === "next-bot" ? 1 : -1;
-          const target = order[(at + step + order.length) % order.length];
+          // From a bot that isn't in the list (a hidden one), next is the first and previous the last.
+          const from = at < 0 ? (step > 0 ? -1 : order.length) : at;
+          const target = order[(from + step + order.length) % order.length];
           if (target) select(target.id);
           return;
         }
@@ -336,7 +344,9 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [anyDialog, isMac, order, selected, select, panelOpen, closePanel]);
+  }, [anyDialog, onboarding, isMac, order, selected, select, panelOpen, closePanel]);
+
+  const jumped = useCallback(() => setJump(undefined), []);
 
   const choose = useCallback(
     (choice: PaletteChoice) => {
@@ -422,6 +432,7 @@ export function App() {
             onTogglePanel={() => (panelOpen ? closePanel() : setPanelOpen(true))}
             settings={settings}
             jump={jump?.botId === bot.id ? jump : undefined}
+            onJumped={jumped}
           />
         ) : (
           connected && <p className="muted">No bot selected.</p>
@@ -524,6 +535,7 @@ function Chat({
   onTogglePanel,
   settings,
   jump,
+  onJumped,
 }: {
   bot: PublicBot;
   pill: RefObject<HTMLButtonElement | null>;
@@ -532,6 +544,8 @@ function Chat({
   settings: AppSettings;
   /** A message to show: opens its thread if it's in one, scrolls to it and highlights it. */
   jump?: { entryId: string; threadId?: string; n: number };
+  /** The jump was shown, and is done with. */
+  onJumped(): void;
 }) {
   const [view] = useState(() => new TranscriptView());
   const entries = useSyncExternalStore(
@@ -548,6 +562,10 @@ function Chat({
   useEffect(() => {
     if (jump) setThread(jump.threadId);
   }, [jump]);
+  const focus = useMemo(
+    () => (jump && jump.threadId === thread ? { entryId: jump.entryId, n: jump.n } : undefined),
+    [jump, thread],
+  );
   /** The message being rolled back to, while its confirmation is open. */
   const [rolling, setRolling] = useState<{ entry: TranscriptEntry; busy: boolean; error?: string }>();
   /** A rolled-back message's text, for the composer. */
@@ -715,7 +733,8 @@ function Chat({
         thread={thread}
         replies={replies}
         waiting={waiting}
-        focus={jump && jump.threadId === thread ? { entryId: jump.entryId, n: jump.n } : undefined}
+        focus={focus}
+        onFocused={onJumped}
         label={thread === undefined ? `Conversation with ${bot.name}` : `Thread with ${bot.name}`}
       />
       {problem ? (

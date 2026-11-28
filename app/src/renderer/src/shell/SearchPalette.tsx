@@ -37,7 +37,8 @@ export function SearchPalette({
   onClose(): void;
 }) {
   const [query, setQuery] = useState("");
-  const [result, setResult] = useState<SearchResult>();
+  /** The latest answer, with the query it answers: messages show only for the query that's typed. */
+  const [result, setResult] = useState<SearchResult & { query: string }>();
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -59,7 +60,7 @@ export function SearchPalette({
       () => {
         call("search", query.trim()).then(
           (r) => {
-            if (n === latest.current) setResult(r);
+            if (n === latest.current) setResult({ ...r, query: query.trim() });
           },
           (err: unknown) => console.warn("Search failed:", err),
         );
@@ -82,7 +83,7 @@ export function SearchPalette({
       }),
     );
     const messageOptions =
-      query.trim().length >= 2
+      query.trim().length >= 2 && result?.query === query.trim()
         ? (result?.messages ?? []).flatMap((hit): Option[] => {
             const bot = bots.find((b) => b.id === hit.botId);
             if (!bot) return [];
@@ -125,6 +126,8 @@ export function SearchPalette({
   }, [current]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    // Keys that finish an IME composition belong to it.
+    if (e.nativeEvent.isComposing) return;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       if (options.length === 0) return;

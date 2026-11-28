@@ -117,7 +117,8 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
   if (parts[0] === "search" && parts.length === 1 && method === "GET") {
     const q = url.searchParams.get("q") ?? "";
     if (q.length > MAX_QUERY) return send(res, 400, { error: `Search for at most ${MAX_QUERY} characters` });
-    const bots = d.bots.list();
+    // Hidden bots aren't in the palette: their hits would take places in the results and then be dropped.
+    const bots = d.bots.list().filter((b) => !b.hidden);
     const entries = new Map(bots.map((b) => [b.id, d.store.list(b.id)]));
     return send(
       res,
