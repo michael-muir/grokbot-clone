@@ -2,8 +2,18 @@
 import { lstatSync, realpathSync } from "node:fs";
 import { glob, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { CardRequestError, describeAnswer, parseCardRequest, showCardDescription, showCardSchema } from "../cards.ts";
+import {
+  CardRequestError,
+  describeAnswer,
+  parseCardRequest,
+  REQUEST_SECRET_DESCRIPTION,
+  REQUEST_SECRET_SCHEMA,
+  showCardDescription,
+  showCardKinds,
+  showCardSchema,
+} from "../cards.ts";
 import { labelPath } from "../display-path.ts";
+import { redact } from "../secrets.ts";
 import { CARD_KINDS, type CardAnswer, type CardKind, type CardRequest, type ChoiceRequest } from "../types.ts";
 import type { ToolSpec } from "./model.ts";
 import { defaultShell, runShell, type ShellInfo } from "./shell.ts";
@@ -17,6 +27,8 @@ export interface ToolContext {
   cardKinds?: readonly CardKind[];
   /** Shows a card and waits; undefined if the run was stopped. */
   card?(card: CardRequest): Promise<CardAnswer | undefined>;
+  /** The bot's secrets, for the environment of its commands (#20). Never put into output: the loop redacts it. */
+  secrets?(): Readonly<Record<string, string>>;
 }
 
 export interface ToolResult {
@@ -331,7 +343,14 @@ export function shellTool(shell: ShellInfo = defaultShell()): Tool {
       const timeoutMs = Math.min(seconds ? seconds * 1000 : SHELL_TIMEOUT_MS, 600_000);
       const r = await runShell(
         command,
-        { cwd: ctx.workspaceDir, signal: ctx.signal, timeoutMs, maxOutput: SHELL_MAX_OUTPUT },
+        {
+          cwd: ctx.workspaceDir,
+          signal: ctx.signal,
+          timeoutMs,
+          maxOutput: SHELL_MAX_OUTPUT,
+          env: ctx.secrets?.(),
+          redact: (text) => redact(text, ctx.secrets?.() ?? {}),
+        },
         shell,
       );
       if (r.aborted) return { ok: false, output: "The command was stopped." };
@@ -394,21 +413,26 @@ export const askUserTool: Tool = {
 
 /** Shows a widget or form card (#19). Offered only when the user's app can show cards. Read-only: nothing changes. */
 export const showCardTool: Tool = {
-  spec: { name: "show_card", description: showCardDescription(CARD_KINDS), inputSchema: showCardSchema(CARD_KINDS) },
+  spec: {
+    name: "show_card",
+    description: showCardDescription(showCardKinds(CARD_KINDS)),
+    inputSchema: showCardSchema(showCardKinds(CARD_KINDS)),
+  },
   // Only the kinds this user's app can show, so the model isn't offered a form it can't use.
   specFor: (run) => ({
     name: "show_card",
-    description: showCardDescription(run.cardKinds ?? []),
-    inputSchema: showCardSchema(run.cardKinds ?? []),
+    description: showCardDescription(showCardKinds(run.cardKinds ?? [])),
+    inputSchema: showCardSchema(showCardKinds(run.cardKinds ?? [])),
   }),
   readOnly: true,
   promptNote: "To have the user pick one option or fill in a short form, use show_card.",
-  available: (run) => (run.cardKinds?.length ?? 0) > 0,
+  available: (run) => showCardKinds(run.cardKinds ?? []).length > 0,
   summarize: (input) => `Asking: ${short(input.prompt ?? input.title)}`,
   async run(input, ctx) {
+    if (input.kind === "secret") throw new ToolInputError("Ask for secrets with request_secret.");
     let card: CardRequest;
     try {
-      card = parseCardRequest(input, ctx.cardKinds ?? []);
+      card = parseCardRequest(input, showCardKinds(ctx.cardKinds ?? []));
     } catch (err) {
       if (err instanceof CardRequestError) throw new ToolInputError(err.message);
       throw err;
@@ -417,6 +441,28 @@ export const showCardTool: Tool = {
     const answer = await ctx.card(card);
     if (answer === undefined) return { ok: false, output: "The run was stopped before the user answered." };
     return { ok: true, output: describeAnswer(card, answer) };
+  },
+};
+
+/** Asks the user for a secret on a card (#20). The model gets its name, never its value. */
+export const requestSecretTool: Tool = {
+  spec: { name: "request_secret", description: REQUEST_SECRET_DESCRIPTION, inputSchema: REQUEST_SECRET_SCHEMA },
+  readOnly: true,
+  promptNote: "To use a password or key, ask for it with request_secret, never in the chat.",
+  available: (run) => run.cardKinds?.includes("secret") ?? false,
+  summarize: (input) => `Asking for ${short(input.label ?? input.name)}`,
+  async run(input, ctx) {
+    let card: CardRequest;
+    try {
+      card = parseCardRequest({ ...input, kind: "secret" }, ctx.cardKinds ?? []);
+    } catch (err) {
+      if (err instanceof CardRequestError) throw new ToolInputError(err.message);
+      throw err;
+    }
+    if (!ctx.card) return { ok: false, output: "Secrets can't be asked for here." };
+    const answer = await ctx.card(card);
+    if (answer === undefined) return { ok: false, output: "The run was stopped before the user answered." };
+    return { ok: true, output: describeAnswer(card, answer, "the shell tool") };
   },
 };
 
@@ -430,5 +476,6 @@ export function defaultTools(): Tool[] {
     shellTool(),
     askUserTool,
     showCardTool,
+    requestSecretTool,
   ];
 }

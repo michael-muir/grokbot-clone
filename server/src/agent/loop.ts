@@ -3,6 +3,7 @@
 // read-only), feeds the results back, and repeats until the model answers without tools.
 import { randomUUID } from "node:crypto";
 import { platform } from "node:os";
+import { redact } from "../secrets.ts";
 import type {
   AgentProvider,
   CardRequest,
@@ -175,11 +176,12 @@ export class LoopProvider implements AgentProvider {
   private async runTool(call: ToolCall, req: RunRequest, cb: RunCallbacks): Promise<ChatMessage> {
     const found = this.tools.get(call.name);
     const tool = found && (found.available?.({ cardKinds: req.cardKinds }) ?? true) ? found : undefined;
+    // Every result is cleared of the bot's secrets before the model or the transcript sees it (#20).
     const result = (output: string, isError: boolean): ChatMessage => ({
       role: "tool",
       toolCallId: call.id,
       name: call.name,
-      output,
+      output: redact(output, req.secrets?.() ?? {}),
       isError,
     });
     const summary = tool ? safeSummary(tool, call.input, req.workspaceDir) : `Using ${call.name}`;
@@ -222,6 +224,7 @@ export class LoopProvider implements AgentProvider {
         ...(ask ? { ask: (q: ChoiceRequest) => ask(q, req.signal) } : {}),
         cardKinds: req.cardKinds ?? [],
         ...(card ? { card: (c: CardRequest) => card(c, req.signal) } : {}),
+        ...(req.secrets ? { secrets: req.secrets } : {}),
       });
       cb.emit({ type: "tool_end", toolUseId: call.id, ok: r.ok });
       return result(r.output, !r.ok);

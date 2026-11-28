@@ -7,7 +7,7 @@ import type {
   AvatarColor,
   AvatarShape,
   BotActivity,
-  CardAnswer,
+  CardAnswerIn,
   ProviderSummary,
   PublicBot,
   TranscriptEntry,
@@ -506,7 +506,7 @@ function Chat({
           throw err;
         }),
       // The card shows the reason itself, next to what the user filled in.
-      answerCard: (entry: TranscriptEntry, answer: CardAnswer) => call("answerCard", bot.id, entry.id, answer),
+      answerCard: (entry: TranscriptEntry, answer: CardAnswerIn) => call("answerCard", bot.id, entry.id, answer),
       openThread: (entry: TranscriptEntry) => setThread(entry.id),
       rollBack: (entry: TranscriptEntry) => setRolling({ entry, busy: false }),
       react: (entry: TranscriptEntry, emoji: string, on: boolean) =>
