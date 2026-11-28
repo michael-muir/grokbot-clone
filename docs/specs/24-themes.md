@@ -25,7 +25,7 @@ This issue makes sure both themes hold up, now that many screens have been added
   - Light captures in the review harness.
   - A light check of every screen and component added since #13: hover bar, reactions, menus, cards (widget, form,
     secret), threads, the cut-off notice, the Usage page, the palette and the shortcuts sheet.
-  - Fixes for anything those turn up.
+  - Fixes for anything those turn up (one: popups kept inside the window at the top).
 - **Out:**
   - **Changing the user bubble colors for contrast.** That's the owner's call; see Risks.
 
@@ -58,6 +58,30 @@ alpha over the app background) and the WCAG ratio is checked:
 | Override in Settings → General | `settings: theme …` (#13, existing); manual check: switching Light / Dark / Follow System applies at once, with no flash |
 | Both themes readable | `theme: text, icons and the focus ring meet WCAG contrast in both themes`; `theme: the user bubble's text never gets less readable`; light captures of the core screens; manual light check of the newer components |
 | No flash | `theme: the window background is the theme's app color`; manual check |
+
+**Manual check, 2026-11-28.** In the app, with the theme set to Light, in an isolated profile on port 9411. Each of
+these looked right in light:
+
+- **The widget card:** answered, chosen row highlighted, the others dimmed.
+- **The form card:** fields, checkbox, and the disabled submit.
+- **The hover bar and the More menu.**
+- **A reaction chip.**
+- **The white bot:** its avatar keeps its edge, and its user bubble shows dark text on light gray.
+- **The search palette, the shortcuts sheet and the Usage page.**
+
+**Live switching** (`settings.set`): each change applied at once.
+
+| Setting | Result |
+| --- | --- |
+| Dark | `#121212` background |
+| Light | `#fafafa` background |
+| Follow System | dark, matching Windows' "apps use dark mode" (`AppsUseLightTheme = 0`) |
+
+The light review captures of the core screens (`REVIEW_THEME=light npm run review`) read well: welcome, chat,
+thread, panel, choice card, bot menu, Settings.
+
+One unrelated fix came from this check. A popup opened from a message scrolled partly above the view hung off the
+top of the window. Popups now stay inside it at the top too, as they already did at the right and bottom.
 
 ## Risks and open questions
 
