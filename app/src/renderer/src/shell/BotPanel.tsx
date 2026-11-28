@@ -87,7 +87,7 @@ export function BotPanel({
           aria-expanded={picking}
           onClick={() => setPicking((v) => !v)}
         >
-          <Avatar avatar={shown} size="large" />
+          <Avatar avatar={shown} size="large" botId={bot.id} />
         </button>
         {picking && (
           <div className="panel-picker">
@@ -112,7 +112,7 @@ export function BotPanel({
             <span className="row-subtitle">Local folder</span>
           </span>
           <span className="computer-thumb" aria-hidden="true">
-            <Avatar avatar={bot.avatar} size="small" />
+            <Avatar avatar={bot.avatar} size="small" botId={bot.id} />
           </span>
         </div>
       </PanelSection>

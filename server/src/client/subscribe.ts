@@ -113,7 +113,12 @@ const trimSlash = (url: string) => url.replace(/\/+$/, "");
 function isBotActivity(v: unknown): v is BotActivity {
   if (typeof v !== "object" || v === null) return false;
   const a = v as Record<string, unknown>;
-  return typeof a.botId === "string" && typeof a.running === "boolean";
+  const lastRun = a.lastRun;
+  return (
+    typeof a.botId === "string" &&
+    typeof a.running === "boolean" &&
+    (lastRun === undefined || lastRun === "finished" || lastRun === "interrupted" || lastRun === "failed")
+  );
 }
 
 type StreamOptions = Pick<SubscribeOptions, "onState" | "signal" | "token" | "backoff" | "staleAfterMs" | "fetch">;

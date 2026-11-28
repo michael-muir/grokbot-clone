@@ -145,3 +145,55 @@ test("subscribeActivity drops malformed items and reports them, keeping the good
   assert.deepEqual(got, [[{ botId: "nova", running: true }]]);
   assert.ok(errors.some((e) => e.includes("2 malformed")));
 });
+
+test("activity says how each bot's last run ended, so the app can react", async () => {
+  const t = await setup();
+  try {
+    assert.deepEqual(t.gateway.activity(), [
+      { botId: "nova", running: false },
+      { botId: "rex", running: false },
+    ]);
+    await (await t.gateway.sendMessage("rex", "hello")).done;
+    const started = await t.gateway.sendMessage("nova", "a long one");
+    t.gateway.interrupt("nova");
+    await started.done;
+    assert.deepEqual(t.gateway.activity(), [
+      { botId: "nova", running: false, lastRun: "interrupted" },
+      { botId: "rex", running: false, lastRun: "finished" },
+    ]);
+    await t.gateway.deleteBot("rex");
+    assert.deepEqual(
+      t.gateway.activity().map((a) => a.botId),
+      ["nova"],
+    );
+  } finally {
+    t.cleanup();
+  }
+});
+
+test("subscribeActivity keeps a known lastRun and drops an unknown one", async () => {
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      c.enqueue(
+        new TextEncoder().encode(
+          'data: [{"botId":"nova","running":false,"lastRun":"finished"},{"botId":"rex","running":false,"lastRun":"exploded"}]\n\n',
+        ),
+      );
+      c.close();
+    },
+  });
+  const fakeFetch = (async () => new Response(body, { status: 200 })) as typeof fetch;
+  const abort = new AbortController();
+  const got: BotActivity[][] = [];
+  const following = subscribeActivity("http://gateway", {
+    signal: abort.signal,
+    fetch: fakeFetch,
+    onError: () => {},
+    onActivity: (bots) => {
+      got.push(bots);
+      abort.abort();
+    },
+  });
+  await following;
+  assert.deepEqual(got, [[{ botId: "nova", running: false, lastRun: "finished" }]]);
+});

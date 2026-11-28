@@ -27,6 +27,7 @@ import { Avatar } from "./shell/Avatar.tsx";
 import { DeleteBotDialog } from "./shell/BotMenu.tsx";
 import { BotPanel, PANEL_ID } from "./shell/BotPanel.tsx";
 import { CreateBotDialog } from "./shell/CreateBotDialog.tsx";
+import { noteActivity } from "./shell/face-director.ts";
 import { Sidebar } from "./shell/Sidebar.tsx";
 import { afterDelete, freeColor, type MenuAction, nextUnread } from "./shell/sidebar-state.ts";
 import "./shell/shell.css";
@@ -136,11 +137,13 @@ export function App() {
       if (event.kind === "activity") {
         const before = activityNow.current;
         activityNow.current = event.bots;
+        noteActivity(before, event.bots);
         setActivity(event.bots);
         setUnread((u) => nextUnread(u, before, event.bots, selectedNow.current));
         setActivityError(undefined);
       } else if (event.kind === "ended") {
         // No more updates: show nothing rather than a state that may be stale ("working" forever).
+        noteActivity(activityNow.current, []);
         activityNow.current = [];
         setActivity([]);
         if (event.error) setActivityError(`Bot status stopped updating: ${event.error}`);
@@ -437,6 +440,7 @@ function Chat({
 
   const context = useMemo<RowContext>(
     () => ({
+      botId: bot.id,
       botName: bot.name,
       botAvatar: bot.avatar,
       answerApproval: (entry: TranscriptEntry, allow: boolean, reason?: string) =>
@@ -500,7 +504,7 @@ function Chat({
             title={panelOpen ? "Hide bot details" : "Show bot details"}
             onClick={onTogglePanel}
           >
-            <Avatar avatar={bot.avatar} size="small" />
+            <Avatar avatar={bot.avatar} size="small" botId={bot.id} />
             <span className="name">{bot.name}</span>
           </button>
         </h2>

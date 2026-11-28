@@ -60,6 +60,8 @@ export class Gateway {
   /** Ids of bots deleted since this gateway started; a new bot doesn't take one. */
   private readonly retiredIds = new Set<string>();
   private readonly activityListeners = new Set<(bots: BotActivity[]) => void>();
+  /** How each bot's last run ended, for activity snapshots. */
+  private readonly lastRuns = new Map<string, RunOutcome["status"]>();
 
   constructor(bots: BotRegistry, store: TranscriptStore, providers: ProviderRegistry, computers: ComputerManager) {
     this.bots = bots;
@@ -99,7 +101,10 @@ export class Gateway {
 
   /** Every bot and whether it's running. */
   activity(): BotActivity[] {
-    return this.bots.list().map((bot) => ({ botId: bot.id, running: this.active.has(bot.id) }));
+    return this.bots.list().map((bot) => {
+      const lastRun = this.lastRuns.get(bot.id);
+      return { botId: bot.id, running: this.active.has(bot.id), ...(lastRun ? { lastRun } : {}) };
+    });
   }
 
   /** Called with a fresh snapshot whenever a run starts or ends. Returns the unsubscribe function. */
@@ -236,6 +241,7 @@ export class Gateway {
       }
       this.bots.remove(botId);
       this.retiredIds.add(botId);
+      this.lastRuns.delete(botId);
       this.activityChanged();
     } finally {
       this.deleting.delete(botId);
@@ -417,6 +423,7 @@ export class Gateway {
     if (outcome.status === "failed") {
       append({ kind: "error", message: outcome.error ?? "Something went wrong." });
     }
+    this.lastRuns.set(bot.id, outcome.status);
     set(runEntry.id, (b) =>
       b.kind === "run"
         ? { ...b, state: outcome.status, ...(outcome.costUsd !== undefined ? { costUsd: outcome.costUsd } : {}) }

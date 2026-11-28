@@ -4,6 +4,9 @@ import type { AvatarColor, AvatarShape } from "../../../../../server/src/types.t
 import { Avatar, AvatarPicker } from "./Avatar.tsx";
 import { cleanName, MAX_NAME } from "./sidebar-state.ts";
 
+/** The preview is alive too; this id is never a real bot's (ids are lowercase). */
+const PREVIEW_ID = "New-Bot-Preview";
+
 export function CreateBotDialog({
   defaultColor,
   onCreate,
@@ -91,7 +94,7 @@ export function CreateBotDialog({
           </button>
         </div>
         <div className="create-bot-body">
-          <Avatar avatar={avatar} size="xl" />
+          <Avatar avatar={avatar} size="xl" botId={PREVIEW_ID} />
           <input
             ref={field}
             className="create-bot-name"
