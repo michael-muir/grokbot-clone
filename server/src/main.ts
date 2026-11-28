@@ -5,6 +5,7 @@ import { LocalFolderComputers } from "./computer.ts";
 import { Gateway } from "./gateway.ts";
 import { createHttpServer } from "./http.ts";
 import { Credentials, KeychainKeyStore } from "./keys.ts";
+import { ModelLists } from "./model-lists.ts";
 import { defaultProviders } from "./providers/index.ts";
 import { BotSecrets, KeychainSecretStore } from "./secrets.ts";
 import { TranscriptStore } from "./transcript.ts";
@@ -16,6 +17,7 @@ const bots = new BotRegistry(dataDir);
 const store = new TranscriptStore(dataDir);
 const credentials = new Credentials(new KeychainKeyStore());
 const providers = defaultProviders(dataDir, credentials);
+const modelLists = new ModelLists(providers);
 const gateway = new Gateway(
   bots,
   store,
@@ -29,6 +31,7 @@ const server = createHttpServer({
   store,
   providers,
   credentials,
+  modelLists,
   token: process.env.GATEWAY_TOKEN || undefined,
   allowedOrigins: (process.env.GATEWAY_ALLOWED_ORIGINS ?? "")
     .split(",")
@@ -45,6 +48,8 @@ if (!credentials.key("claude")) {
 // Localhost only: the agent can run commands on this machine.
 server.listen(port, "127.0.0.1", () => {
   console.log(`SmartyPrompts gateway on http://127.0.0.1:${port} (data: ${dataDir})`);
+  // The CLI providers take seconds to list their models; have the lists ready before the picker opens.
+  modelLists.warm(["codex", "cursor"]);
 });
 
 // Stop cleanly: interrupted runs are recorded as interrupted, and no transcript write is cut off. The desktop app

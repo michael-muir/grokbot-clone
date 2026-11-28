@@ -73,7 +73,7 @@ export interface Calls {
   /** Token and cost totals for the last 7, 30 or 90 days. */
   usage: { args: [days: number]; result: UsageReport };
   listModels: { args: [provider: ProviderId]; result: string[] };
-  testProvider: { args: [provider: ProviderId, baseUrl?: string]; result: ProviderTest };
+  testProvider: { args: [provider: ProviderId, baseUrl?: string, cached?: boolean]; result: ProviderTest };
   setKey: { args: [provider: ProviderId, key: string]; result: undefined };
   deleteKey: { args: [provider: ProviderId]; result: undefined };
 }
@@ -225,8 +225,12 @@ const ARGS: { [K in CallName]: (a: unknown[]) => a is Calls[K]["args"] } = {
   search: (a): a is [string] => a.length === 1 && isString(a[0]) && a[0].length <= 200,
   usage: (a): a is [number] => a.length === 1 && (a[0] === 7 || a[0] === 30 || a[0] === 90),
   listModels: (a): a is [ProviderId] => a.length === 1 && isProviderId(a[0]),
-  testProvider: (a): a is [ProviderId, string?] =>
-    (a.length === 1 || a.length === 2) && isProviderId(a[0]) && optional(isString)(a[1]),
+  testProvider: (a): a is [ProviderId, string?, boolean?] =>
+    a.length >= 1 &&
+    a.length <= 3 &&
+    isProviderId(a[0]) &&
+    optional(isString)(a[1]) &&
+    (a[2] === undefined || typeof a[2] === "boolean"),
   setKey: (a): a is [ProviderId, string] => a.length === 2 && isProviderId(a[0]) && isString(a[1]) && a[1] !== "",
   deleteKey: (a): a is [ProviderId] => a.length === 1 && isProviderId(a[0]),
 };

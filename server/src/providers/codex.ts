@@ -20,7 +20,10 @@ import { findExecutable, type Json, type LineConnection, launchSpec, Rpc, spawnL
 export type CodexConnection = LineConnection;
 export { findExecutable };
 
-/** Codex features that reach outside the workspace or run code at turn ends: off for every bot run. */
+/**
+ * Codex features that reach outside the workspace or run code at turn ends: off for every bot run. Not
+ * `code_mode_host`: that's the shell host, the bot's command tool, and its commands ask first (untrusted policy).
+ */
 export const DISABLED_FEATURES = [
   "apps",
   "plugins",
@@ -31,7 +34,6 @@ export const DISABLED_FEATURES = [
   "in_app_browser",
   "hooks",
   "image_generation",
-  "code_mode_host",
 ] as const;
 
 /** An MCP server name Codex's `-c` can address: its key path splits on dots and has no quoting. */
@@ -185,7 +187,7 @@ export class CodexProvider implements AgentProvider {
             openText.delete(id);
             if (text.trim() || streamed) cb.emit({ type: "text", blockId: id, text });
           } else if (type === "commandExecution") {
-            const summary = `Running ${str(item.command).slice(0, 120)}`;
+            const summary = `Running ${shownCommand(str(item.command)).slice(0, 120)}`;
             if (method === "item/started") toolStart(id, "Bash", summary);
             else toolEnd(id, "Bash", summary, str(item.status) === "completed" && num(item.exitCode) === 0);
           } else if (type === "fileChange") {
@@ -225,7 +227,11 @@ export class CodexProvider implements AgentProvider {
         if (method === "item/commandExecution/requestApproval" || method === "execCommandApproval") {
           const command = Array.isArray(params.command) ? params.command.map(str).join(" ") : str(params.command);
           const decision = await cb.requestApproval(
-            { tool: "Bash", summary: `Running ${command.slice(0, 120)}`, input: { command, cwd: str(params.cwd) } },
+            {
+              tool: "Bash",
+              summary: `Running ${shownCommand(command).slice(0, 120)}`,
+              input: { command, cwd: str(params.cwd) },
+            },
             req.signal,
           );
           return approvalAnswer(method, decision, req.signal.aborted);
@@ -351,6 +357,17 @@ export function enabledMcpNames(stdout: string): string[] {
     throw new Error("Codex listed its MCP servers in a form this app doesn't read.");
   }
   return list.filter((s: Json) => s.enabled !== false).map((s: Json) => str(s.name));
+}
+
+/**
+ * The command as the user would type it. On Windows Codex wraps each one as `"...\powershell.exe" -Command '<cmd>'`;
+ * the card's input keeps the whole line.
+ */
+export function shownCommand(command: string): string {
+  const wrapped = /^"?[^"]*?(?:powershell|pwsh)(?:\.exe)?"?\s+(?:-NoProfile\s+)?-Command\s+'([\s\S]*)'$/i.exec(
+    command.trim(),
+  );
+  return wrapped?.[1] !== undefined ? wrapped[1].replaceAll("''", "'") : command;
 }
 
 /** Our approval decision in the shape Codex asked for (the v2 requests, or the legacy ones). */

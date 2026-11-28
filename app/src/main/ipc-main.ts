@@ -41,7 +41,7 @@ const HANDLERS: Handlers = {
   usage: (c, [days]) => c.usage(days),
   search: (c, [query]) => c.search(query),
   listModels: (c, [provider]) => c.listModels(provider),
-  testProvider: (c, [provider, baseUrl]) => c.testProvider(provider, baseUrl),
+  testProvider: (c, [provider, baseUrl, cached]) => c.testProvider(provider, baseUrl, cached),
   setKey: (c, [provider, key]) => done(c.setKey(provider, key)),
   deleteKey: (c, [provider]) => done(c.deleteKey(provider)),
 };

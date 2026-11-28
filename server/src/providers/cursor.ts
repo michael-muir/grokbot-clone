@@ -14,7 +14,18 @@
 //
 // Isolation: the CLI reads MCP servers, hooks, plugins and its approval settings from the home folder, so every run
 // gets a home of its own (isolatedEnv). Hooks in the bot's own workspace stop the run (workspaceHooks).
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ChatMessage } from "../agent/model.ts";
@@ -22,13 +33,22 @@ import { SessionStore } from "../agent/sessions.ts";
 import { childEnv } from "../child-env.ts";
 import { NotConfiguredError } from "../errors.ts";
 import type { AgentProvider, ApprovalDecision, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
-import { findExecutable, type Json, type LineConnection, Rpc, spawnLines } from "./stdio-rpc.ts";
+import { EXIT_GRACE_MS, findExecutable, type Json, type LineConnection, Rpc, spawnLines } from "./stdio-rpc.ts";
+
+/** Where and how a Cursor process starts: its home folder, and the model it's to use (none: Cursor's default). */
+export interface CursorLaunch {
+  home: string;
+  model?: string;
+}
 
 export interface CursorOptions {
-  /** The bots' own Cursor home: kept between runs, so sessions can be resumed. */
+  /** Where the bots' Cursor homes go (one per bot) and the turn log: kept between runs, so sessions can be resumed. */
   homeDir: string;
-  /** Opens the connection for a run in `cwd`, giving up when `signal` fires. Defaults to spawning `cursor-agent acp`. */
-  connect?: (cwd: string, signal: AbortSignal) => Promise<LineConnection>;
+  /**
+   * Opens the connection for a run in `cwd`, giving up when `signal` fires. Defaults to spawning `cursor-agent acp` in
+   * `launch.home` with `launch.model` chosen.
+   */
+  connect?: (cwd: string, signal: AbortSignal, launch: CursorLaunch) => Promise<LineConnection>;
   /** The executable: CURSOR_AGENT_PATH, or `cursor-agent` on the PATH. */
   command?: string;
   /** How long Stop waits for Cursor to end the turn before the process is killed. */
@@ -110,6 +130,25 @@ const HOOK_FILES = [
   [".claude", "settings.local.json"],
 ] as const;
 
+/**
+ * Sets the model Cursor starts with in `home` (its acp-config.json, which Cursor reads at start); none means Cursor's
+ * default. Other settings Cursor keeps there are left as they are.
+ */
+export function chooseModel(home: string, model: string | undefined): void {
+  const file = join(home, ".cursor", "acp-config.json");
+  let config: Json = {};
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
+    if (isRecord(parsed)) config = parsed;
+  } catch {
+    // None yet, or unreadable: start from nothing.
+  }
+  if (model) config.selectedModelVariantId = model;
+  else delete config.selectedModelVariantId;
+  mkdirSync(join(home, ".cursor"), { recursive: true });
+  writeFileSync(file, JSON.stringify(config, null, 2));
+}
+
 /** The first hook file in the bot's workspace, if any. A bot can write these in its own workspace. */
 export function workspaceHooks(workspaceDir: string): string | undefined {
   for (const [dir, name] of HOOK_FILES) {
@@ -136,14 +175,14 @@ export class CursorProvider implements AgentProvider {
   readonly id = "cursor" as const;
   private readonly homeDir: string;
   private readonly command: string;
-  private readonly connectFn: (cwd: string, signal: AbortSignal) => Promise<LineConnection>;
+  private readonly connectFn: (cwd: string, signal: AbortSignal, launch: CursorLaunch) => Promise<LineConnection>;
   private readonly stopGraceMs: number;
   private turnLog: SessionStore | undefined;
 
   constructor(opts: CursorOptions) {
     this.homeDir = opts.homeDir;
     this.command = opts.command ?? process.env.CURSOR_AGENT_PATH ?? "cursor-agent";
-    this.connectFn = opts.connect ?? ((cwd) => this.spawnIsolated(cwd));
+    this.connectFn = opts.connect ?? ((cwd, _signal, launch) => this.spawnIsolated(cwd, launch));
     this.stopGraceMs = opts.stopGraceMs ?? 2000;
   }
 
@@ -151,6 +190,17 @@ export class CursorProvider implements AgentProvider {
   private turns(): SessionStore {
     this.turnLog ??= new SessionStore(this.homeDir);
     return this.turnLog;
+  }
+
+  /**
+   * A bot's own Cursor home. Cursor keeps the chosen model per home, and choosing it inside a session
+   * (session/set_model) stops Cursor saving that session's conversation (#96), so each bot's home holds its model.
+   * A bot runs one reply at a time, so its setting can't change under a running reply.
+   */
+  homeFor(botId: string | undefined): string {
+    if (botId === undefined) return join(this.homeDir, "models");
+    const safe = /^[\w-]{1,100}$/.test(botId) ? botId : createHash("sha256").update(botId).digest("hex").slice(0, 32);
+    return join(this.homeDir, "bots", safe);
   }
 
   info(): ProviderInfo {
@@ -162,10 +212,13 @@ export class CursorProvider implements AgentProvider {
     const cwd = mkdtempSync(join(tmpdir(), "smarty-cursor-models-"));
     let conn: LineConnection | undefined;
     const abort = () => conn?.close();
+    let exited: Promise<void> | undefined;
     signal.addEventListener("abort", abort, { once: true });
     try {
       try {
-        conn = await this.connectFn(cwd, signal);
+        conn = await this.connectFn(cwd, signal, { home: this.homeFor(undefined) });
+        const opened = conn;
+        exited = new Promise((resolve) => opened.onExit(() => resolve()));
       } catch (err) {
         if (signal.aborted) throw err;
         throw new NotConfiguredError(
@@ -184,12 +237,8 @@ export class CursorProvider implements AgentProvider {
     } finally {
       signal.removeEventListener("abort", abort);
       conn?.close();
-      // The killed process may still hold the folder (Windows); retry, and never let cleanup hide the answer.
-      try {
-        rmSync(cwd, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
-      } catch (err) {
-        console.warn(`cursor: couldn't remove ${cwd} (${(err as Error).message})`);
-      }
+      // Cursor holds the folder until it exits (Windows), so it's removed after, without holding up the answer.
+      void removeAfter(cwd, exited);
     }
   }
 
@@ -205,7 +254,10 @@ export class CursorProvider implements AgentProvider {
     }
     let conn: LineConnection;
     try {
-      conn = await this.connectFn(req.workspaceDir, req.signal);
+      conn = await this.connectFn(req.workspaceDir, req.signal, {
+        home: this.homeFor(req.botId),
+        ...(req.model ? { model: req.model } : {}),
+      });
     } catch (err) {
       if (req.signal.aborted) return { status: "interrupted", sessionId: req.sessionId };
       return { status: "failed", sessionId: req.sessionId, error: `Couldn't start Cursor: ${(err as Error).message}` };
@@ -378,19 +430,30 @@ export class CursorProvider implements AgentProvider {
           history = this.turns().load(req.sessionId);
         }
         const where = { cwd: req.workspaceDir, mcpServers: [] };
+        let loaded = false;
         if (req.sessionId && !forking) {
-          await rpc.request("session/load", { ...where, sessionId: req.sessionId });
-          sessionId = req.sessionId;
-        } else {
+          try {
+            await rpc.request("session/load", { ...where, sessionId: req.sessionId });
+            sessionId = req.sessionId;
+            loaded = true;
+          } catch (err) {
+            if (req.signal.aborted) throw err;
+            // Cursor can't load it (not saved, or from before each bot had its own home): a new session goes on
+            // from the turn log instead, as a fork from its end would.
+            console.warn(
+              `cursor: couldn't load session ${req.sessionId} (${(err as Error).message}); continuing from the log`,
+            );
+          }
+        }
+        if (!loaded) {
           const opened = await rpc.request("session/new", where);
           sessionId = str(opened.sessionId);
-          if (!sessionId) throw new Error("Cursor didn't open a session.");
         }
+        if (!sessionId) throw new Error("Cursor didn't open a session.");
         live = true;
         emit({ type: "session", sessionId });
-        if (req.model) await rpc.request("session/set_model", { sessionId, modelId: req.model });
         if (req.signal.aborted) return { status: "interrupted", sessionId };
-        const text = req.sessionId && !forking ? req.prompt : firstPrompt(req.instructions, history, req.prompt);
+        const text = loaded ? req.prompt : firstPrompt(req.instructions, history, req.prompt);
         prompting = true;
         const result = await rpc.request("session/prompt", { sessionId, prompt: [{ type: "text", text }] });
         closeOpen();
@@ -420,9 +483,10 @@ export class CursorProvider implements AgentProvider {
   }
 
   /** Spawns `cursor-agent acp` with a home of its own (no user MCP servers, hooks, plugins or approval settings). */
-  private async spawnIsolated(cwd: string): Promise<LineConnection> {
-    prepareHome(this.homeDir);
-    return spawnLines(this.command, ["acp"], cwd, isolatedEnv(this.homeDir), "Cursor");
+  private async spawnIsolated(cwd: string, launch: CursorLaunch): Promise<LineConnection> {
+    prepareHome(launch.home);
+    chooseModel(launch.home, launch.model);
+    return spawnLines(this.command, ["acp"], cwd, isolatedEnv(launch.home), "Cursor");
   }
 }
 
@@ -433,6 +497,17 @@ async function initialize(rpc: Rpc): Promise<void> {
     clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
     clientInfo: { name: "smartyprompts", title: "SmartyPrompts", version: "0.1.0" },
   });
+}
+
+/** Removes a temp folder once the process using it has exited (or after a while); never throws. */
+async function removeAfter(dir: string, exited: Promise<void> | undefined): Promise<void> {
+  const wait = new Promise<void>((resolve) => setTimeout(resolve, EXIT_GRACE_MS + 2000).unref());
+  await Promise.race([exited ?? Promise.resolve(), wait]);
+  try {
+    rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+  } catch (err) {
+    console.warn(`cursor: couldn't remove ${dir} (${(err as Error).message})`);
+  }
 }
 
 /**

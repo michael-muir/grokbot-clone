@@ -70,7 +70,8 @@ session's `cwd`.
    - **New:** otherwise `session/new {cwd, mcpServers: []}`.
 
    The session id is emitted as `session`.
-3. **Model:** with `model`, `session/set_model {sessionId, modelId}`.
+3. **Model:** written to the bot's own Cursor home before Cursor starts, not set in the session. `set_model` stops
+   Cursor saving the session; see #96.
 4. **The prompt:** `session/prompt {sessionId, prompt: [{type: "text", text}]}`. ACP has no system prompt field.
    So a new session's first prompt carries the bot's instructions, and on a fork the earlier conversation
    (`firstPrompt`).

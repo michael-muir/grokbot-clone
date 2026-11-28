@@ -63,23 +63,27 @@ export function ModelsPage({
   /** Bumped by every listing; a reply that isn't the latest is dropped (a slow provider can't overwrite a fast one). */
   const latest = useRef(0);
 
-  const loadModels = useCallback(async () => {
-    const ticket = ++latest.current;
-    if (!listProvider) return;
-    if (keyMissing) {
-      setModels({ state: "error", error: "Add a key below to see this provider's models." });
-      return;
-    }
-    setModels({ state: "loading" });
-    try {
-      const test = await call("testProvider", listProvider, listBaseUrl);
-      if (ticket !== latest.current) return;
-      setModels(test.ok ? { state: "ok", models: test.models } : { state: "error", error: test.error });
-    } catch (err) {
-      if (ticket === latest.current) setModels({ state: "error", error: message(err) });
-    }
-  }, [listProvider, listBaseUrl, keyMissing]);
-  useEffect(() => void loadModels(), [loadModels]);
+  /** Loads the list; `cached` (on opening) takes a recent one, Refresh asks the provider again. */
+  const loadModels = useCallback(
+    async (cached: boolean) => {
+      const ticket = ++latest.current;
+      if (!listProvider) return;
+      if (keyMissing) {
+        setModels({ state: "error", error: "Add a key below to see this provider's models." });
+        return;
+      }
+      setModels({ state: "loading" });
+      try {
+        const test = await call("testProvider", listProvider, listBaseUrl, cached);
+        if (ticket !== latest.current) return;
+        setModels(test.ok ? { state: "ok", models: test.models } : { state: "error", error: test.error });
+      } catch (err) {
+        if (ticket === latest.current) setModels({ state: "error", error: message(err) });
+      }
+    },
+    [listProvider, listBaseUrl, keyMissing],
+  );
+  useEffect(() => void loadModels(true), [loadModels]);
 
   // A different bot or provider: start from what's saved for it.
   // biome-ignore lint/correctness/useExhaustiveDependencies: switching bot or provider is the trigger, not a value read.
@@ -225,7 +229,12 @@ export function ModelsPage({
               disabled={busy}
               onChange={(model) => void update({ model })}
             />
-            <button type="button" className="button secondary small" disabled={busy} onClick={() => void loadModels()}>
+            <button
+              type="button"
+              className="button secondary small"
+              disabled={busy}
+              onClick={() => void loadModels(false)}
+            >
               Refresh
             </button>
           </div>
