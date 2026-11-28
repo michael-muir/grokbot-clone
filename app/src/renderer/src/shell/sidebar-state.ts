@@ -19,17 +19,23 @@ export function sidebarLayout(
   };
 }
 
-export type MenuAction = "make-main" | "pin" | "unpin" | "copy-id" | "hide" | "show" | "delete";
+export type MenuAction = "make-main" | "pin" | "unpin" | "start-fresh" | "copy-id" | "hide" | "show" | "delete";
 
 /**
  * A bot's menu, in the reference's order, after "Make main bot". The main bot is always on top and can't be hidden
  * or deleted.
  */
 export function menuFor(bot: PublicBot, isMain: boolean): { action: MenuAction; label: string }[] {
-  if (isMain) return [{ action: "copy-id", label: "Copy bot ID" }];
+  if (isMain) {
+    return [
+      { action: "start-fresh", label: "Start fresh" },
+      { action: "copy-id", label: "Copy bot ID" },
+    ];
+  }
   return [
     { action: "make-main", label: "Make main bot" },
     bot.pinned ? { action: "unpin", label: "Unpin" } : { action: "pin", label: "Pin" },
+    { action: "start-fresh", label: "Start fresh" },
     { action: "copy-id", label: "Copy bot ID" },
     bot.hidden ? { action: "show", label: "Show in sidebar" } : { action: "hide", label: "Hide from sidebar" },
     { action: "delete", label: "Delete" },

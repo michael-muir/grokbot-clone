@@ -96,17 +96,18 @@ test("sidebar: the main bot and pinned bots sit above the divider; hidden bots o
   assert.deepEqual(sidebarLayout([], false), { top: [], rest: [], hiddenCount: 0 });
 });
 
-test("sidebar: each bot's menu follows its state; the main bot can only be copied", () => {
+test("sidebar: each bot's menu follows its state; the main bot can only start fresh or be copied", () => {
   const actions = (b: PublicBot, main = false) => menuFor(b, main).map((i) => i.action);
-  assert.deepEqual(actions(tileBot("a")), ["make-main", "pin", "copy-id", "hide", "delete"]);
+  assert.deepEqual(actions(tileBot("a")), ["make-main", "pin", "start-fresh", "copy-id", "hide", "delete"]);
   assert.deepEqual(actions(tileBot("a", { pinned: true, hidden: true })), [
     "make-main",
     "unpin",
+    "start-fresh",
     "copy-id",
     "show",
     "delete",
   ]);
-  assert.deepEqual(actions(tileBot("main"), true), ["copy-id"]);
+  assert.deepEqual(actions(tileBot("main"), true), ["start-fresh", "copy-id"]);
 });
 
 test("sidebar: a new bot gets the first color no bot uses, or amber when all are taken", () => {

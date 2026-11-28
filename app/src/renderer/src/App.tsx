@@ -16,7 +16,7 @@ import { type AppSettings, DEFAULT_SETTINGS } from "../../shared/settings.ts";
 import { botColor } from "./bot-colors.ts";
 import type { RowContext } from "./chat/ChatRow.tsx";
 import { Composer } from "./chat/Composer.tsx";
-import { isConfirmed, type PendingMessage } from "./chat/rows.ts";
+import { conversation, isConfirmed, type PendingMessage, replyCounts, waitingThreads } from "./chat/rows.ts";
 import { Transcript } from "./chat/Transcript.tsx";
 import { call } from "./gateway.ts";
 import { Onboarding } from "./onboarding/Onboarding.tsx";
@@ -24,7 +24,7 @@ import { GeneralPage } from "./settings/GeneralPage.tsx";
 import { ModelsPage } from "./settings/ModelsPage.tsx";
 import { SettingsDialog, type SettingsPage } from "./settings/SettingsDialog.tsx";
 import { Avatar } from "./shell/Avatar.tsx";
-import { DeleteBotDialog } from "./shell/BotMenu.tsx";
+import { ConfirmDialog, DeleteBotDialog } from "./shell/BotMenu.tsx";
 import { BotPanel, PANEL_ID } from "./shell/BotPanel.tsx";
 import { CreateBotDialog } from "./shell/CreateBotDialog.tsx";
 import { noteActivity } from "./shell/face-director.ts";
@@ -49,6 +49,8 @@ export function App() {
   const [botError, setBotError] = useState<string>();
   /** The bot being deleted, while its confirmation is open. */
   const [deleting, setDeleting] = useState<{ bot: PublicBot; busy: boolean; error?: string }>();
+  /** The bot starting fresh, while its confirmation is open. */
+  const [freshening, setFreshening] = useState<{ bot: PublicBot; busy: boolean; error?: string }>();
   /** Create New Bot is open. */
   const [creating, setCreating] = useState(false);
   /** A sidebar tile to focus after the next change renders (see Sidebar). */
@@ -188,6 +190,7 @@ export function App() {
       setBotError(undefined);
       try {
         if (action === "delete") return setDeleting({ bot, busy: false });
+        if (action === "start-fresh") return setFreshening({ bot, busy: false });
         if (action === "copy-id") return await navigator.clipboard.writeText(bot.id);
         if (action === "make-main") {
           const updated = await call("updateBot", bot.id, { main: true });
@@ -252,6 +255,19 @@ export function App() {
       setDeleting({ bot, busy: false, error: message(err) });
     }
   }, [deleting, mainId]);
+
+  const confirmFresh = useCallback(async () => {
+    if (!freshening) return;
+    const { bot } = freshening;
+    setFreshening({ bot, busy: true });
+    try {
+      await call("startFresh", bot.id);
+      setFreshening(undefined);
+      setRefocus({ botId: bot.id });
+    } catch (err) {
+      setFreshening({ bot, busy: false, error: message(err) });
+    }
+  }, [freshening]);
 
   const connectionInfo = {
     state: connection === undefined ? ("pending" as const) : connection.ok ? ("ok" as const) : ("failed" as const),
@@ -356,6 +372,22 @@ export function App() {
           }}
         />
       )}
+      {freshening && (
+        <ConfirmDialog
+          title="Start a new conversation?"
+          text={`${freshening.bot.name} won't remember this conversation. It stays here to read, and ${freshening.bot.name}'s files and settings are kept.`}
+          confirmLabel="Start fresh"
+          busyLabel="Starting…"
+          busy={freshening.busy}
+          error={freshening.error}
+          onConfirm={() => void confirmFresh()}
+          onCancel={() => {
+            const id = freshening.bot.id;
+            setFreshening(undefined);
+            setRefocus({ botId: id });
+          }}
+        />
+      )}
       {settingsOpen && (
         <SettingsDialog
           page={settingsOpen.page}
@@ -408,6 +440,12 @@ function Chat({
   const [problem, setProblem] = useState<string>();
   /** Sent messages not yet back from the gateway. */
   const [pending, setPending] = useState<PendingMessage[]>([]);
+  /** The open thread, by its root message's id; the main chat when undefined. */
+  const [thread, setThread] = useState<string>();
+  /** The message being rolled back to, while its confirmation is open. */
+  const [rolling, setRolling] = useState<{ entry: TranscriptEntry; busy: boolean; error?: string }>();
+  /** A rolled-back message's text, for the composer. */
+  const [fill, setFill] = useState<{ text: string; n: number }>();
 
   useEffect(() => {
     // Resume from what's already held, so a re-subscribe (StrictMode, a reload of this view) repeats nothing.
@@ -435,8 +473,18 @@ function Chat({
     });
   }, [entries]);
 
+  // Any run keeps the bot busy, wherever it is (one run at a time): the main chat can't send during a thread's run.
   const lastRun = entries.findLast((e) => e.body.kind === "run");
   const busy = lastRun?.body.kind === "run" && lastRun.body.state === "running";
+  const shown = useMemo(() => conversation(entries, thread), [entries, thread]);
+  const replies = useMemo(() => replyCounts(entries), [entries]);
+  const waiting = useMemo(() => waitingThreads(entries), [entries]);
+  const shownPending = useMemo(() => pending.filter((p) => p.threadId === thread), [pending, thread]);
+
+  // A thread whose root is gone (rolled back, perhaps in another window) has nothing to show: back to the chat.
+  useEffect(() => {
+    if (thread !== undefined && shown.length === 0 && entries.length > 0) setThread(undefined);
+  }, [thread, shown, entries]);
 
   const context = useMemo<RowContext>(
     () => ({
@@ -455,9 +503,24 @@ function Chat({
           setProblem(message(err));
           throw err;
         }),
+      openThread: (entry: TranscriptEntry) => setThread(entry.id),
+      rollBack: (entry: TranscriptEntry) => setRolling({ entry, busy: false }),
     }),
     [bot.id, bot.name, bot.avatar],
   );
+
+  const confirmRollBack = useCallback(async () => {
+    if (!rolling) return;
+    const { entry } = rolling;
+    setRolling({ entry, busy: true });
+    try {
+      const text = await call("rollBack", bot.id, entry.id);
+      setRolling(undefined);
+      setFill((f) => ({ text, n: (f?.n ?? 0) + 1 }));
+    } catch (err) {
+      setRolling({ entry, busy: false, error: message(err) });
+    }
+  }, [rolling, bot.id]);
 
   /** Runs a gateway call; a failure shows in the banner and is re-thrown so the caller keeps its state. */
   const report = useCallback(async (run: () => Promise<unknown>) => {
@@ -474,11 +537,13 @@ function Chat({
   const send = useCallback(
     async (text: string) => {
       const nonce = crypto.randomUUID();
-      setPending((list) => [...list, { nonce, text, at: Date.now() }]);
+      setPending((list) => [...list, { nonce, text, at: Date.now(), ...(thread ? { threadId: thread } : {}) }]);
       try {
         let entryId = "";
         await report(async () => {
-          entryId = await call("sendMessage", bot.id, text, nonce);
+          entryId = thread
+            ? await call("sendMessage", bot.id, text, nonce, thread)
+            : await call("sendMessage", bot.id, text, nonce);
         });
         // The id matches the entry even if this gateway doesn't echo nonces.
         if (entryId) setPending((list) => list.map((p) => (p.nonce === nonce ? { ...p, entryId } : p)));
@@ -487,12 +552,23 @@ function Chat({
         throw err;
       }
     },
-    [bot.id, report],
+    [bot.id, report, thread],
   );
+
+  const backToChat = useCallback(() => setThread(undefined), []);
+  const consumeFill = useCallback(() => setFill(undefined), []);
 
   return (
     <div className="chat-body" data-bot-color={colorOf(bot)}>
       <header className="chat-header">
+        {thread !== undefined && (
+          <button type="button" className="back-to-chat" onClick={backToChat}>
+            <svg className="icon" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M10 3.5L5.5 8l4.5 4.5" />
+            </svg>
+            Back to chat
+          </button>
+        )}
         <h2 className="chat-title">
           {/* The name pill opens the bot panel, as in the reference. */}
           <button
@@ -507,9 +583,20 @@ function Chat({
             <Avatar avatar={bot.avatar} size="small" botId={bot.id} />
             <span className="name">{bot.name}</span>
           </button>
+          {thread !== undefined && <span className="chat-subtitle">Thread</span>}
         </h2>
       </header>
-      <Transcript entries={entries} pending={pending} context={context} label={`Conversation with ${bot.name}`} />
+      <Transcript
+        // Keys unique among the siblings (the composer has its own): each view mounts afresh, scrolled to its end.
+        key={`transcript:${thread ?? "main"}`}
+        entries={shown}
+        pending={shownPending}
+        context={context}
+        thread={thread}
+        replies={replies}
+        waiting={waiting}
+        label={thread === undefined ? `Conversation with ${bot.name}` : `Thread with ${bot.name}`}
+      />
       {problem ? (
         <p className="banner" role="alert">
           {problem}
@@ -522,14 +609,33 @@ function Chat({
         )
       )}
       <Composer
-        botId={bot.id}
-        botName={bot.name}
+        key={`composer:${thread ?? "main"}`}
+        draftKey={thread === undefined ? bot.id : `${bot.id}#${thread}`}
+        placeholder={thread === undefined ? `Message ${bot.name}` : "Reply in thread"}
         busy={busy}
         onSend={send}
         onStop={() => report(() => call("interrupt", bot.id))}
+        onEscape={thread === undefined ? undefined : backToChat}
+        fill={fill}
+        onFilled={consumeFill}
         sendWithCtrlEnter={settings.sendWithCtrlEnter}
         spellcheck={settings.spellcheck}
       />
+      {rolling && (
+        <ConfirmDialog
+          title="Roll back to this message?"
+          text={`This message and everything after it are hidden, and ${bot.name} forgets them. Your message goes back in the message box to change and send again. Files ${bot.name} changed stay changed.`}
+          confirmLabel="Roll back"
+          busyLabel="Rolling back…"
+          busy={rolling.busy}
+          error={rolling.error}
+          onConfirm={() => void confirmRollBack()}
+          onCancel={() => {
+            setRolling(undefined);
+            document.querySelector<HTMLTextAreaElement>(".composer textarea")?.focus();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -3,17 +3,28 @@ import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from 
 import { draftFor, primaryButton, saveDraft, shouldSend } from "./composer-state.ts";
 
 export function Composer({
-  botId,
-  botName,
+  draftKey,
+  placeholder,
   busy,
   onSend,
   onStop,
+  onEscape,
+  fill,
+  onFilled,
   sendWithCtrlEnter = false,
   spellcheck = true,
 }: {
-  botId: string;
-  botName: string;
+  /** Whose unsent text this is: a bot's chat, or one of its threads. */
+  draftKey: string;
+  /** Also the field's name for screen readers ("Message Nova"). */
+  placeholder: string;
   busy: boolean;
+  /** Escape in an empty field (leaves a thread). */
+  onEscape?(): void;
+  /** Text to put in the field (a rolled-back message), after any draft; `n` makes the same text count again. */
+  fill?: { text: string; n: number };
+  /** The fill was used: it mustn't come back in the next composer shown (another thread's, say). */
+  onFilled?(): void;
   /** The "Send with Ctrl+Enter" setting. */
   sendWithCtrlEnter?: boolean;
   spellcheck?: boolean;
@@ -21,7 +32,7 @@ export function Composer({
   onSend(text: string): Promise<void>;
   onStop(): Promise<void>;
 }) {
-  const [draft, setDraft] = useState(() => draftFor(botId));
+  const [draft, setDraft] = useState(() => draftFor(draftKey));
   // A ref as well as state: a second Enter in the same tick must already see the first send.
   const sendingNow = useRef(false);
   const [sending, setSending] = useState(false);
@@ -33,11 +44,24 @@ export function Composer({
     if (!busy) setStopping(false);
   }, [busy]);
 
+  // A rolled-back message comes back to be edited. Text already being written stays first, the message after it:
+  // the gateway has hidden the message, so this is the only place its text is left.
+  useEffect(() => {
+    if (!fill) return;
+    setDraft((current) => {
+      const next = current.trim() === "" ? fill.text : `${current.trimEnd()}\n\n${fill.text}`;
+      saveDraft(draftKey, next);
+      return next;
+    });
+    field.current?.focus();
+    onFilled?.();
+  }, [fill, draftKey, onFilled]);
+
   const button = primaryButton({ draft, busy, sending, stopping });
 
   const update = (text: string) => {
     setDraft(text);
-    saveDraft(botId, text);
+    saveDraft(draftKey, text);
   };
 
   const send = async () => {
@@ -50,7 +74,7 @@ export function Composer({
       // Clear only what was sent: anything typed while the send was in flight stays.
       setDraft((current) => {
         const next = current.trim() === text ? "" : current;
-        saveDraft(botId, next);
+        saveDraft(draftKey, next);
         return next;
       });
     } catch {
@@ -80,6 +104,11 @@ export function Composer({
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Escape" && onEscape && draft === "" && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      onEscape();
+      return;
+    }
     const mode = { ctrlEnter: sendWithCtrlEnter, modifier: e.ctrlKey || e.metaKey };
     if (!shouldSend(e.key, e.shiftKey, e.nativeEvent.isComposing, mode)) return;
     e.preventDefault(); // no new line, whether or not this Enter sends
@@ -90,8 +119,8 @@ export function Composer({
     <form className="composer" onSubmit={onSubmit}>
       <textarea
         ref={field}
-        aria-label={`Message ${botName}`}
-        placeholder={`Message ${botName}`}
+        aria-label={placeholder}
+        placeholder={placeholder}
         value={draft}
         rows={1}
         spellCheck={spellcheck}

@@ -113,6 +113,7 @@ interface RunOptions {
   /** Abort the run on the first text_delta, or while the first approval is pending. */
   interrupt?: "text" | "approval";
   sessionId?: string;
+  resumeAt?: string;
 }
 
 interface RunResult {
@@ -159,6 +160,7 @@ export async function runScenario(
     botName: "Contract",
     prompt: harness.prompt?.(scenario) ?? "Hello there",
     sessionId: opts.sessionId,
+    ...(opts.resumeAt !== undefined ? { resumeAt: opts.resumeAt } : {}),
     workspaceDir: tmpdir(),
     instructions: "You are a test bot.",
     signal: controller.signal,
@@ -285,6 +287,24 @@ export function describeProviderContract(name: string, harness: ContractHarness)
       assert.equal(outcome.status, "finished");
       assert.equal(r.rec.ofType("session").at(-1)?.sessionId, "resume-me");
       assert.equal(outcome.sessionId, "resume-me");
+    });
+
+    test("a finished run reports a checkpoint of its session", async () => {
+      const r = await runScenario(harness, "reply");
+      assert.equal(assertClean(r).status, "finished");
+      const at = r.rec.ofType("checkpoint").at(-1)?.at;
+      assert.ok(at, "a checkpoint names where the session got to");
+    });
+
+    test("a run from a checkpoint continues in a new session, leaving the original as it was", async () => {
+      // "0" is the start of any session for the providers here; a real checkpoint comes from a run (see each
+      // provider's own tests).
+      const r = await runScenario(harness, "reply", { sessionId: "resume-me", resumeAt: "0" });
+      const outcome = assertClean(r);
+      assert.equal(outcome.status, "finished");
+      const session = r.rec.ofType("session").at(-1)?.sessionId;
+      assert.ok(session && session !== "resume-me", `a new session, not resume-me (got ${session})`);
+      assert.equal(outcome.sessionId, session);
     });
   });
 }

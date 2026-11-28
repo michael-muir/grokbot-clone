@@ -5,6 +5,7 @@
 //   stream_event deltas  -> text_delta   (live typing)
 //   assistant blocks     -> text / tool_start
 //   user tool_result     -> tool_end
+//   assistant/user uuid  -> checkpoint   (resumeAt forks the session there)
 //   result               -> RunOutcome (cost, success or error)
 //   canUseTool           -> approval card in the transcript
 //   AskUserQuestion      -> choice cards (claude-questions.ts)
@@ -85,6 +86,9 @@ export class ClaudeProvider implements AgentProvider {
       cwd: req.workspaceDir,
       model: req.model || DEFAULT_CLAUDE_MODEL,
       resume: req.sessionId,
+      // From a checkpoint: a new session holding the old one up to there (the SDK's truncating fork). The checkpoint
+      // is the last entry of the turn being kept, which is where the SDK asks forks to be made.
+      ...(req.sessionId && req.resumeAt ? { resumeSessionAt: req.resumeAt, forkSession: true } : {}),
       systemPrompt: { type: "preset", preset: "claude_code", append: req.instructions },
       // Don't inherit the host user's own Claude Code settings, hooks or CLAUDE.md.
       settingSources: [],
@@ -113,6 +117,8 @@ export class ClaudeProvider implements AgentProvider {
     // "success" result with is_error. Its text is the error, not a reply, so it becomes the run's error message.
     const apiError: { message?: string } = {};
     let sessionId = req.sessionId;
+    /** Tool calls of the main thread still waiting for their results: no checkpoint while any are open. */
+    const openTools = new Set<string>();
     // After an abort the SDK closes Claude Code gracefully (~2 s) and keeps delivering messages meanwhile, ending
     // with a "success" result. Stop must be immediate: stop reading at once, and let the shutdown finish alone.
     const messages = this.queryFn({ prompt: req.prompt, options })[Symbol.asyncIterator]();
@@ -125,7 +131,15 @@ export class ClaudeProvider implements AgentProvider {
           return { status: "interrupted", sessionId };
         }
         if (next.done) break;
-        const outcome = this.handle(next.value, cb, text, apiError, (id) => (sessionId = id), req.workspaceDir);
+        const outcome = this.handle(
+          next.value,
+          cb,
+          text,
+          apiError,
+          (id) => (sessionId = id),
+          req.workspaceDir,
+          openTools,
+        );
         if (outcome) return { ...outcome, sessionId };
       }
       return req.signal.aborted
@@ -162,6 +176,7 @@ export class ClaudeProvider implements AgentProvider {
     apiError: { message?: string },
     setSession: (id: string) => void,
     workspaceDir: string,
+    openTools: Set<string>,
   ): RunOutcome | undefined {
     switch (msg.type) {
       case "system":
@@ -188,6 +203,9 @@ export class ClaudeProvider implements AgentProvider {
           apiError.message = `Anthropic: ${said || API_ERRORS[msg.error] || msg.error}`;
           return;
         }
+        for (const block of msg.message.content) if (block.type === "tool_use") openTools.add(block.id);
+        // A fork must not end on a tool call with no result: only a message that leaves none open is a checkpoint.
+        if (openTools.size === 0) cb.emit({ type: "checkpoint", at: msg.uuid });
         for (const block of msg.message.content) {
           if (block.type === "text") {
             cb.emit({ type: "text", blockId: text.claimFinal(msg.message.id), text: block.text });
@@ -209,9 +227,12 @@ export class ClaudeProvider implements AgentProvider {
         if (!Array.isArray(content)) return;
         for (const block of content) {
           if (block.type === "tool_result") {
+            openTools.delete(block.tool_use_id);
             cb.emit({ type: "tool_end", toolUseId: block.tool_use_id, ok: !block.is_error });
           }
         }
+        // The results that answer every open call end that step: a fork can be made here.
+        if (msg.uuid && openTools.size === 0) cb.emit({ type: "checkpoint", at: msg.uuid });
         return;
       }
       case "result":

@@ -10,6 +10,7 @@ import {
   type ApprovalDecision,
   type Bot,
   type BotActivity,
+  type ConversationSession,
   type EntryBody,
   freeColor,
   MAX_BOT_NAME,
@@ -24,6 +25,21 @@ export const DENIED_WITHOUT_REASON = "The user denied this action.";
 
 /** Longest answer the user may type into a choice card. */
 export const MAX_CUSTOM_ANSWER = 500;
+
+/** What starting fresh leaves in the chat, where the new conversation begins. */
+export const FRESH_NOTICE = "New conversation. Earlier messages stay above for reference.";
+
+/** How much of a thread's root message its first prompt quotes. */
+export const THREAD_QUOTE_CHARS = 500;
+
+/** The first prompt of a thread: which message it's about, then what the user wrote. */
+export function threadPrompt(rootText: string, text: string): string {
+  // By code points, so an emoji is never cut in half.
+  const chars = Array.from(rootText.replace(/\s+/g, " ").trim());
+  const quote =
+    chars.length > THREAD_QUOTE_CHARS ? `${chars.slice(0, THREAD_QUOTE_CHARS - 1).join("")}…` : chars.join("");
+  return `(Replying in a thread to: "${quote}")\n\n${text}`;
+}
 
 export class BotNotFoundError extends Error {}
 export class BotBusyError extends Error {}
@@ -124,11 +140,15 @@ export class Gateway {
     }
   }
 
-  /** Records the user's message and starts a run. Resolves once the run has started, not finished. */
+  /**
+   * Records the user's message and starts a run. Resolves once the run has started, not finished. With `threadId`
+   * (a main-chat message's id) the message goes in that message's thread.
+   */
   async sendMessage(
     botId: string,
     text: string,
     clientNonce?: string,
+    threadId?: string,
   ): Promise<{ entry: TranscriptEntry; done: Promise<void> }> {
     const bot = this.bots.get(botId);
     if (!bot) throw new BotNotFoundError(`Unknown bot ${botId}`);
@@ -136,15 +156,26 @@ export class Gateway {
     if (this.deleting.has(botId)) throw new BotBusyError(`${bot.name} is being deleted.`);
     const provider = this.providers.get(bot.provider);
     if (!provider) throw new Error(`No provider registered for ${bot.provider}`);
+    const root = threadId === undefined ? undefined : this.threadRoot(botId, threadId);
+    // Until the thread's session holds something (its first run, again after a roll back to it or a failed start),
+    // the message says which message the thread is about.
+    const stored = root ? bot.threadSessions?.[root.id] : undefined;
+    const prompt = root && !stored?.sessionId ? threadPrompt(root.text, text) : text;
+    const session = root ? (stored ?? this.threadStart(bot, root.id)) : mainSession(bot);
 
     const controller = new AbortController();
     // Claim the bot before any await, so a second message can't start a parallel run.
     const run: ActiveRun = { controller, done: Promise.resolve() };
     this.active.set(botId, run);
 
+    const runId = randomUUID();
     let entry: TranscriptEntry;
     try {
-      entry = this.store.append(botId, { kind: "user_message", text, ...(clientNonce ? { clientNonce } : {}) });
+      entry = this.store.append(
+        botId,
+        { kind: "user_message", text, ...(clientNonce ? { clientNonce } : {}) },
+        { runId, threadId },
+      );
     } catch (err) {
       // Release the claim, or the bot would look busy until the gateway restarts.
       this.active.delete(botId);
@@ -153,7 +184,7 @@ export class Gateway {
     // This run's outcome replaces the last one's; if it throws before saying, it failed.
     this.lastRuns.delete(botId);
     this.activityChanged();
-    run.done = this.execute(bot, provider, text, controller).finally(() => {
+    run.done = this.execute(bot, provider, prompt, controller, { runId, threadId, session }).finally(() => {
       if (!this.lastRuns.has(botId)) this.lastRuns.set(botId, "failed");
       this.active.delete(botId);
       this.activityChanged();
@@ -189,6 +220,7 @@ export class Gateway {
       this.store.append(botId, {
         kind: "notice",
         text: `Switched to ${label}${model}. The conversation starts fresh for the new model.`,
+        reset: true,
       });
     }
     return next;
@@ -251,6 +283,120 @@ export class Gateway {
     }
   }
 
+  /**
+   * Starts the main conversation over: the bot forgets it, and a notice marks where the new one begins. Every entry
+   * stays to read. Threads keep their own sessions.
+   */
+  startFresh(botId: string): void {
+    this.idleBot(botId);
+    this.saveSession(botId, undefined, {});
+    this.store.append(botId, { kind: "notice", text: FRESH_NOTICE, reset: true });
+  }
+
+  /**
+   * Takes a conversation (the main one, or the message's thread) back to before one of the user's messages: it and
+   * everything after it are hidden, and the bot's session goes back to where it stood then. Returns the message's
+   * text, to edit and send again. Files the bot changed stay changed.
+   */
+  rollBack(botId: string, entryId: string): { text: string } {
+    const bot = this.idleBot(botId);
+    const target = this.store.get(botId, entryId);
+    if (target?.body.kind !== "user_message" || target.hidden) {
+      throw new BotRuleError("Only a message you sent can be rolled back to.");
+    }
+    const { threadId } = target;
+    const all = this.store.list(botId);
+    const here = (e: TranscriptEntry) => !e.hidden && e.threadId === threadId;
+    const hide = all.filter((e) => here(e) && e.seq >= target.seq).map((e) => e.id);
+    const threadSessions = { ...bot.threadSessions };
+    if (threadId === undefined) {
+      // A thread whose root goes goes with it.
+      const gone = new Set(hide);
+      for (const e of all) if (!e.hidden && e.threadId !== undefined && gone.has(e.threadId)) hide.push(e.id);
+      for (const root of gone) delete threadSessions[root];
+    }
+
+    // Back from the message: the first earlier run that left a checkpoint is where the session stood (runs without
+    // one never changed it). Nothing from before a fresh start, or from another provider, is kept.
+    let point: ConversationSession = {};
+    for (let i = all.findIndex((e) => e.id === target.id) - 1; i >= 0; i--) {
+      const e = all[i];
+      if (!e || !here(e)) continue;
+      const b = e.body;
+      if (b.kind === "notice" && b.reset) break;
+      if (b.kind !== "run") continue;
+      if (b.provider !== bot.provider) break;
+      if (b.checkpoint) {
+        point = { sessionId: b.checkpoint.sessionId, sessionProvider: b.provider, sessionAt: b.checkpoint.at };
+        break;
+      }
+    }
+
+    this.store.hide(botId, hide);
+    if (threadId === undefined) {
+      this.bots.update(botId, { threadSessions });
+      this.saveSession(botId, undefined, point);
+    } else {
+      // A thread with nothing left to keep forks from its root again, as on its first message.
+      if (point.sessionId) threadSessions[threadId] = point;
+      else delete threadSessions[threadId];
+      this.bots.update(botId, { threadSessions });
+    }
+    return { text: target.body.text };
+  }
+
+  /** The bot, if it exists and isn't running or being deleted: conversation controls only act on a still bot. */
+  private idleBot(botId: string): Bot {
+    const bot = this.bots.get(botId);
+    if (!bot) throw new BotNotFoundError(`Unknown bot ${botId}`);
+    if (this.active.has(botId)) throw new BotBusyError(`${bot.name} is working. Stop it first.`);
+    if (this.deleting.has(botId)) throw new BotBusyError(`${bot.name} is being deleted.`);
+    return bot;
+  }
+
+  /** A thread's root: a visible message of the main conversation, yours or the bot's. */
+  private threadRoot(botId: string, threadId: string): { id: string; text: string } {
+    const root = this.store.get(botId, threadId);
+    const b = root?.body;
+    if (!root || root.hidden || root.threadId !== undefined)
+      throw new BotRuleError("That message can't start a thread.");
+    if (b?.kind !== "user_message" && b?.kind !== "assistant_text") {
+      throw new BotRuleError("That message can't start a thread.");
+    }
+    return { id: root.id, text: b.text };
+  }
+
+  /**
+   * Where a new thread's session starts: a fork from the end of the run that holds its root, so the bot remembers
+   * the conversation up to there. None when that run left no checkpoint or ran on another provider.
+   */
+  private threadStart(bot: Bot, rootId: string): ConversationSession {
+    const root = this.store.get(bot.id, rootId);
+    if (!root) return {};
+    // User messages from before threads didn't carry their run's id: their run is the first one after them.
+    const run = root.runId
+      ? this.store.get(bot.id, root.runId)
+      : this.store.list(bot.id).find((e) => e.seq > root.seq && e.threadId === undefined && e.body.kind === "run");
+    const b = run?.body;
+    if (b?.kind !== "run" || !b.checkpoint || b.provider !== bot.provider) return {};
+    return { sessionId: b.checkpoint.sessionId, sessionProvider: b.provider, sessionAt: b.checkpoint.at };
+  }
+
+  /** Saves where a conversation's session stands, the main one's or a thread's. Fields left out are cleared. */
+  private saveSession(botId: string, threadId: string | undefined, session: ConversationSession): void {
+    const bot = this.bots.get(botId);
+    if (!bot) return;
+    if (threadId === undefined) {
+      this.bots.update(botId, {
+        sessionId: session.sessionId,
+        sessionProvider: session.sessionProvider,
+        sessionAt: session.sessionAt,
+      });
+    } else {
+      this.bots.update(botId, { threadSessions: { ...bot.threadSessions, [threadId]: session } });
+    }
+  }
+
   /** Stops the bot's current run. Returns false when nothing is running. */
   interrupt(botId: string): boolean {
     const run = this.active.get(botId);
@@ -287,11 +433,19 @@ export class Gateway {
     return this.choices.answer(entryId, listed ? answer : text) ? "ok" : "not-pending";
   }
 
-  private async execute(bot: Bot, provider: AgentProvider, text: string, controller: AbortController): Promise<void> {
-    const runId = randomUUID();
-    // Everything written during this run carries its id, the run entry included.
-    const append = (body: EntryBody, id?: string) => this.store.append(bot.id, body, id, runId);
+  private async execute(
+    bot: Bot,
+    provider: AgentProvider,
+    text: string,
+    controller: AbortController,
+    { runId, threadId, session }: { runId: string; threadId: string | undefined; session: ConversationSession },
+  ): Promise<void> {
+    // Everything written during this run carries its id (the run entry included) and its thread.
+    const append = (body: EntryBody, id?: string) => this.store.append(bot.id, body, { id, runId, threadId });
     const runEntry = append({ kind: "run", provider: provider.id, state: "running" }, runId);
+    /** The session this run is on, once the provider says, and the last point it reached. */
+    let sessionNow: string | undefined;
+    let checkpoint: { sessionId: string; at: string } | undefined;
     const textEntries = new Map<string, string>(); // provider blockId -> entry id
     const toolEntries = new Map<string, string>(); // toolUseId -> entry id
 
@@ -300,10 +454,27 @@ export class Gateway {
     const onEvent = (ev: ProviderEvent) => {
       switch (ev.type) {
         case "session":
-          if (bot.sessionId !== ev.sessionId) {
-            this.bots.update(bot.id, { sessionId: ev.sessionId, sessionProvider: provider.id });
+          sessionNow = ev.sessionId;
+          return;
+        case "checkpoint": {
+          if (!sessionNow) return;
+          checkpoint = { sessionId: sessionNow, at: ev.at };
+          // Kept on the run as it goes, so a crash mid-run still leaves where the session got to.
+          const at = checkpoint;
+          set(runEntry.id, (b) =>
+            b.kind === "run" && (b.checkpoint?.sessionId !== at.sessionId || b.checkpoint.at !== at.at)
+              ? { ...b, checkpoint: at }
+              : b,
+          );
+          // The session now holds something (a fork has been written): it becomes the conversation's, and a pending
+          // fork point is used up. Not on the session event: a forked session may not be saved yet then.
+          const stored = this.bots.get(bot.id);
+          const now = stored && (threadId === undefined ? mainSession(stored) : stored.threadSessions?.[threadId]);
+          if (now?.sessionId !== sessionNow || now.sessionProvider !== provider.id || now.sessionAt !== undefined) {
+            this.saveSession(bot.id, threadId, { sessionId: sessionNow, sessionProvider: provider.id });
           }
           return;
+        }
         case "text_delta": {
           const id = textEntries.get(ev.blockId);
           if (!id) {
@@ -341,13 +512,14 @@ export class Gateway {
     let outcome: RunOutcome;
     try {
       const computer = await this.computers.ensure(bot.id);
-      const resumable = bot.sessionProvider === provider.id ? bot.sessionId : undefined;
+      const resumable = session.sessionProvider === provider.id ? session.sessionId : undefined;
       outcome = await provider.run(
         {
           botId: bot.id,
           botName: bot.name,
           prompt: text,
           sessionId: resumable,
+          ...(resumable && session.sessionAt !== undefined ? { resumeAt: session.sessionAt } : {}),
           model: bot.model,
           baseUrl: bot.baseUrl,
           workspaceDir: computer.workspaceDir,
@@ -425,14 +597,27 @@ export class Gateway {
     }
     if (outcome.status === "failed") {
       append({ kind: "error", message: outcome.error ?? "Something went wrong." });
+      // A fork that failed before any session started would fail the same way every time: drop it, so the next
+      // message starts this conversation over (a thread then quotes its root again) instead of failing forever.
+      if (session.sessionAt !== undefined && sessionNow === undefined) this.saveSession(bot.id, threadId, {});
     }
     this.lastRuns.set(bot.id, outcome.status);
     set(runEntry.id, (b) =>
       b.kind === "run"
-        ? { ...b, state: outcome.status, ...(outcome.costUsd !== undefined ? { costUsd: outcome.costUsd } : {}) }
+        ? {
+            ...b,
+            state: outcome.status,
+            ...(outcome.costUsd !== undefined ? { costUsd: outcome.costUsd } : {}),
+            ...(checkpoint ? { checkpoint } : {}),
+          }
         : b,
     );
   }
+}
+
+/** The main conversation's session, as stored on the bot. */
+function mainSession(bot: Bot): ConversationSession {
+  return { sessionId: bot.sessionId, sessionProvider: bot.sessionProvider, sessionAt: bot.sessionAt };
 }
 
 function anySignal(a: AbortSignal, b: AbortSignal): AbortSignal {

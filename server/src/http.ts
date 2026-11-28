@@ -14,8 +14,11 @@
 //   GET   /bots/:id/transcript?since=N   entries changed after updatedSeq N
 //   GET   /bots/:id/events?since=N       Server-Sent Events: backlog, then live entries, in updatedSeq order;
 //                                        each event's id is its updatedSeq (Last-Event-ID resumes)
-//   POST  /bots/:id/messages             {text}         -> 202, 409 while the bot is busy
+//   POST  /bots/:id/messages             {text, clientNonce?, threadId?} -> 202 {entryId}; 409 while the bot is
+//                                        busy; 400 when threadId isn't a message that can start a thread
 //   POST  /bots/:id/interrupt                           -> 202, 409 when idle
+//   POST  /bots/:id/fresh                               -> 200, starts the conversation over; 409 while busy
+//   POST  /bots/:id/rollback             {entryId}      -> 200 {text}; 400 unless a visible user message; 409 busy
 //   POST  /bots/:id/approvals/:entryId   {allow, reason?}
 
 import { timingSafeEqual } from "node:crypto";
@@ -209,12 +212,38 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
       if (nonce !== undefined && !(typeof nonce === "string" && nonce.length > 0 && nonce.length <= 100)) {
         return send(res, 400, { error: "clientNonce must be a string of 1 to 100 characters" });
       }
+      const threadId = body.threadId;
+      if (threadId !== undefined && !(typeof threadId === "string" && threadId.length > 0)) {
+        return send(res, 400, { error: "threadId must be a message id" });
+      }
       try {
-        const { entry } = await d.gateway.sendMessage(bot.id, body.text, nonce);
+        const { entry } = await d.gateway.sendMessage(bot.id, body.text, nonce, threadId);
         return send(res, 202, { entryId: entry.id });
       } catch (err) {
         if (err instanceof BotBusyError) return send(res, 409, { error: err.message });
         if (err instanceof BotNotFoundError) return send(res, 404, { error: err.message });
+        if (err instanceof BotRuleError) return send(res, 400, { error: err.message });
+        throw err;
+      }
+    }
+
+    case "POST fresh":
+      try {
+        d.gateway.startFresh(bot.id);
+        return send(res, 200, { ok: true });
+      } catch (err) {
+        if (err instanceof BotBusyError) return send(res, 409, { error: err.message });
+        throw err;
+      }
+
+    case "POST rollback": {
+      const body = await readJson(req);
+      if (typeof body.entryId !== "string" || !body.entryId) return send(res, 400, { error: "entryId is required" });
+      try {
+        return send(res, 200, d.gateway.rollBack(bot.id, body.entryId));
+      } catch (err) {
+        if (err instanceof BotBusyError) return send(res, 409, { error: err.message });
+        if (err instanceof BotRuleError) return send(res, 400, { error: err.message });
         throw err;
       }
     }
@@ -375,7 +404,7 @@ function readAvatar(v: unknown): { shape: AvatarShape; color: AvatarColor } | nu
 }
 
 function publicBot(bot: Bot): PublicBot {
-  const { sessionId: _s, sessionProvider: _p, ...rest } = bot;
+  const { sessionId: _s, sessionProvider: _p, sessionAt: _a, threadSessions: _t, ...rest } = bot;
   return rest;
 }
 

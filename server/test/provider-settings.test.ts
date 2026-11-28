@@ -177,6 +177,7 @@ test("switching provider applies to the next message and posts a notice", async 
     assert.deepEqual(notice?.body, {
       kind: "notice",
       text: "Switched to OpenAI (gpt-other). The conversation starts fresh for the new model.",
+      reset: true,
     });
     const before = mock.requests.length;
     await t.call("POST", "/bots/nova/messages", { text: "who are you?" });

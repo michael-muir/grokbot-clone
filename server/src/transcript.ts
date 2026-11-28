@@ -27,10 +27,14 @@ export class TranscriptStore {
   }
 
   /**
-   * Adds an entry. Pass `id` when something must be keyed by the entry before listeners hear about it, and
-   * `runId` for entries written during a run.
+   * Adds an entry. Pass `id` when something must be keyed by the entry before listeners hear about it, `runId` for
+   * entries a run wrote (or started), and `threadId` for entries in a thread.
    */
-  append(botId: string, body: EntryBody, id: string = randomUUID(), runId?: string): TranscriptEntry {
+  append(
+    botId: string,
+    body: EntryBody,
+    { id = randomUUID(), runId, threadId }: { id?: string; runId?: string; threadId?: string } = {},
+  ): TranscriptEntry {
     const log = this.log(botId);
     if (log.entries.has(id)) throw new Error(`Transcript entry ${id} already exists`);
     const now = Date.now();
@@ -41,10 +45,22 @@ export class TranscriptStore {
       botId,
       body,
       ...(runId ? { runId } : {}),
+      ...(threadId ? { threadId } : {}),
       createdAt: now,
       updatedAt: now,
     };
     return this.commit(log, entry);
+  }
+
+  /** Hides entries (a roll back): they stay in the log and stream to clients as changed, marked `hidden`. */
+  hide(botId: string, ids: readonly string[]): void {
+    const log = this.log(botId);
+    for (const id of ids) {
+      const current = log.entries.get(id);
+      if (!current) throw new Error(`No transcript entry ${id} for bot ${botId}`);
+      if (current.hidden) continue;
+      this.commit(log, { ...current, hidden: true, updatedSeq: log.nextUpdate++, updatedAt: Date.now() });
+    }
   }
 
   /**

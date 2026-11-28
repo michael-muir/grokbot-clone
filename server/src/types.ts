@@ -46,13 +46,18 @@ export type EntryBody =
       answer?: string;
     }
   | { kind: "error"; message: string }
-  /** A note from the app itself, such as "Switched to Ollama". */
-  | { kind: "notice"; text: string }
+  /**
+   * A note from the app itself, such as "Switched to Ollama". `reset`: the conversation started over here (start
+   * fresh, a provider switch), so nothing before it is in the bot's memory.
+   */
+  | { kind: "notice"; text: string; reset?: true }
   | {
       kind: "run";
       provider: ProviderId;
       state: "running" | "finished" | "interrupted" | "failed";
       costUsd?: number;
+      /** Where the provider session stood when the run ended: a later run can fork from here (roll back, threads). */
+      checkpoint?: { sessionId: string; at: string };
     };
 
 export type EntryKind = EntryBody["kind"];
@@ -76,8 +81,12 @@ export interface TranscriptEntry {
   id: string;
   botId: string;
   body: EntryBody;
-  /** The id of the run (its run entry) this entry was written in. Absent outside runs. */
+  /** The id of the run (its run entry) this entry was written in, or that a user message started. */
   runId?: string;
+  /** In a thread: the id of the thread's root entry, in the main conversation. Absent in the main conversation. */
+  threadId?: string;
+  /** Rolled back: kept in the log, shown nowhere, and forgotten by the bot. */
+  hidden?: true;
   createdAt: number;
   updatedAt: number;
 }
@@ -156,10 +165,22 @@ export interface Bot {
   sessionId?: string;
   /** Provider the stored session belongs to. A session is dropped when the provider changes. */
   sessionProvider?: ProviderId;
+  /** A checkpoint of `sessionId` to fork from on the next run (after a roll back). */
+  sessionAt?: string;
+  /** Each thread's own session, by the thread's root entry id. */
+  threadSessions?: Record<string, ConversationSession>;
 }
 
-/** A bot as the API shows it: the provider session is the gateway's business. */
-export type PublicBot = Omit<Bot, "sessionId" | "sessionProvider">;
+/** Where one conversation (the main one, or a thread) stands with its provider. */
+export interface ConversationSession {
+  sessionId?: string;
+  sessionProvider?: ProviderId;
+  /** A checkpoint of `sessionId` to fork from on the next run. */
+  sessionAt?: string;
+}
+
+/** A bot as the API shows it: the provider sessions are the gateway's business. */
+export type PublicBot = Omit<Bot, "sessionId" | "sessionProvider" | "sessionAt" | "threadSessions">;
 
 /** What a bot is doing right now, for the sidebar. Sent as a snapshot of every bot whenever one changes. */
 export interface BotActivity {
@@ -186,6 +207,11 @@ export interface RunRequest {
   botName: string;
   prompt: string;
   sessionId?: string;
+  /**
+   * With `sessionId`: continue from this checkpoint (one the provider reported) in a new session, leaving the
+   * original as it was. The new session's id comes back as the usual `session` event.
+   */
+  resumeAt?: string;
   model?: string;
   baseUrl?: string;
   /** The bot's computer: the directory the agent works in. */
@@ -197,6 +223,8 @@ export interface RunRequest {
 
 export type ProviderEvent =
   | { type: "session"; sessionId: string }
+  /** The point the session has reached, as a string the provider understands in `resumeAt`. The last one counts. */
+  | { type: "checkpoint"; at: string }
   /** A piece of streamed text for one text block. */
   | { type: "text_delta"; blockId: string; text: string }
   /** The complete text of one block (replaces anything streamed so far). */

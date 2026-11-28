@@ -200,9 +200,53 @@ textarea {
 
 .chat-title {
   grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   min-width: 0;
   margin: 0;
   font: inherit;
+}
+
+/* "Thread", beside the name pill while a thread is open. */
+.chat-subtitle {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.back-to-chat {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: var(--space-4);
+  padding: var(--padding-pill);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.back-to-chat:hover {
+  background: var(--color-fill);
+  color: var(--color-text);
+}
+
+.back-to-chat .icon {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .name-pill {

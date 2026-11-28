@@ -1,11 +1,12 @@
-// The bot tile's context menu (reference/screens/39-sidebar-ctx.png) and the confirmation before deleting a bot.
-import { type KeyboardEvent, type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
+// The bot tile's context menu (reference/screens/39-sidebar-ctx.png), and the confirmations it and the chat use.
+import { type KeyboardEvent, type ReactNode, useEffect, useId, useLayoutEffect, useRef } from "react";
 import type { MenuAction } from "./sidebar-state.ts";
 
 const ICONS: Record<MenuAction, ReactNode> = {
   "make-main": <path d="M8 2.5l1.7 3.5 3.8.5-2.8 2.7.7 3.8L8 11.2 4.6 13l.7-3.8L2.5 6.5l3.8-.5z" />,
   pin: <path d="M6 2.5h4M7 2.5v4L4.5 9h7L9 6.5v-4M8 9v4.5" />,
   unpin: <path d="M6 2.5h4M7 2.5v4L4.5 9h7L9 6.5v-4M8 9v4.5M2.5 2.5l11 11" />,
+  "start-fresh": <path d="M13 8a5 5 0 11-1.5-3.6M13 2.5v2.5h-2.5M8 5.5v5M5.5 8h5" />,
   "copy-id": (
     <path d="M5.5 5.5V3a.5.5 0 01.5-.5h7a.5.5 0 01.5.5v7a.5.5 0 01-.5.5h-2.5M3 5.5h7a.5.5 0 01.5.5v7a.5.5 0 01-.5.5H3a.5.5 0 01-.5-.5V6a.5.5 0 01.5-.5z" />
   ),
@@ -15,7 +16,7 @@ const ICONS: Record<MenuAction, ReactNode> = {
 };
 
 /** Items before these get a separator, as in the reference: copy, then hide/show, sit in groups of their own. */
-const STARTS_GROUP: readonly MenuAction[] = ["pin", "unpin", "copy-id", "hide", "show"];
+const STARTS_GROUP: readonly MenuAction[] = ["pin", "unpin", "start-fresh", "copy-id", "hide", "show"];
 
 export function BotMenu({
   label,
@@ -121,7 +122,48 @@ export function DeleteBotDialog({
   onConfirm(): void;
   onCancel(): void;
 }) {
+  return (
+    <ConfirmDialog
+      title={`Delete ${name}?`}
+      text={`This removes ${name}'s conversation and every file on its computer. It can't be undone.`}
+      confirmLabel="Delete"
+      busyLabel="Deleting…"
+      danger
+      busy={busy}
+      error={error}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
+  );
+}
+
+/**
+ * A question to confirm before something that can't be taken back. Cancel has focus, so Enter alone never confirms;
+ * Escape cancels (unless the answer is on its way), and Tab stays inside.
+ */
+export function ConfirmDialog({
+  title,
+  text,
+  confirmLabel,
+  busyLabel,
+  danger = false,
+  busy,
+  error,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  text: string;
+  confirmLabel: string;
+  busyLabel: string;
+  danger?: boolean;
+  busy: boolean;
+  error: string | undefined;
+  onConfirm(): void;
+  onCancel(): void;
+}) {
   const dialog = useRef<HTMLDivElement>(null);
+  const id = useId();
   useEffect(() => {
     dialog.current?.querySelector<HTMLButtonElement>(".button.secondary")?.focus();
   }, []);
@@ -129,7 +171,7 @@ export function DeleteBotDialog({
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Escape") {
       e.preventDefault();
-      if (!busy) onCancel(); // mid-delete, the answer is on its way: closing now would hide it
+      if (!busy) onCancel(); // mid-change, the answer is on its way: closing now would hide it
     } else if (e.key === "Tab") {
       // Two buttons: Tab moves between them and never leaves the dialog.
       const buttons = [...(dialog.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [])];
@@ -146,15 +188,15 @@ export function DeleteBotDialog({
         className="confirm-dialog"
         role="alertdialog"
         aria-modal="true"
-        aria-labelledby="delete-bot-title"
-        aria-describedby="delete-bot-text"
+        aria-labelledby={`${id}-title`}
+        aria-describedby={`${id}-text`}
         onKeyDown={onKeyDown}
       >
-        <h2 id="delete-bot-title" className="confirm-title">
-          Delete {name}?
+        <h2 id={`${id}-title`} className="confirm-title">
+          {title}
         </h2>
-        <p id="delete-bot-text" className="confirm-text">
-          This removes {name}'s conversation and every file on its computer. It can't be undone.
+        <p id={`${id}-text`} className="confirm-text">
+          {text}
         </p>
         {error && (
           <p className="confirm-error" role="alert">
@@ -165,8 +207,13 @@ export function DeleteBotDialog({
           <button type="button" className="button secondary" disabled={busy} onClick={onCancel}>
             Cancel
           </button>
-          <button type="button" className="button danger" disabled={busy} onClick={onConfirm}>
-            {busy ? "Deleting…" : "Delete"}
+          <button
+            type="button"
+            className={`button ${danger ? "danger" : "primary"}`}
+            disabled={busy}
+            onClick={onConfirm}
+          >
+            {busy ? busyLabel : confirmLabel}
           </button>
         </div>
       </div>
