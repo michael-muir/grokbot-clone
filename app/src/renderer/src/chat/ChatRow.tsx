@@ -45,8 +45,14 @@ function ChatRowView({ row, context }: { row: Row; context: RowContext }) {
       <div className="row-content" data-pending={row.pending || undefined}>
         {content(row.entry, row.group, context)}
         {row.replies !== undefined && (
-          <button type="button" className="thread-replies" onClick={() => context.openThread(entry)}>
+          <button
+            type="button"
+            className="thread-replies"
+            data-waiting={row.waiting || undefined}
+            onClick={() => context.openThread(entry)}
+          >
             {row.replies === 1 ? "1 reply" : `${row.replies} replies`}
+            {row.waiting && " · Needs you"}
           </button>
         )}
       </div>
@@ -174,6 +180,7 @@ function sameRow(a: { row: Row; context: RowContext }, b: { row: Row; context: R
       x.side === y.side &&
       x.pending === y.pending &&
       x.replies === y.replies &&
+      x.waiting === y.waiting &&
       sameActions(x.actions, y.actions)
     );
   }

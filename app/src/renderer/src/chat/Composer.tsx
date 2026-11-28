@@ -21,7 +21,7 @@ export function Composer({
   busy: boolean;
   /** Escape in an empty field (leaves a thread). */
   onEscape?(): void;
-  /** Text to put in the field when it's empty (a rolled-back message); `n` makes the same text count again. */
+  /** Text to put in the field (a rolled-back message), after any draft; `n` makes the same text count again. */
   fill?: { text: string; n: number };
   /** The fill was used: it mustn't come back in the next composer shown (another thread's, say). */
   onFilled?(): void;
@@ -44,13 +44,14 @@ export function Composer({
     if (!busy) setStopping(false);
   }, [busy]);
 
-  // A rolled-back message comes back to be edited, unless something is already being written.
+  // A rolled-back message comes back to be edited. Text already being written stays first, the message after it:
+  // the gateway has hidden the message, so this is the only place its text is left.
   useEffect(() => {
     if (!fill) return;
     setDraft((current) => {
-      if (current.trim() !== "") return current;
-      saveDraft(draftKey, fill.text);
-      return fill.text;
+      const next = current.trim() === "" ? fill.text : `${current.trimEnd()}\n\n${fill.text}`;
+      saveDraft(draftKey, next);
+      return next;
     });
     field.current?.focus();
     onFilled?.();

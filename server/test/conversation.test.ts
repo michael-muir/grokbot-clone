@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { BotRegistry } from "../src/bots.ts";
 import { LocalFolderComputers } from "../src/computer.ts";
-import { BotBusyError, BotRuleError, FRESH_NOTICE, Gateway, threadPrompt } from "../src/gateway.ts";
+import { BotBusyError, BotRuleError, FRESH_NOTICE, Gateway, THREAD_QUOTE_CHARS, threadPrompt } from "../src/gateway.ts";
 import { createHttpServer } from "../src/http.ts";
 import { Credentials, MemoryKeyStore } from "../src/keys.ts";
 import { FakeProvider } from "../src/providers/fake.ts";
@@ -268,6 +268,58 @@ test("conversation: rolling back the main chat takes the threads of hidden messa
   }
 });
 
+test("conversation: a fork that can't be made is dropped, so the next message starts over instead of failing again", async () => {
+  const t = setup();
+  try {
+    await t.say("apples");
+    t.bots.update("nova", { sessionAt: "99" }); // a checkpoint the session never reached
+    await t.say("pears");
+    assert.ok(
+      t.store.list("nova").some((e) => e.body.kind === "error"),
+      "the run failed and says so",
+    );
+    assert.equal(t.bots.get("nova")?.sessionAt, undefined);
+    assert.equal(t.bots.get("nova")?.sessionId, undefined);
+    assert.equal(await t.remembers(), NOTHING);
+  } finally {
+    t.cleanup();
+  }
+});
+
+test("conversation: a thread whose first run failed before it started quotes its root on the next message", async () => {
+  const t = setup();
+  try {
+    const apples = await t.say("apples");
+    const root = apples.entry.id;
+    const base = t.bots.get("nova")?.sessionId;
+    t.bots.update("nova", {
+      threadSessions: { [root]: { sessionId: base, sessionProvider: "fake", sessionAt: "99" } },
+    });
+    await t.say("first try", root);
+    assert.deepEqual(t.bots.get("nova")?.threadSessions?.[root], {}, "the broken fork is dropped");
+    const again = await t.say("second try", root);
+    assert.equal(again.reply, `Nova here. You said: ${threadPrompt("apples", "second try")}`);
+  } finally {
+    t.cleanup();
+  }
+});
+
+test("conversation: a run's checkpoint is on its entry while it runs, so a crash mid-run keeps it", async () => {
+  const t = setup();
+  try {
+    const { done } = await t.gateway.sendMessage("nova", "/slow");
+    const run = t.store.list("nova").find((e) => e.body.kind === "run");
+    assert.ok(run);
+    const now = t.store.get("nova", run.id)?.body;
+    assert.equal(now?.kind === "run" && now.state, "running");
+    assert.deepEqual(now?.kind === "run" && now.checkpoint, { sessionId: "fake-session-nova", at: "1" });
+    t.gateway.interrupt("nova");
+    await done;
+  } finally {
+    t.cleanup();
+  }
+});
+
 test("transcript: hide marks entries hidden, bumps updatedSeq, tells listeners, and survives a reload", () => {
   const dir = mkdtempSync(join(tmpdir(), "smarty-hide-"));
   try {
@@ -361,4 +413,11 @@ test("http: fresh, rollback and thread sends map refusals to 400 and 409", async
     server.close();
     t.cleanup();
   }
+});
+
+test("threadPrompt: a long root is cut by characters, never through an emoji", () => {
+  const root = `${"a".repeat(THREAD_QUOTE_CHARS - 2)}${"\u{1F600}".repeat(3)}`;
+  const quoted = threadPrompt(root, "hi");
+  assert.ok(quoted.includes(`${"a".repeat(THREAD_QUOTE_CHARS - 2)}\u{1F600}…"`), quoted.slice(-20));
+  assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(quoted), "no half of a surrogate pair");
 });

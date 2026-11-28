@@ -22,6 +22,8 @@ export type Row =
       pending?: boolean;
       /** How many messages the thread started from this one holds (main view only). */
       replies?: number;
+      /** That thread has a card waiting for the user (main view only). */
+      waiting?: boolean;
       /** The hover actions this row offers. */
       actions?: RowActions;
     }
@@ -38,6 +40,8 @@ export interface ViewOptions {
   thread?: string;
   /** Messages per thread, by root id (see replyCounts). */
   replies?: ReadonlyMap<string, number>;
+  /** Threads with a card waiting for the user, by root id (see waitingThreads). */
+  waiting?: ReadonlySet<string>;
 }
 
 /**
@@ -60,6 +64,20 @@ export function replyCounts(entries: readonly TranscriptEntry[]): Map<string, nu
     counts.set(e.threadId, (counts.get(e.threadId) ?? 0) + 1);
   }
   return counts;
+}
+
+/**
+ * Threads with an approval or choice card waiting for the user, by root id. The main chat doesn't show a thread's
+ * entries, so it marks the thread instead: otherwise the bot would look stuck.
+ */
+export function waitingThreads(entries: readonly TranscriptEntry[]): Set<string> {
+  const out = new Set<string>();
+  for (const e of entries) {
+    if (e.hidden || e.threadId === undefined) continue;
+    const b = e.body;
+    if ((b.kind === "approval" || b.kind === "choice") && b.state === "pending") out.add(e.threadId);
+  }
+  return out;
 }
 
 /** A pause this long between entries starts a new time separator. */
@@ -244,6 +262,7 @@ export function buildRows(
     else {
       const pendingRow = item.entry.id.startsWith(PENDING_PREFIX) && item.entry.seq === -1;
       const replies = view.thread === undefined ? view.replies?.get(item.entry.id) : undefined;
+      const waiting = view.thread === undefined && view.waiting?.has(item.entry.id);
       const actions = pendingRow ? undefined : actionsFor(item.entry, view.thread);
       rows.push({
         type: "entry",
@@ -255,6 +274,7 @@ export function buildRows(
         time: time(new Date(item.entry.createdAt), locale),
         ...(pendingRow ? { pending: true } : {}),
         ...(replies ? { replies } : {}),
+        ...(waiting ? { waiting: true } : {}),
         ...(actions ? { actions } : {}),
       });
     }

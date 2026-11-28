@@ -165,6 +165,11 @@
   margin-left: auto;
 }
 
+/* A card in the thread is waiting for an answer. */
+.thread-replies[data-waiting] {
+  color: var(--color-link);
+}
+
 .thread-replies:hover {
   background: var(--color-fill);
   color: var(--color-text);

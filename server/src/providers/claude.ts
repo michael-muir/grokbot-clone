@@ -117,6 +117,8 @@ export class ClaudeProvider implements AgentProvider {
     // "success" result with is_error. Its text is the error, not a reply, so it becomes the run's error message.
     const apiError: { message?: string } = {};
     let sessionId = req.sessionId;
+    /** Tool calls of the main thread still waiting for their results: no checkpoint while any are open. */
+    const openTools = new Set<string>();
     // After an abort the SDK closes Claude Code gracefully (~2 s) and keeps delivering messages meanwhile, ending
     // with a "success" result. Stop must be immediate: stop reading at once, and let the shutdown finish alone.
     const messages = this.queryFn({ prompt: req.prompt, options })[Symbol.asyncIterator]();
@@ -129,7 +131,15 @@ export class ClaudeProvider implements AgentProvider {
           return { status: "interrupted", sessionId };
         }
         if (next.done) break;
-        const outcome = this.handle(next.value, cb, text, apiError, (id) => (sessionId = id), req.workspaceDir);
+        const outcome = this.handle(
+          next.value,
+          cb,
+          text,
+          apiError,
+          (id) => (sessionId = id),
+          req.workspaceDir,
+          openTools,
+        );
         if (outcome) return { ...outcome, sessionId };
       }
       return req.signal.aborted
@@ -166,6 +176,7 @@ export class ClaudeProvider implements AgentProvider {
     apiError: { message?: string },
     setSession: (id: string) => void,
     workspaceDir: string,
+    openTools: Set<string>,
   ): RunOutcome | undefined {
     switch (msg.type) {
       case "system":
@@ -192,7 +203,9 @@ export class ClaudeProvider implements AgentProvider {
           apiError.message = `Anthropic: ${said || API_ERRORS[msg.error] || msg.error}`;
           return;
         }
-        cb.emit({ type: "checkpoint", at: msg.uuid });
+        for (const block of msg.message.content) if (block.type === "tool_use") openTools.add(block.id);
+        // A fork must not end on a tool call with no result: only a message that leaves none open is a checkpoint.
+        if (openTools.size === 0) cb.emit({ type: "checkpoint", at: msg.uuid });
         for (const block of msg.message.content) {
           if (block.type === "text") {
             cb.emit({ type: "text", blockId: text.claimFinal(msg.message.id), text: block.text });
@@ -210,15 +223,16 @@ export class ClaudeProvider implements AgentProvider {
       }
       case "user": {
         if (msg.parent_tool_use_id) return;
-        // Tool results are part of the turn: a fork that dropped them would leave their tool calls unanswered.
-        if (msg.uuid) cb.emit({ type: "checkpoint", at: msg.uuid });
         const content = msg.message.content;
         if (!Array.isArray(content)) return;
         for (const block of content) {
           if (block.type === "tool_result") {
+            openTools.delete(block.tool_use_id);
             cb.emit({ type: "tool_end", toolUseId: block.tool_use_id, ok: !block.is_error });
           }
         }
+        // The results that answer every open call end that step: a fork can be made here.
+        if (msg.uuid && openTools.size === 0) cb.emit({ type: "checkpoint", at: msg.uuid });
         return;
       }
       case "result":

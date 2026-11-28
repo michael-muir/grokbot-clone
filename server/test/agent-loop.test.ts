@@ -128,7 +128,7 @@ test("a checkpoint past the end of the session fails the run instead of guessing
   const first = await run("first");
   const { outcome } = await run("again", { sessionId: first.outcome.sessionId, resumeAt: "9" });
   assert.equal(outcome.status, "failed");
-  assert.match(outcome.error ?? "", /starting fresh/);
+  assert.match(outcome.error ?? "", /start over/);
   assert.equal(model.requests.length, 1, "the model wasn't called");
 });
 

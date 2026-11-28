@@ -16,7 +16,7 @@ import { type AppSettings, DEFAULT_SETTINGS } from "../../shared/settings.ts";
 import { botColor } from "./bot-colors.ts";
 import type { RowContext } from "./chat/ChatRow.tsx";
 import { Composer } from "./chat/Composer.tsx";
-import { conversation, isConfirmed, type PendingMessage, replyCounts } from "./chat/rows.ts";
+import { conversation, isConfirmed, type PendingMessage, replyCounts, waitingThreads } from "./chat/rows.ts";
 import { Transcript } from "./chat/Transcript.tsx";
 import { call } from "./gateway.ts";
 import { Onboarding } from "./onboarding/Onboarding.tsx";
@@ -478,6 +478,7 @@ function Chat({
   const busy = lastRun?.body.kind === "run" && lastRun.body.state === "running";
   const shown = useMemo(() => conversation(entries, thread), [entries, thread]);
   const replies = useMemo(() => replyCounts(entries), [entries]);
+  const waiting = useMemo(() => waitingThreads(entries), [entries]);
   const shownPending = useMemo(() => pending.filter((p) => p.threadId === thread), [pending, thread]);
 
   // A thread whose root is gone (rolled back, perhaps in another window) has nothing to show: back to the chat.
@@ -593,6 +594,7 @@ function Chat({
         context={context}
         thread={thread}
         replies={replies}
+        waiting={waiting}
         label={thread === undefined ? `Conversation with ${bot.name}` : `Thread with ${bot.name}`}
       />
       {problem ? (

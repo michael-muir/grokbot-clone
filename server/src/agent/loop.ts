@@ -66,7 +66,10 @@ export class LoopProvider implements AgentProvider {
         const from = this.sessions.load(req.sessionId);
         const at = Number(req.resumeAt);
         if (!Number.isInteger(at) || at < 0 || at > from.length) {
-          return { status: "failed", error: "Couldn't go back to that point in the conversation. Try starting fresh." };
+          return {
+            status: "failed",
+            error: "Couldn't go back to that point in the conversation. Send again to start over.",
+          };
         }
         sessionId = this.sessions.newId();
         messages = from.slice(0, at);

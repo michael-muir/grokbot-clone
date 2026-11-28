@@ -37,6 +37,7 @@ export function Transcript({
   context,
   thread,
   replies,
+  waiting,
   label,
 }: {
   /** The entries of this view (see rows.ts conversation()). */
@@ -48,6 +49,8 @@ export function Transcript({
   thread?: string;
   /** Messages per thread, by root id, for the main chat's "N replies" buttons. */
   replies?: ReadonlyMap<string, number>;
+  /** Threads with a card waiting for the user, marked on their replies buttons. */
+  waiting?: ReadonlySet<string>;
   /** Accessible name of the log, e.g. "Conversation with Nova". */
   label: string;
 }) {
@@ -55,8 +58,8 @@ export function Transcript({
   // Rebuilt when entries change (a new array per change), and at midnight so "Today" becomes "Yesterday".
   // biome-ignore lint/correctness/useExhaustiveDependencies: today is a trigger; buildRows reads the clock itself.
   const rows = useMemo(
-    () => buildRows(entries, new Date(), undefined, pending, { thread, replies }),
-    [entries, pending, thread, replies, today],
+    () => buildRows(entries, new Date(), undefined, pending, { thread, replies, waiting }),
+    [entries, pending, thread, replies, waiting, today],
   );
   const scroller = useRef<HTMLDivElement>(null);
   const following = useRef(true);

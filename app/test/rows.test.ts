@@ -2,7 +2,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { EntryBody, TranscriptEntry } from "../../server/src/types.ts";
-import { buildRows, conversation, type Row, replyCounts, separatorLabel } from "../src/renderer/src/chat/rows.ts";
+import {
+  buildRows,
+  conversation,
+  type Row,
+  replyCounts,
+  separatorLabel,
+  waitingThreads,
+} from "../src/renderer/src/chat/rows.ts";
 
 const T0 = new Date(2026, 10, 26, 15, 19).getTime(); // local time, so labels don't depend on the time zone
 const NOW = new Date(2026, 10, 26, 18, 0);
@@ -291,4 +298,23 @@ test("rows: hover actions are a thread for any message in the main chat, and rol
   );
   const pending = buildRows([], NOW, "en-US", [{ nonce: "n1", text: "hi", at: T0 }]);
   assert.deepEqual(actions(pending), [["pending-n1", null]], "a message not yet sent has none");
+});
+
+test("rows: a thread with a card waiting for the user is marked on its root in the main chat", () => {
+  seq = 0;
+  const root = user("apples");
+  const ask = (state: "pending" | "approved") => ({
+    ...e({ kind: "approval", tool: "shell", summary: "ls", input: {}, state }),
+    threadId: root.id,
+  });
+  const note = { ...user("side note"), threadId: root.id };
+  const waiting = [root, note, ask("pending")];
+  assert.deepEqual([...waitingThreads(waiting)], [root.id]);
+  assert.deepEqual([...waitingThreads([root, note, ask("approved")])], [], "answered cards don't count");
+  const rows = buildRows(conversation(waiting), NOW, "en-US", [], {
+    replies: replyCounts(waiting),
+    waiting: waitingThreads(waiting),
+  });
+  const first = rows.find((r) => r.type === "entry");
+  assert.equal(first?.type === "entry" && first.waiting, true);
 });

@@ -34,8 +34,10 @@ export const THREAD_QUOTE_CHARS = 500;
 
 /** The first prompt of a thread: which message it's about, then what the user wrote. */
 export function threadPrompt(rootText: string, text: string): string {
-  const flat = rootText.replace(/\s+/g, " ").trim();
-  const quote = flat.length > THREAD_QUOTE_CHARS ? `${flat.slice(0, THREAD_QUOTE_CHARS - 1)}…` : flat;
+  // By code points, so an emoji is never cut in half.
+  const chars = Array.from(rootText.replace(/\s+/g, " ").trim());
+  const quote =
+    chars.length > THREAD_QUOTE_CHARS ? `${chars.slice(0, THREAD_QUOTE_CHARS - 1).join("")}…` : chars.join("");
   return `(Replying in a thread to: "${quote}")\n\n${text}`;
 }
 
@@ -155,12 +157,11 @@ export class Gateway {
     const provider = this.providers.get(bot.provider);
     if (!provider) throw new Error(`No provider registered for ${bot.provider}`);
     const root = threadId === undefined ? undefined : this.threadRoot(botId, threadId);
-    // The thread's first message (again, after a roll back to it) says which message the thread is about.
-    const opening =
-      root !== undefined &&
-      !this.store.list(botId).some((e) => !e.hidden && e.threadId === threadId && e.body.kind === "user_message");
-    const prompt = root && opening ? threadPrompt(root.text, text) : text;
-    const session = root ? (bot.threadSessions?.[root.id] ?? this.threadStart(bot, root.id)) : mainSession(bot);
+    // Until the thread's session holds something (its first run, again after a roll back to it or a failed start),
+    // the message says which message the thread is about.
+    const stored = root ? bot.threadSessions?.[root.id] : undefined;
+    const prompt = root && !stored?.sessionId ? threadPrompt(root.text, text) : text;
+    const session = root ? (stored ?? this.threadStart(bot, root.id)) : mainSession(bot);
 
     const controller = new AbortController();
     // Claim the bot before any await, so a second message can't start a parallel run.
@@ -452,19 +453,28 @@ export class Gateway {
 
     const onEvent = (ev: ProviderEvent) => {
       switch (ev.type) {
-        case "session": {
+        case "session":
           sessionNow = ev.sessionId;
-          // The fork, if one was pending, has happened: its checkpoint is used up.
+          return;
+        case "checkpoint": {
+          if (!sessionNow) return;
+          checkpoint = { sessionId: sessionNow, at: ev.at };
+          // Kept on the run as it goes, so a crash mid-run still leaves where the session got to.
+          const at = checkpoint;
+          set(runEntry.id, (b) =>
+            b.kind === "run" && (b.checkpoint?.sessionId !== at.sessionId || b.checkpoint.at !== at.at)
+              ? { ...b, checkpoint: at }
+              : b,
+          );
+          // The session now holds something (a fork has been written): it becomes the conversation's, and a pending
+          // fork point is used up. Not on the session event: a forked session may not be saved yet then.
           const stored = this.bots.get(bot.id);
           const now = stored && (threadId === undefined ? mainSession(stored) : stored.threadSessions?.[threadId]);
-          if (now?.sessionId !== ev.sessionId || now.sessionProvider !== provider.id || now.sessionAt !== undefined) {
-            this.saveSession(bot.id, threadId, { sessionId: ev.sessionId, sessionProvider: provider.id });
+          if (now?.sessionId !== sessionNow || now.sessionProvider !== provider.id || now.sessionAt !== undefined) {
+            this.saveSession(bot.id, threadId, { sessionId: sessionNow, sessionProvider: provider.id });
           }
           return;
         }
-        case "checkpoint":
-          if (sessionNow) checkpoint = { sessionId: sessionNow, at: ev.at };
-          return;
         case "text_delta": {
           const id = textEntries.get(ev.blockId);
           if (!id) {
@@ -587,6 +597,9 @@ export class Gateway {
     }
     if (outcome.status === "failed") {
       append({ kind: "error", message: outcome.error ?? "Something went wrong." });
+      // A fork that failed before any session started would fail the same way every time: drop it, so the next
+      // message starts this conversation over (a thread then quotes its root again) instead of failing forever.
+      if (session.sessionAt !== undefined && sessionNow === undefined) this.saveSession(bot.id, threadId, {});
     }
     this.lastRuns.set(bot.id, outcome.status);
     set(runEntry.id, (b) =>

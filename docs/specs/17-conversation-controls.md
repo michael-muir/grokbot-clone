@@ -58,7 +58,7 @@ How providers support this:
 
 - **Checkpoints.** During a run, a provider reports `{ type: "checkpoint", at }`: an opaque string naming the point
   its session has reached. The last one counts. The gateway saves it, with the session id, on the run entry as
-  `checkpoint: { sessionId, at }`.
+  `checkpoint: { sessionId, at }`, as each one arrives, so a run cut off by a crash still has its last one.
 - **Resuming from a checkpoint.** `RunRequest.resumeAt` asks the provider to continue `sessionId` from that point
   in a **new** session. The original is never changed, so older checkpoints stay valid. The new session's id
   arrives as the usual `session` event.
@@ -68,7 +68,8 @@ Per provider:
 - **Built-in loop:** the checkpoint is the number of messages saved. Resuming copies that many messages into a new
   session file. A checkpoint past the end of the session fails the run with a clear error.
 - **Claude:** the checkpoint is the uuid of the last top-level message in the session's chain (assistant, or user
-  with tool results). Resuming passes `resume`, `resumeSessionAt` and `forkSession: true`. That is the SDK's
+  with tool results) that leaves no tool call waiting for its result. A run stopped mid-tool therefore never
+  leaves a fork point that ends on an unanswered call. Resuming passes `resume`, `resumeSessionAt` and `forkSession: true`. That is the SDK's
   documented truncating fork, and the fork point is the last entry of the kept turn, as the SDK asks.
 - **Fake:** keeps each session's prompts in memory. The checkpoint is their count, and the prompt `/history` lists
   them, so tests can see what a session remembers.
@@ -88,9 +89,13 @@ A bot has a main conversation and any number of threads.
 - **Provider switch:** switching provider drops every session, threads included.
 - **Busy:** a run in a thread occupies the bot like any run (one run per bot).
 
-When a run starts with a pending `sessionAt`, it's passed as `resumeAt`. The first `session` event of the run then
-replaces the session id and clears `sessionAt`. If the run fails before that event, the fork is tried again next
-time.
+When a run starts with a pending `sessionAt`, it's passed as `resumeAt`.
+
+- **First checkpoint:** the run's first checkpoint (not its `session` event) replaces the stored session id and
+  clears `sessionAt`. A forked session may not be written yet when its id is announced, and a crash in between
+  must not leave the conversation pointing at nothing.
+- **Fork fails before a session starts:** that conversation's session is dropped, so the next message starts it
+  over instead of failing the same way forever. A thread then quotes its root again.
 
 ### Start fresh (main conversation)
 
@@ -119,8 +124,9 @@ time.
   - Reaching a `reset` notice, a run on another provider, or the start of the conversation means there's nothing to
     keep. A main chat then starts fresh, and a thread forks again from its root.
 - **In the app:** a "Roll back to here" button on user messages, then a confirmation ("Roll back to this
-  message?", with Cancel focused). Afterwards the message's text goes into the composer, if it's empty, ready to
-  edit and resend.
+  message?", with Cancel focused). Afterwards the message's text goes into the composer, ready to edit and
+  resend. If something is already being written there, the text goes after it, since the composer is the only
+  place it's left.
 
 ### Threads
 
@@ -131,12 +137,14 @@ time.
 - **First message:** its session forks from the checkpoint of the root's run. The user message now carries its
   run's id as `runId`, so a user-message root finds its run. Older entries fall back to the first run after the
   root.
-- **What the model sees:** the first prompt is prefixed with the root's text, quoted, up to 500 characters:
+- **What the model sees:** until the thread has a session of its own, the prompt is prefixed with the root's text, quoted, up to 500 characters:
   "(Replying in a thread to: "…")". This tells the model which message the thread is about. If no fork point exists,
   this quote is all the context it gets. The transcript shows only what the user typed.
 - **Main view:**
   - A message's hover bar has "Reply in a thread".
-  - A root with replies shows a "1 reply" / "N replies" button under it.
+  - A root with replies shows a "1 reply" / "N replies" button under it. If an approval or choice card in the
+    thread is waiting, the button adds "· Needs you": the main chat doesn't show the card, and the bot would
+    otherwise look stuck.
   - Either one opens the thread view.
 - **Thread view:**
   - The header gets a "Back to chat" button and the title "Thread".
@@ -233,7 +241,20 @@ Other tests:
   - In the dialogs, Tab stays inside, Escape cancels, and focus returns to the tile.
 - **Reduced motion:** the hover bar only fades in (opacity), like the row times. There's no movement to turn off.
 
-The check found three bugs, all fixed before review:
+The code review then found eight more, all fixed:
+
+- Save a fork's session on its first checkpoint.
+- Drop a fork that fails before its session starts.
+- Decide a thread's quote by its session.
+- Keep checkpoints on the run entry as they arrive.
+- Give Claude no checkpoint on an unanswered tool call.
+- Mark threads with a waiting card.
+- Keep a draft when a roll back refills the composer.
+- Cut the thread quote by code points.
+
+Each has a test, except the composer change, which is UI only.
+
+The manual check found three bugs, all fixed before review:
 
 - **Two transcripts on screen.** Opening a thread left the main chat's transcript in place. The transcript and the
   composer had the same React key, so they now have distinct ones.

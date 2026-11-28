@@ -376,13 +376,13 @@ test("claude: the checkpoint is the session's last top-level message, and resumi
   };
 
   const first = await run({});
-  assert.deepEqual(first.checkpoints, ["u-call", "u-result"]);
+  assert.deepEqual(first.checkpoints, ["u-result"], "never on a tool call still waiting for its result");
   assert.equal(seen[0]?.forkSession, undefined, "a plain run doesn't fork");
   assert.equal(seen[0]?.resumeSessionAt, undefined);
 
-  const fork = await run({ sessionId: "s-1", resumeAt: "u-call" });
+  const fork = await run({ sessionId: "s-1", resumeAt: "u-result" });
   assert.equal(fork.outcome.sessionId, "s-fork");
   assert.equal(seen[1]?.resume, "s-1");
-  assert.equal(seen[1]?.resumeSessionAt, "u-call");
+  assert.equal(seen[1]?.resumeSessionAt, "u-result");
   assert.equal(seen[1]?.forkSession, true);
 });

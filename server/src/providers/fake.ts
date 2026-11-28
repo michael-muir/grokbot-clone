@@ -51,7 +51,13 @@ export class FakeProvider implements AgentProvider {
   async run(req: RunRequest, cb: RunCallbacks): Promise<RunOutcome> {
     let sessionId = req.sessionId ?? this.newSession(req.botId);
     if (req.sessionId && req.resumeAt !== undefined) {
-      const kept = (this.sessions.get(req.sessionId) ?? []).slice(0, Number(req.resumeAt));
+      // Like the loop: a checkpoint this session never reached fails before any session starts.
+      const from = this.sessions.get(req.sessionId) ?? [];
+      const at = Number(req.resumeAt);
+      if (!Number.isInteger(at) || at < 0 || at > from.length) {
+        return { status: "failed", error: "Couldn't go back to that point in the conversation." };
+      }
+      const kept = from.slice(0, at);
       sessionId = `${req.sessionId.replace(/~fork-\d+$/, "")}~fork-${++this.forks}`;
       this.sessions.set(sessionId, kept);
     }
