@@ -57,12 +57,25 @@ export type EntryBody =
       kind: "run";
       provider: ProviderId;
       state: "running" | "finished" | "interrupted" | "failed";
+      /** What this run cost, where the provider reports it. */
       costUsd?: number;
+      /** Tokens this run used, where the provider reports them (#21). */
+      usage?: TokenUsage;
+      /**
+       * The provider's running cost total for its session at the run's end, with the session it belongs to: the next
+       * run on that session takes its share from here (kept whether or not the run reached a checkpoint).
+       */
+      sessionCost?: { sessionId: string; usd: number };
       /** Where the provider session stood when the run ended: a later run can fork from here (roll back, threads). */
       checkpoint?: { sessionId: string; at: string };
     };
 
 export type EntryKind = EntryBody["kind"];
+
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
 
 export interface ChoiceOption {
   label: string;
@@ -292,6 +305,11 @@ export interface RunRequest {
   resumeAt?: string;
   model?: string;
   baseUrl?: string;
+  /**
+   * The session's reported cost total before this run (from the last run on it, or the run at a fork point). Lets a
+   * provider whose cost is a session total (Claude) report this run's share. Absent when not known.
+   */
+  costBase?: number;
   /** The card kinds the user's app can show; none means ask in plain text. */
   cardKinds?: CardKind[];
   /**
@@ -310,6 +328,11 @@ export type ProviderEvent =
   | { type: "session"; sessionId: string }
   /** The point the session has reached, as a string the provider understands in `resumeAt`. The last one counts. */
   | { type: "checkpoint"; at: string }
+  /**
+   * Usage (#21): tokens add up over a run's events; `costUsd` is this run's share where the provider reports one;
+   * `sessionCostUsd` is the provider's running total for the session (Claude), kept for the next run's share.
+   */
+  | { type: "usage"; inputTokens?: number; outputTokens?: number; costUsd?: number; sessionCostUsd?: number }
   /** A piece of streamed text for one text block. */
   | { type: "text_delta"; blockId: string; text: string }
   /** The complete text of one block (replaces anything streamed so far). */
