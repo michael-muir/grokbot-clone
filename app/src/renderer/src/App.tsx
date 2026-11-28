@@ -589,6 +589,7 @@ function Chat({
 
   // A thread whose root was rolled back (perhaps in another window) has nothing to show: back to the chat. Only a root
   // that's there and hidden counts: while the transcript is still arriving, the root may simply not be in yet.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: entries is the trigger; the view changes in place.
   useEffect(() => {
     if (thread !== undefined && view.get(thread)?.hidden) setThread(undefined);
   }, [thread, entries, view]);
