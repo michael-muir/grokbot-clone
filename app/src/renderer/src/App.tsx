@@ -720,6 +720,10 @@ function Chat({
           >
             <Avatar avatar={bot.avatar} size="small" botId={bot.id} />
             <span className="name">{bot.name}</span>
+            {/* Shown on hover and focus, as in the reference: the pill opens the bot's details. */}
+            <svg className="icon name-chevron" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M6 3.5L10.5 8 6 12.5" />
+            </svg>
           </button>
           {thread !== undefined && <span className="chat-subtitle">Thread</span>}
         </h2>

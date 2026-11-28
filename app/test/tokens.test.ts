@@ -61,7 +61,8 @@ test("the light theme overrides every themed color", () => {
 
 test("every bot color has a selector, and every selector a color", () => {
   const palette = [...dark.keys()].filter((k) => k.startsWith("--color-bot-")).map((k) => k.slice(12));
-  const selectors = [...tokens.matchAll(/\[data-bot-color="(\w+)"\]/g)].map((m) => m[1]);
+  // A color may have more than one rule (white has a light-theme avatar rule too): each counts once.
+  const selectors = new Set([...tokens.matchAll(/\[data-bot-color="(\w+)"\]/g)].map((m) => m[1]));
   assert.deepEqual([...selectors].sort(), [...palette].sort());
 });
 

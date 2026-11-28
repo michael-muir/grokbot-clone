@@ -132,3 +132,21 @@ test("theme: the window background is the theme's app color", () => {
   assert.equal(dark.get("--color-app")?.split(" ")[0], WINDOW_BACKGROUND.dark);
   assert.equal(light.get("--color-app")?.split(" ")[0], WINDOW_BACKGROUND.light);
 });
+
+test("light theme: a white bot turns black with white eyes, readable on every light surface", () => {
+  const rule = declared(css.slice(lightAt), '.avatar[data-bot-color="white"]');
+  assert.equal(rule.get("--bot"), "var(--color-contrast)");
+  assert.equal(rule.get("--color-on-bot"), "var(--color-on-contrast)");
+  const body = color(rule.get("--bot"), light);
+  const eyes = color(rule.get("--color-on-bot"), light);
+  assert.ok(ratio(eyes, body) >= 4.5, "the eyes stand out from the body");
+  for (const surface of ["--color-app", "--color-sidebar", "--color-surface", "--color-surface-hover"]) {
+    const back = color(light.get(surface), light);
+    assert.ok(ratio(body, back) >= 3, `the body reads on ${surface}`);
+  }
+  assert.equal(
+    css.slice(0, lightAt).includes('.avatar[data-bot-color="white"]'),
+    false,
+    "dark mode keeps the white bot white",
+  );
+});

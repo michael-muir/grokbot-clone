@@ -1,6 +1,7 @@
 // The first-run flow: welcome, pick a provider and model (with the key if one is needed), and name the bot. It
 // saves everything on the main bot in one change at the end, so leaving early changes nothing.
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from "react";
+import { listedModels, modelLabel } from "../../../../../server/src/model-label.ts";
 import type { ProviderId, ProviderSummary, PublicBot } from "../../../../../server/src/types.ts";
 import { call } from "../gateway.ts";
 import { Select } from "../settings/controls.tsx";
@@ -261,12 +262,12 @@ function ModelStep({
   const keyMissing = chosen ? needsKey(chosen) : false;
   // Also after a failed test with a saved key: that key may be the problem, so a new one can be pasted.
   const askKey = chosen ? showKeyField(chosen, test.state === "error") : false;
-  const models = test.state === "ok" ? test.models : [];
+  const models = test.state === "ok" ? listedModels(test.models) : [];
   const modelOptions = [
     chosen && allowsDefaultModel(chosen)
       ? { value: "", label: "Default" }
       : { value: "", label: "Choose a model", disabled: true },
-    ...models.map((m) => ({ value: m, label: m })),
+    ...models.map((m) => ({ value: m, label: modelLabel(m) })),
   ];
   const note =
     providerError ??

@@ -55,9 +55,10 @@ menu in the system bar.
 Hovering the name pill in the chat header, or focusing it from the keyboard, shows a "›" after the name, as the
 reference does. It opens the bot panel, as the pill always has.
 
-- **The glyph.** It's a chevron icon in the text color. It fades and slides in, unless the user prefers reduced
-  motion.
-- **The pill keeps its width.** The chevron takes its place at rest, invisible, so nothing moves on hover.
+- **The glyph.** It's a chevron icon in the secondary text color.
+- **It opens.** At rest it takes no room. On hover or focus the pill widens smoothly to fit it, fading it in, unless
+  the user prefers reduced motion. A first try kept the pill's width, with the chevron in its end padding, but that
+  squeezed it against the name and the edge.
 
 ## Interfaces
 
@@ -75,3 +76,25 @@ listedModels(ids: readonly string[]): string[]   // without Cursor's default[]
 | Light mode: white bot black, eyes white | `theme.test.ts`: the rule and its contrast; manual check |
 | No menu bar; shortcuts still work | Manual check: no bar, and Ctrl+, opens Settings, Ctrl+K search, Alt+↓ the next bot |
 | "›" on hover of the bot's name | Manual check (hover and keyboard focus); reduced motion stills it |
+
+## Manual check (2026-11-28)
+
+In the built app, on an isolated profile and data dir. The seed data has the default bot, still named "Smarty" and
+white on the fake provider, plus "starry" on Cursor with `claude-sonnet-4-5[thinking=true,context=200k]`:
+
+1. **The rename.** The sidebar, header and message box all say "SmartyPrompt".
+2. **Light theme.** The white bot is black (`rgb(18, 18, 18)`) with white eyes. Dark keeps it white.
+3. **Hover.** Hovering the name pill fades in the "›", the pill widening to fit it, in both themes.
+4. **The menu bar.** A capture of the real window shows only Windows' own title bar, with no menu bar, and pressing
+   Alt doesn't bring it back. Real keystrokes still work: Ctrl+, opened Settings through the hidden menu, and Alt+↓
+   moved to the next bot.
+5. **Model names.**
+   - starry's panel reads "claude-sonnet-4-5 (thinking, context 200k)".
+   - The Models page lists 49 readable names, with the saved one selected by its label and no `default[]` "Auto".
+   - The page used the warmed list, starting no Cursor process.
+6. **Processes.** A normal quit left no app, gateway or Cursor process running.
+
+**Also found.** 7 orphaned Cursor processes were running from 04:05 to 04:10. They may have come from the owner's
+copy of the app on the code from before #96 (each model listing left one), or from this check's earlier test app,
+which was force-killed. They couldn't be traced, and they were ended. The same steps on the new code, with a normal
+quit, left none.

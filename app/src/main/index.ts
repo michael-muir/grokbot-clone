@@ -103,6 +103,9 @@ function createWindow(): BrowserWindow {
     backgroundColor: windowBackground(nativeTheme.shouldUseDarkColors),
     webPreferences: { preload: preloadFile, sandbox: true, contextIsolation: true, nodeIntegration: false },
   });
+  // Hidden, not removed: the menu carries the Settings shortcut and the edit and view roles. Not auto-hide either,
+  // which would bring the bar back on Alt, a key our own shortcuts use.
+  if (platform.hideMenuBar) win.setMenuBarVisibility(false);
   win.once("ready-to-show", () => {
     readyWindows.add(win);
     if (!SMOKE) win.show();

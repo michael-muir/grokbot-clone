@@ -31,7 +31,13 @@ export interface ReviewScene {
 const at = 1_700_000_000_000;
 
 export const REVIEW_BOTS: readonly PublicBot[] = [
-  { id: "smarty", name: "Smarty", provider: "ollama", model: "llama3.2", avatar: { shape: "face", color: "amber" } },
+  {
+    id: "smarty",
+    name: "SmartyPrompt",
+    provider: "ollama",
+    model: "llama3.2",
+    avatar: { shape: "face", color: "amber" },
+  },
   { id: "nova", name: "Nova", provider: "claude", avatar: { shape: "face", color: "purple" } },
 ];
 

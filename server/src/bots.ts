@@ -4,15 +4,17 @@ import { join } from "node:path";
 import type { Bot } from "./types.ts";
 
 const DEFAULT_BOTS: Bot[] = [
-  { id: "smarty", name: "Smarty", provider: "claude", avatar: { shape: "circle", color: "white" } },
+  { id: "smarty", name: "SmartyPrompt", provider: "claude", avatar: { shape: "circle", color: "white" } },
 ];
 
 /**
- * The default bot from before the rename kept the reference app's name, which must not ship. Renamed once, only
- * while it still has that exact name (a name the user chose is left alone). Its id stays: transcripts use it.
+ * The default bot under an older default name: the reference app's (which must not ship), then "Smarty" (the owner
+ * chose "SmartyPrompt", #97). Renamed once, only while it still has that exact name (a name the user chose is left
+ * alone). Its id stays: transcripts use it.
  */
 function renameOldDefault(bot: Bot): Bot {
-  return bot.id === "grok-bot" && bot.name === "Grok Bot" ? { ...bot, name: "Smarty" } : bot;
+  const old = (bot.id === "grok-bot" && bot.name === "Grok Bot") || (bot.id === "smarty" && bot.name === "Smarty");
+  return old ? { ...bot, name: "SmartyPrompt" } : bot;
 }
 
 export class BotRegistry {

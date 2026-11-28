@@ -4,6 +4,7 @@ import { Waiters } from "./approvals.ts";
 import type { BotRegistry } from "./bots.ts";
 import { checkCardAnswer } from "./cards.ts";
 import type { ComputerManager } from "./computer.ts";
+import { modelLabel } from "./model-label.ts";
 import type { ProviderRegistry } from "./providers/index.ts";
 import { isLatestCutOff } from "./runs.ts";
 import { BotSecrets, MAX_SECRET_LENGTH, MemorySecretStore, SecretStoreUnavailableError } from "./secrets.ts";
@@ -306,7 +307,7 @@ export class Gateway {
     }
     if (switching) {
       const label = this.providers.get(next.provider)?.info?.().label ?? next.provider;
-      const model = next.model ? ` (${next.model})` : "";
+      const model = next.model ? ` (${modelLabel(next.model)})` : "";
       this.store.append(botId, {
         kind: "notice",
         text: `Switched to ${label}${model}. The conversation starts fresh for the new model.`,

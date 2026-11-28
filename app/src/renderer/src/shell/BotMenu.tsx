@@ -26,7 +26,7 @@ export function BotMenu({
   onAction,
   onClose,
 }: {
-  /** Names the menu for screen readers ("Smarty"). */
+  /** Names the menu for screen readers ("SmartyPrompt"). */
   label: string;
   items: readonly { action: MenuAction; label: string }[];
   at: { x: number; y: number };

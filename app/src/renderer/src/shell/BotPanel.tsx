@@ -1,5 +1,6 @@
 // The right-hand bot panel: the open bot's avatar and name (editable), its computer, and its model.
 import { type KeyboardEvent, type ReactNode, type RefObject, useEffect, useRef, useState } from "react";
+import { modelLabel } from "../../../../../server/src/model-label.ts";
 import type { AvatarColor, AvatarShape, PublicBot } from "../../../../../server/src/types.ts";
 import { botColor, botShape } from "../bot-colors.ts";
 import { Avatar, AvatarPicker } from "./Avatar.tsx";
@@ -131,7 +132,7 @@ export function BotPanel({
         </div>
         <div className="panel-row">
           <span className="row-title">Model</span>
-          <span className="row-value">{bot.model || "Default"}</span>
+          <span className="row-value">{bot.model ? modelLabel(bot.model) : "Default"}</span>
         </div>
       </PanelSection>
     </aside>

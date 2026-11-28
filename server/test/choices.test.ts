@@ -245,7 +245,7 @@ test("fake /choice: without a way to ask, the run fails with a reason instead of
   assert.equal(outcome.status, "failed");
 });
 
-test("rename: an existing default bot still named Grok Bot becomes Smarty; a name the user chose stays", () => {
+test("rename: an existing default bot still named Grok Bot or Smarty becomes SmartyPrompt; a chosen name stays", () => {
   const dir = mkdtempSync(join(tmpdir(), "smarty-bots-"));
   try {
     const avatar = { shape: "circle", color: "white" } as const;
@@ -253,13 +253,28 @@ test("rename: an existing default bot still named Grok Bot becomes Smarty; a nam
       join(dir, "bots.json"),
       JSON.stringify([
         { id: "grok-bot", name: "Grok Bot", provider: "claude", avatar },
+        { id: "smarty", name: "Smarty", provider: "claude", avatar },
         { id: "other", name: "Grok Bot", provider: "claude", avatar },
+        { id: "mine", name: "Smarty", provider: "claude", avatar },
       ]),
     );
     const bots = new BotRegistry(dir);
-    assert.equal(bots.get("grok-bot")?.name, "Smarty", "same id kept, so its transcript still belongs to it");
+    assert.equal(bots.get("grok-bot")?.name, "SmartyPrompt", "same id kept, so its transcript still belongs to it");
+    assert.equal(bots.get("smarty")?.name, "SmartyPrompt");
     assert.equal(bots.get("other")?.name, "Grok Bot", "only the old default is renamed");
-    assert.equal(new BotRegistry(dir).get("grok-bot")?.name, "Smarty", "saved");
+    assert.equal(bots.get("mine")?.name, "Smarty", "a bot the user named Smarty keeps its name");
+    assert.equal(new BotRegistry(dir).get("smarty")?.name, "SmartyPrompt", "saved");
+
+    const fresh = mkdtempSync(join(tmpdir(), "smarty-bots-new-"));
+    try {
+      assert.deepEqual(
+        new BotRegistry(fresh).list().map((b) => b.name),
+        ["SmartyPrompt"],
+        "a new install starts with SmartyPrompt",
+      );
+    } finally {
+      rmSync(fresh, { recursive: true, force: true });
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
