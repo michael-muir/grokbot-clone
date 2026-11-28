@@ -47,20 +47,22 @@ textarea {
   height: var(--size-control);
 }
 
+/* The edge goes on the outer svg, a plain CSS box, so it's a full CSS pixel at every size (it keeps a white bot
+   visible on the light theme). */
 .avatar-face {
   display: block;
   width: 100%;
   height: 100%;
   overflow: visible;
+  filter: var(--shadow-avatar-edge);
 }
 
-/* The round-joined stroke (STROKE in avatar-faces.ts) is what softens the corners. */
+/* The stroke's width comes from STROKE in avatar-faces.ts (the attribute in Avatar.tsx), the one the tests check;
+   round joins are what soften the corners. */
 .avatar-body {
   fill: var(--bot);
   stroke: var(--bot);
-  stroke-width: 5;
   stroke-linejoin: round;
-  filter: var(--shadow-avatar-edge);
 }
 
 /* Each eye scales around its own middle, ready for blinking (#44). */

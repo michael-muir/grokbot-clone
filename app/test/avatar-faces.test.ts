@@ -1,5 +1,4 @@
-// Bot faces: every shape has one, it fits the 32-unit square once tilted, its eyes sit on the body, and the eyes
-// stand out against every bot color.
+// Bot faces: each fits its square and its eyes sit on its body and stand out against every bot color.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";

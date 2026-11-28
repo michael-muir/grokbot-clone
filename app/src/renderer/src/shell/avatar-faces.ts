@@ -1,5 +1,4 @@
-// The bot faces: each shape's outline, its lean and where its eyes sit, on a 32-unit square. Plain data, so the
-// tests can check that every face fits its shape and the square.
+// The bot faces as data: each shape's outline, its lean and where its eyes sit, on a 32-unit square.
 import type { AvatarShape } from "../../../../../server/src/types.ts";
 
 export type Point = readonly [number, number];

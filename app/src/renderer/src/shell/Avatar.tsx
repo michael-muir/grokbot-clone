@@ -2,7 +2,7 @@
 import { type ReactNode, useId } from "react";
 import { AVATAR_COLORS, AVATAR_SHAPES, type AvatarColor, type AvatarShape } from "../../../../../server/src/types.ts";
 import { botColor, botShape } from "../bot-colors.ts";
-import { eyeRects, FACES, type Part, VIEW } from "./avatar-faces.ts";
+import { eyeRects, FACES, type Part, STROKE, VIEW } from "./avatar-faces.ts";
 
 /** How shapes and colors are named to screen readers. */
 export const SHAPE_NAMES: Record<AvatarShape, string> = {
@@ -53,7 +53,9 @@ export function Avatar({
     >
       <svg className="avatar-face" viewBox={`0 0 ${VIEW} ${VIEW}`} aria-hidden="true">
         <g transform={`rotate(${face.tilt} ${face.pivot[0]} ${face.pivot[1]})`}>
-          <g className="avatar-body">{face.parts.map(drawPart)}</g>
+          <g className="avatar-body" strokeWidth={STROKE}>
+            {face.parts.map(drawPart)}
+          </g>
           <g className="avatar-eyes">
             {eyeRects(face).map((eye) => (
               <rect key={eye.x} className="avatar-eye" {...eye} rx={eye.width / 2} />
