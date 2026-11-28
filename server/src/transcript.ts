@@ -4,7 +4,7 @@
 import { randomUUID } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { EntryBody, TranscriptEntry } from "./types.ts";
+import type { EntryBody, EntryMarks, TranscriptEntry } from "./types.ts";
 
 type Listener = (entry: TranscriptEntry) => void;
 
@@ -54,13 +54,23 @@ export class TranscriptStore {
 
   /** Hides entries (a roll back): they stay in the log and stream to clients as changed, marked `hidden`. */
   hide(botId: string, ids: readonly string[]): void {
+    for (const id of ids) if (!this.get(botId, id)?.hidden) this.mark(botId, id, { hidden: true });
+  }
+
+  /**
+   * Changes an entry's marks (hidden, reactions, feedback) in place, like `update` does its body. A mark given as
+   * undefined is removed. The body stays as it is.
+   */
+  mark(botId: string, id: string, patch: EntryMarks): TranscriptEntry {
     const log = this.log(botId);
-    for (const id of ids) {
-      const current = log.entries.get(id);
-      if (!current) throw new Error(`No transcript entry ${id} for bot ${botId}`);
-      if (current.hidden) continue;
-      this.commit(log, { ...current, hidden: true, updatedSeq: log.nextUpdate++, updatedAt: Date.now() });
+    const current = log.entries.get(id);
+    if (!current) throw new Error(`No transcript entry ${id} for bot ${botId}`);
+    const next: TranscriptEntry = { ...current, updatedSeq: log.nextUpdate++, updatedAt: Date.now() };
+    for (const key of Object.keys(patch) as (keyof EntryMarks)[]) {
+      if (patch[key] === undefined) delete next[key];
+      else Object.assign(next, { [key]: patch[key] });
     }
+    return this.commit(log, next);
   }
 
   /**

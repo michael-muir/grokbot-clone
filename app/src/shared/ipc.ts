@@ -5,6 +5,7 @@ import type { StreamState } from "../../../server/src/client/subscribe.ts";
 import {
   type ApprovalDecision,
   type BotActivity,
+  type Feedback,
   isAvatarColor,
   isAvatarShape,
   isProviderId,
@@ -49,6 +50,10 @@ export interface Calls {
   startFresh: { args: [botId: string]; result: undefined };
   /** Rolls back to before one of the user's messages; returns its text. */
   rollBack: { args: [botId: string, entryId: string]; result: string };
+  /** Adds or removes a reaction on a message; returns its reactions now. */
+  react: { args: [botId: string, entryId: string, emoji: string, on: boolean]; result: string[] };
+  /** Rates a bot message; null clears the rating. */
+  rate: { args: [botId: string, entryId: string, vote: Feedback | null]; result: undefined };
   answerApproval: { args: [botId: string, entryId: string, decision: ApprovalDecision]; result: undefined };
   answerChoice: { args: [botId: string, entryId: string, answer: string]; result: undefined };
   listProviders: { args: []; result: ProviderSummary[] };
@@ -172,6 +177,10 @@ const ARGS: { [K in CallName]: (a: unknown[]) => a is Calls[K]["args"] } = {
   interrupt: (a): a is [string] => a.length === 1 && isId(a[0]),
   startFresh: (a): a is [string] => a.length === 1 && isId(a[0]),
   rollBack: (a): a is [string, string] => a.length === 2 && isId(a[0]) && isId(a[1]),
+  react: (a): a is [string, string, string, boolean] =>
+    a.length === 4 && isId(a[0]) && isId(a[1]) && isString(a[2]) && a[2].length <= 16 && isBoolean(a[3]),
+  rate: (a): a is [string, string, Feedback | null] =>
+    a.length === 3 && isId(a[0]) && isId(a[1]) && (a[2] === "up" || a[2] === "down" || a[2] === null),
   answerApproval: (a): a is [string, string, ApprovalDecision] =>
     a.length === 3 && isId(a[0]) && isId(a[1]) && isDecision(a[2]),
   answerChoice: (a): a is [string, string, string] =>

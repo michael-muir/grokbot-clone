@@ -505,6 +505,15 @@ function Chat({
         }),
       openThread: (entry: TranscriptEntry) => setThread(entry.id),
       rollBack: (entry: TranscriptEntry) => setRolling({ entry, busy: false }),
+      react: (entry: TranscriptEntry, emoji: string, on: boolean) =>
+        call("react", bot.id, entry.id, emoji, on).catch((err: unknown) => setProblem(message(err))),
+      rate: (entry: TranscriptEntry, vote: "up" | "down" | null) =>
+        call("rate", bot.id, entry.id, vote).catch((err: unknown) => setProblem(message(err))),
+      copy: (text: string) =>
+        navigator.clipboard.writeText(text).catch((err: unknown) => {
+          setProblem(`Couldn't copy: ${message(err)}`);
+          throw err;
+        }),
     }),
     [bot.id, bot.name, bot.avatar],
   );

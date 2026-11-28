@@ -4,6 +4,7 @@ import type {
   ApprovalDecision,
   AvatarColor,
   AvatarShape,
+  Feedback,
   NewBot,
   ProviderId,
   ProviderSummary,
@@ -99,6 +100,21 @@ export class GatewayClient {
   /** Starts the bot's conversation over. The old one stays in the transcript. Refused (409) while it's working. */
   async startFresh(botId: string): Promise<void> {
     await this.request("POST", `/bots/${enc(botId)}/fresh`, {});
+  }
+
+  /** Adds or removes one of the user's reactions on a message; returns its reactions now. */
+  async react(botId: string, entryId: string, emoji: string, on: boolean): Promise<string[]> {
+    const res = await this.request<{ reactions?: unknown }>(
+      "POST",
+      `/bots/${enc(botId)}/entries/${enc(entryId)}/reactions`,
+      { emoji, on },
+    );
+    return Array.isArray(res?.reactions) ? res.reactions.filter((r): r is string => typeof r === "string") : [];
+  }
+
+  /** Rates a bot message (null clears the rating). */
+  async rate(botId: string, entryId: string, vote: Feedback | null): Promise<void> {
+    await this.request("POST", `/bots/${enc(botId)}/entries/${enc(entryId)}/feedback`, { vote });
   }
 
   /** Rolls the conversation back to before one of the user's messages. Returns that message's text. */

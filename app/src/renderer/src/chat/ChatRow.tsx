@@ -1,10 +1,11 @@
 // One display row of the chat: a bubble, status line, card, notice or error, or a time separator. Messages have a
-// hover bar (reference/screens/36-msg-hover.png): reply in a thread, roll back.
+// hover bar (reference/screens/36-msg-hover.png): react, reply in a thread, and More (copy, roll back, rate).
 // Memoized: rows are rebuilt on every change, but an unchanged entry keeps its reference, so sameRow() lets
 // only the rows that changed re-render.
-import { memo } from "react";
-import type { TranscriptEntry } from "../../../../../server/src/types.ts";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { type Feedback, REACTIONS, type TranscriptEntry } from "../../../../../server/src/types.ts";
 import { Avatar } from "../shell/Avatar.tsx";
+import { type MenuItem, PopupMenu, ReactionPicker } from "../shell/PopupMenu.tsx";
 import { ApprovalCard } from "./ApprovalCard.tsx";
 import { ChoiceCard } from "./ChoiceCard.tsx";
 import { Markdown } from "./Markdown.tsx";
@@ -20,7 +21,18 @@ export interface RowContext {
   openThread(entry: TranscriptEntry): void;
   /** Asks to roll the conversation back to before this message of the user's. */
   rollBack(entry: TranscriptEntry): void;
+  /** Adds or removes one of the user's reactions. Failures show in the chat. */
+  react(entry: TranscriptEntry, emoji: string, on: boolean): Promise<unknown>;
+  /** Rates a bot message (null clears it). Failures show in the chat. */
+  rate(entry: TranscriptEntry, vote: Feedback | null): Promise<unknown>;
+  /** Puts text on the clipboard; rejects (and the chat says why) when it can't. */
+  copy(text: string): Promise<void>;
 }
+
+/** How long the More button shows "Copied". */
+const COPIED_MS = 1500;
+/** Space between a hover-bar button and the popup it opens. */
+const POPUP_GAP_PX = 4;
 
 function ChatRowView({ row, context }: { row: Row; context: RowContext }) {
   if (row.type === "separator") {
@@ -44,6 +56,7 @@ function ChatRowView({ row, context }: { row: Row; context: RowContext }) {
     <div className="chat-row" data-side={row.side} data-gap={row.gap}>
       <div className="row-content" data-pending={row.pending || undefined}>
         {content(row.entry, row.group, context)}
+        <Reactions entry={entry} context={context} />
         {row.replies !== undefined && (
           <button
             type="button"
@@ -102,7 +115,23 @@ function content(entry: TranscriptEntry, group: string, context: RowContext) {
   }
 }
 
-/** The hover bar: shown on hover, and while one of its buttons has keyboard focus. */
+type Popup = { kind: "react" | "more"; at: { x: number; y: number } };
+
+const MORE_ICONS = {
+  copy: (
+    <path d="M5.5 5.5V3a.5.5 0 01.5-.5h7a.5.5 0 01.5.5v7a.5.5 0 01-.5.5h-2.5M3 5.5h7a.5.5 0 01.5.5v7a.5.5 0 01-.5.5H3a.5.5 0 01-.5-.5V6a.5.5 0 01.5-.5z" />
+  ),
+  "roll-back": <path d="M3 8a5 5 0 105-5H5.5M7.5 1L5.5 3l2 2M8 5.5V8l1.75 1.75" />,
+  up: <path d="M5 7.5l2.5-5A1.5 1.5 0 019 4v2.5h3.5a1 1 0 011 1.2l-1 5a1 1 0 01-1 .8H5zM5 7.5H3v6h2" />,
+  down: <path d="M5 8.5l2.5 5A1.5 1.5 0 009 12V9.5h3.5a1 1 0 001-1.2l-1-5a1 1 0 00-1-.8H5zM5 8.5H3v-6h2" />,
+} as const;
+
+type MoreKey = keyof typeof MORE_ICONS;
+
+/**
+ * The hover bar (36-msg-hover): React, Reply in a thread, More. Shown on hover, and while one of its buttons has
+ * keyboard focus or one of its popups is open.
+ */
 function MessageActions({
   actions,
   entry,
@@ -112,8 +141,78 @@ function MessageActions({
   entry: TranscriptEntry;
   context: RowContext;
 }) {
+  const [popup, setPopup] = useState<Popup>();
+  const [copied, setCopied] = useState(false);
+  const reactButton = useRef<HTMLButtonElement>(null);
+  const moreButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), COPIED_MS);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  const open = (kind: Popup["kind"], button: HTMLButtonElement | null) => {
+    if (!button) return;
+    if (popup?.kind === kind) return setPopup(undefined);
+    const r = button.getBoundingClientRect();
+    setPopup({ kind, at: { x: r.left, y: r.bottom + POPUP_GAP_PX } });
+  };
+  const close = useCallback((restoreFocus: boolean) => {
+    setPopup((current) => {
+      if (restoreFocus) (current?.kind === "react" ? reactButton : moreButton).current?.focus();
+      return undefined;
+    });
+  }, []);
+
+  const text = entry.body.kind === "user_message" || entry.body.kind === "assistant_text" ? entry.body.text : "";
+  const more: MenuItem<MoreKey>[] = [
+    ...(actions.copy ? [{ key: "copy" as const, label: "Copy", icon: MORE_ICONS.copy }] : []),
+    ...(actions.rollBack
+      ? [{ key: "roll-back" as const, label: "Roll back to here", icon: MORE_ICONS["roll-back"] }]
+      : []),
+    ...(actions.rate
+      ? [
+          {
+            key: "up" as const,
+            label: "Good response",
+            icon: MORE_ICONS.up,
+            checked: entry.feedback === "up",
+            startsGroup: true,
+          },
+          { key: "down" as const, label: "Bad response", icon: MORE_ICONS.down, checked: entry.feedback === "down" },
+        ]
+      : []),
+  ];
+  const choose = (key: MoreKey) => {
+    close(true);
+    if (key === "copy") {
+      context.copy(text).then(
+        () => setCopied(true),
+        () => {}, // the chat shows the error
+      );
+    } else if (key === "roll-back") context.rollBack(entry);
+    else void context.rate(entry, entry.feedback === key ? null : key);
+  };
+
   return (
-    <div className="row-actions">
+    <div className="row-actions" data-open={popup ? true : undefined}>
+      {actions.react && (
+        <button
+          ref={reactButton}
+          type="button"
+          className="row-action"
+          aria-label="Add reaction"
+          title="Add reaction"
+          aria-haspopup="menu"
+          aria-expanded={popup?.kind === "react"}
+          onClick={() => open("react", reactButton.current)}
+        >
+          <svg className="icon" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M8 14A6 6 0 108 2a6 6 0 000 12zM5.75 9.5c.5.9 1.3 1.5 2.25 1.5s1.75-.6 2.25-1.5M6 6.5v.5M10 6.5v.5" />
+          </svg>
+        </button>
+      )}
       {actions.thread && (
         <button
           type="button"
@@ -127,25 +226,76 @@ function MessageActions({
           </svg>
         </button>
       )}
-      {actions.rollBack && (
+      {more.length > 0 && (
         <button
+          ref={moreButton}
           type="button"
           className="row-action"
-          aria-label="Roll back to here"
-          title="Roll back to here"
-          onClick={() => context.rollBack(entry)}
+          aria-label={copied ? "Copied" : "More"}
+          title={copied ? "Copied" : "More"}
+          aria-haspopup="menu"
+          aria-expanded={popup?.kind === "more"}
+          onClick={() => open("more", moreButton.current)}
         >
           <svg className="icon" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M3 8a5 5 0 105-5H5.5M7.5 1L5.5 3l2 2M8 5.5V8l1.75 1.75" />
+            {copied ? <path d="M3.5 8.5l3 3 6-7" /> : <path d="M3.5 8h.01M8 8h.01M12.5 8h.01" strokeWidth="2" />}
           </svg>
         </button>
+      )}
+      {/* Says "Copied" to screen readers; the More button shows a check meanwhile. */}
+      <span className="visually-hidden" role="status">
+        {copied ? "Copied" : ""}
+      </span>
+      {popup?.kind === "react" && (
+        <ReactionPicker
+          choices={REACTIONS}
+          chosen={entry.reactions ?? []}
+          at={popup.at}
+          onSelect={(emoji) => {
+            close(true);
+            void context.react(entry, emoji, !(entry.reactions ?? []).includes(emoji));
+          }}
+          onClose={close}
+        />
+      )}
+      {popup?.kind === "more" && (
+        <PopupMenu label="Message actions" items={more} at={popup.at} onSelect={choose} onClose={close} />
       )}
     </div>
   );
 }
 
+/** The user's reactions under a message; each one removes itself. */
+function Reactions({ entry, context }: { entry: TranscriptEntry; context: RowContext }) {
+  const reactions = entry.reactions ?? [];
+  if (reactions.length === 0) return null;
+  return (
+    <div className="reactions">
+      {reactions.map((emoji) => (
+        <button
+          key={emoji}
+          type="button"
+          className="reaction"
+          aria-label={`Remove ${emoji}`}
+          title="Remove"
+          onClick={() => void context.react(entry, emoji, false)}
+        >
+          {emoji}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 const sameActions = (a: RowActions | undefined, b: RowActions | undefined) =>
-  a === b || (a !== undefined && b !== undefined && a.thread === b.thread && a.rollBack === b.rollBack);
+  a === b ||
+  (a !== undefined &&
+    b !== undefined &&
+    a.react === b.react &&
+    a.thread === b.thread &&
+    a.copy === b.copy &&
+    a.rollBack === b.rollBack &&
+    a.rate === b.rate);
 
 function StatusLine({ context, label, state }: { context: RowContext; label: string; state: string }) {
   return (

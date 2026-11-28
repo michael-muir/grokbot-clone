@@ -113,8 +113,38 @@
 }
 
 .chat-row:hover .row-actions,
-.chat-row:focus-within .row-actions {
+.chat-row:focus-within .row-actions,
+.row-actions[data-open] {
   opacity: 1;
+}
+
+/* The user's reactions, under the bubble; each is a button that removes it. */
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.chat-row[data-side="user"] .reactions {
+  justify-content: flex-end;
+}
+
+.reaction {
+  display: grid;
+  place-items: center;
+  min-width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  padding: 0 var(--space-1-5);
+  border: var(--size-hairline) solid var(--color-line);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  font-size: var(--text-md);
+  cursor: pointer;
+}
+
+.reaction:hover {
+  background: var(--color-surface-hover);
 }
 
 .row-action {
