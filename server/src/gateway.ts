@@ -23,6 +23,7 @@ import {
   type NewBot,
   type ProviderEvent,
   type RunOutcome,
+  type TokenUsage,
   type TranscriptEntry,
 } from "./types.ts";
 
@@ -581,6 +582,10 @@ export class Gateway {
     /** The session this run is on, once the provider says, and the last point it reached. */
     let sessionNow: string | undefined;
     let checkpoint: { sessionId: string; at: string } | undefined;
+    /** This run's usage so far (#21). */
+    let tokens: TokenUsage | undefined;
+    let reportedCost: number | undefined;
+    let sessionCost: number | undefined;
     const textEntries = new Map<string, string>(); // provider blockId -> entry id
     const toolEntries = new Map<string, string>(); // toolUseId -> entry id
 
@@ -590,6 +595,16 @@ export class Gateway {
       switch (ev.type) {
         case "session":
           sessionNow = ev.sessionId;
+          return;
+        case "usage":
+          if (ev.inputTokens !== undefined || ev.outputTokens !== undefined) {
+            tokens = {
+              inputTokens: (tokens?.inputTokens ?? 0) + (ev.inputTokens ?? 0),
+              outputTokens: (tokens?.outputTokens ?? 0) + (ev.outputTokens ?? 0),
+            };
+          }
+          if (ev.costUsd !== undefined) reportedCost = (reportedCost ?? 0) + ev.costUsd;
+          if (ev.sessionCostUsd !== undefined) sessionCost = ev.sessionCostUsd;
           return;
         case "checkpoint": {
           if (!sessionNow) return;
@@ -655,6 +670,7 @@ export class Gateway {
           prompt: text,
           sessionId: resumable,
           ...(resumable && session.sessionAt !== undefined ? { resumeAt: session.sessionAt } : {}),
+          ...(resumable ? costBase(this.store.list(bot.id), resumable, session.sessionAt) : {}),
           cardKinds,
           secrets: () => this.secrets.all(bot.id, this.bots.get(bot.id)?.secretNames ?? []),
           model: bot.model,
@@ -766,12 +782,28 @@ export class Gateway {
         ? {
             ...b,
             state: outcome.status,
-            ...(outcome.costUsd !== undefined ? { costUsd: outcome.costUsd } : {}),
+            ...((reportedCost ?? outcome.costUsd) !== undefined ? { costUsd: reportedCost ?? outcome.costUsd } : {}),
+            ...(tokens ? { usage: tokens } : {}),
+            ...(sessionCost !== undefined ? { sessionCostUsd: sessionCost } : {}),
             ...(checkpoint ? { checkpoint } : {}),
           }
         : b,
     );
   }
+}
+
+/**
+ * The session's reported cost total before a run on it: from the last run that ended on it, or for a fork from the
+ * run at the fork point. Nothing when no run recorded one (the provider then reports no cost for a resumed session).
+ */
+export function costBase(entries: readonly TranscriptEntry[], sessionId: string, at?: string): { costBase?: number } {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const b = entries[i]?.body;
+    if (b?.kind !== "run" || b.sessionCostUsd === undefined || b.checkpoint?.sessionId !== sessionId) continue;
+    if (at !== undefined && b.checkpoint.at !== at) continue;
+    return { costBase: b.sessionCostUsd };
+  }
+  return {};
 }
 
 /** The main conversation's session, as stored on the bot. */

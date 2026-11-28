@@ -25,6 +25,7 @@ import { Onboarding } from "./onboarding/Onboarding.tsx";
 import { GeneralPage } from "./settings/GeneralPage.tsx";
 import { ModelsPage } from "./settings/ModelsPage.tsx";
 import { SettingsDialog, type SettingsPage } from "./settings/SettingsDialog.tsx";
+import { UsagePage } from "./settings/UsagePage.tsx";
 import { Avatar } from "./shell/Avatar.tsx";
 import { ConfirmDialog, DeleteBotDialog } from "./shell/BotMenu.tsx";
 import { BotPanel, PANEL_ID } from "./shell/BotPanel.tsx";
@@ -406,6 +407,8 @@ export function App() {
           )}
           {settingsOpen.page === "general" ? (
             <GeneralPage settings={settings} onChange={(patch) => void changeSettings(patch)} />
+          ) : settingsOpen.page === "usage" ? (
+            <UsagePage bots={bots} />
           ) : (
             <ModelsPage
               bots={bots}

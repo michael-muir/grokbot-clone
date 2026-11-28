@@ -71,6 +71,8 @@ export class FakeProvider implements AgentProvider {
     const earlier = [...history];
     history.push(req.prompt);
     cb.emit({ type: "checkpoint", at: String(history.length) });
+    // Made-up but steady numbers, so usage shows up in tests and on the Usage page.
+    cb.emit({ type: "usage", inputTokens: 100 + req.prompt.length, outputTokens: 20 });
     const turn = ++this.turn;
     const prompt = req.prompt.trim();
     try {

@@ -1,6 +1,6 @@
 // The contract between the renderer and the main process: call names with their argument and result types,
 // stream events, and the checks main runs on everything the renderer sends.
-import type { BotPatch, ProviderTest } from "../../../server/src/client/gateway-client.ts";
+import type { BotPatch, ProviderTest, UsageReport } from "../../../server/src/client/gateway-client.ts";
 import type { StreamState } from "../../../server/src/client/subscribe.ts";
 import {
   type ApprovalDecision,
@@ -65,6 +65,8 @@ export interface Calls {
   answerApproval: { args: [botId: string, entryId: string, decision: ApprovalDecision]; result: undefined };
   answerChoice: { args: [botId: string, entryId: string, answer: string]; result: undefined };
   listProviders: { args: []; result: ProviderSummary[] };
+  /** Token and cost totals for the last 7, 30 or 90 days. */
+  usage: { args: [days: number]; result: UsageReport };
   listModels: { args: [provider: ProviderId]; result: string[] };
   testProvider: { args: [provider: ProviderId, baseUrl?: string]; result: ProviderTest };
   setKey: { args: [provider: ProviderId, key: string]; result: undefined };
@@ -213,6 +215,7 @@ const ARGS: { [K in CallName]: (a: unknown[]) => a is Calls[K]["args"] } = {
   answerChoice: (a): a is [string, string, string] =>
     a.length === 3 && isId(a[0]) && isId(a[1]) && isString(a[2]) && a[2].length <= 1000,
   listProviders: (a): a is [] => a.length === 0,
+  usage: (a): a is [number] => a.length === 1 && (a[0] === 7 || a[0] === 30 || a[0] === 90),
   listModels: (a): a is [ProviderId] => a.length === 1 && isProviderId(a[0]),
   testProvider: (a): a is [ProviderId, string?] =>
     (a.length === 1 || a.length === 2) && isProviderId(a[0]) && optional(isString)(a[1]),

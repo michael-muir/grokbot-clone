@@ -142,6 +142,8 @@ export class ClaudeProvider implements AgentProvider {
     let sessionId = req.sessionId;
     /** Tool calls of the main thread still waiting for their results: no checkpoint while any are open. */
     const openTools = new Set<string>();
+    /** Each API call's own token usage, by message id (a message can arrive in parts, each with the same usage). */
+    const calls = new Map<string, { input: number; output: number }>();
     // After an abort the SDK closes Claude Code gracefully (~2 s) and keeps delivering messages meanwhile, ending
     // with a "success" result. Stop must be immediate: stop reading at once, and let the shutdown finish alone.
     const messages = this.queryFn({ prompt: req.prompt, options })[Symbol.asyncIterator]();
@@ -162,6 +164,7 @@ export class ClaudeProvider implements AgentProvider {
           (id) => (sessionId = id),
           req.workspaceDir,
           openTools,
+          { calls, costBase: req.sessionId ? req.costBase : 0 },
         );
         if (outcome) return { ...outcome, sessionId };
       }
@@ -200,6 +203,7 @@ export class ClaudeProvider implements AgentProvider {
     setSession: (id: string) => void,
     workspaceDir: string,
     openTools: Set<string>,
+    usage: { calls: Map<string, { input: number; output: number }>; costBase: number | undefined },
   ): RunOutcome | undefined {
     switch (msg.type) {
       case "system":
@@ -225,6 +229,14 @@ export class ClaudeProvider implements AgentProvider {
           const said = msg.message.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join(" ");
           apiError.message = `Anthropic: ${said || API_ERRORS[msg.error] || msg.error}`;
           return;
+        }
+        const u = msg.message.usage;
+        if (u) {
+          usage.calls.set(msg.message.id, {
+            // Cache reads and writes are input too.
+            input: (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0),
+            output: u.output_tokens ?? 0,
+          });
         }
         for (const block of msg.message.content) if (block.type === "tool_use") openTools.add(block.id);
         // A fork must not end on a tool call with no result: only a message that leaves none open is a checkpoint.
@@ -258,19 +270,34 @@ export class ClaudeProvider implements AgentProvider {
         if (msg.uuid && openTools.size === 0) cb.emit({ type: "checkpoint", at: msg.uuid });
         return;
       }
-      case "result":
+      case "result": {
+        // total_cost_usd is the session's running total (a resumed or forked session continues from the total its
+        // transcript saved), so this run's share is what it added to the total it started from. Without a known
+        // start, a resumed session reports no cost rather than a wrong one.
+        const total = msg.total_cost_usd;
+        const share = usage.costBase === undefined ? undefined : Math.max(0, total - usage.costBase);
+        const sums = [...usage.calls.values()];
+        cb.emit({
+          type: "usage",
+          inputTokens: sums.reduce((n, c) => n + c.input, 0),
+          outputTokens: sums.reduce((n, c) => n + c.output, 0),
+          ...(share !== undefined ? { costUsd: share } : {}),
+          sessionCostUsd: total,
+        });
+        const costUsd = share !== undefined ? { costUsd: share } : {};
         // The result decides: the SDK may retry after an API error and then succeed.
         if (msg.subtype === "success" && !msg.is_error) {
-          return { status: "finished", costUsd: msg.total_cost_usd };
+          return { status: "finished", ...costUsd };
         }
         return {
           status: "failed",
-          costUsd: msg.total_cost_usd,
+          ...costUsd,
           error:
             apiError.message ||
             (msg.subtype === "success" ? msg.result : msg.errors.join("\n")) ||
             "Claude stopped with an error.",
         };
+      }
       default:
         return;
     }

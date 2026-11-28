@@ -183,6 +183,7 @@
   --size-settings-nav: 197px;
   --size-nav-item: 32px;
   --size-settings-row: 48px;
+  --size-usage-chart: 120px; /* the Usage page's chart by day */
   --size-settings-input: 220px;
   --size-control-md: 32px; /* the Settings close button */
   --size-icon-xs: 12px;

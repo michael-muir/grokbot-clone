@@ -7,6 +7,7 @@
 //   PUT   /providers/:id/key             {key}  -> 204, saved in the OS keychain (never returned)
 //   DELETE /providers/:id/key                   -> 204
 //   POST  /providers/:id/test            {baseUrl?} -> {ok, models} or {ok: false, error}
+//   GET   /usage?days=7|30|90             token and cost totals per day and per bot, with the bots' names
 //   GET   /bots
 //   POST  /bots                          {name, avatar?: {shape, color}}    -> 201 with the bot
 //   PATCH /bots/:id                      {name?, provider?, model?, baseUrl?, pinned?, hidden?, avatar?, main?: true}
@@ -53,6 +54,7 @@ import {
   type PublicBot,
   type TranscriptEntry,
 } from "./types.ts";
+import { summarizeUsage, USAGE_PERIODS } from "./usage.ts";
 
 const MAX_BODY = 1_000_000;
 const HEARTBEAT_MS = 15_000;
@@ -109,6 +111,17 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
   if (method === "GET" && url.pathname === "/health") return send(res, 200, { ok: true });
   if (parts[0] === "providers") return handleProviders(req, res, parts, method, d);
   if (parts[0] === "activity" && parts.length === 1 && method === "GET") return streamActivity(res, d);
+  if (parts[0] === "usage" && parts.length === 1 && method === "GET") {
+    const days = Number(url.searchParams.get("days") ?? 7);
+    if (!(USAGE_PERIODS as readonly number[]).includes(days))
+      return send(res, 400, { error: "days must be 7, 30 or 90" });
+    const bots = d.bots.list();
+    const summary = summarizeUsage(
+      bots.flatMap((b) => d.store.list(b.id)),
+      { days, now: new Date() },
+    );
+    return send(res, 200, { ...summary, botNames: Object.fromEntries(bots.map((b) => [b.id, b.name])) });
+  }
   if (parts[0] !== "bots") return send(res, 404, { error: "Not found" });
   if (parts.length === 1 && method === "GET") return send(res, 200, d.bots.list().map(publicBot));
   if (parts.length === 1 && method === "POST") {

@@ -137,6 +137,8 @@ export class LoopProvider implements AgentProvider {
             current.calls.push({ ...ev.call, id });
           } else if (ev.type === "turn_meta") {
             current.meta = { ...current.meta, ...ev.meta };
+          } else if (ev.type === "done" && ev.usage) {
+            cb.emit({ type: "usage", inputTokens: ev.usage.inputTokens, outputTokens: ev.usage.outputTokens });
           }
         }
         keepPartial();

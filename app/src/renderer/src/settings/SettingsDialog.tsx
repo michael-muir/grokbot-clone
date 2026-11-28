@@ -3,7 +3,7 @@
 import { type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
 import "./settings.css";
 
-export type SettingsPage = "general" | "models";
+export type SettingsPage = "general" | "models" | "usage";
 
 const PAGES: readonly { id: SettingsPage; label: string; icon: ReactNode }[] = [
   {
@@ -29,6 +29,19 @@ const PAGES: readonly { id: SettingsPage; label: string; icon: ReactNode }[] = [
         stroke="currentColor"
         strokeWidth="1.2"
         strokeLinejoin="round"
+      />
+    ),
+  },
+  {
+    id: "usage",
+    label: "Usage",
+    icon: (
+      <path
+        d="M3 13.5V9M6.3 13.5V5M9.7 13.5V7.5M13 13.5V2.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
       />
     ),
   },

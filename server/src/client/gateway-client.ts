@@ -13,6 +13,7 @@ import type {
   PublicBot,
   TranscriptEntry,
 } from "../types.ts";
+import type { UsageSummary } from "../usage.ts";
 import { type ActivityOptions, type SubscribeOptions, subscribeActivity, subscribeTranscript } from "./subscribe.ts";
 
 export interface GatewayClientOptions {
@@ -28,6 +29,9 @@ export type BotPatch = Partial<
     main: true;
   }
 >;
+
+/** GET /usage: the summary, with the name of each bot in it. */
+export type UsageReport = UsageSummary & { botNames: Record<string, string> };
 
 export type ProviderTest = { ok: true; models: string[] } | { ok: false; error: string };
 
@@ -147,6 +151,11 @@ export class GatewayClient {
 
   async answerChoice(botId: string, entryId: string, answer: string): Promise<void> {
     await this.request("POST", `/bots/${enc(botId)}/choices/${enc(entryId)}`, { answer });
+  }
+
+  /** Token and cost totals per day and per bot for the last `days` days (7, 30 or 90). */
+  usage(days: number): Promise<UsageReport> {
+    return this.request("GET", `/usage?days=${days}`);
   }
 
   listProviders(): Promise<ProviderSummary[]> {
