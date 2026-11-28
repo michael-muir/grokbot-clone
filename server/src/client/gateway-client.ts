@@ -1,5 +1,7 @@
 // Typed client for the gateway's HTTP API, with token auth. No Node APIs, so any JavaScript runtime can use it;
 // the desktop app runs it in its main process, which keeps the token out of the renderer.
+
+import type { SearchResult } from "../search.ts";
 import type {
   ApprovalDecision,
   AvatarColor,
@@ -156,6 +158,11 @@ export class GatewayClient {
 
   async answerChoice(botId: string, entryId: string, answer: string): Promise<void> {
     await this.request("POST", `/bots/${enc(botId)}/choices/${enc(entryId)}`, { answer });
+  }
+
+  /** Each bot's latest message, and the messages that contain `q` (#23). */
+  search(q: string): Promise<SearchResult> {
+    return this.request("GET", `/search?q=${enc(q)}`);
   }
 
   /** Token and cost totals per day and per bot for the last `days` days (7, 30 or 90). */

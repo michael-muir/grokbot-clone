@@ -53,6 +53,7 @@ function answer(name: string, args: readonly unknown[]): unknown {
   if (name === "sendMessage") return "review-entry";
   if (name === "rollBack") return "";
   if (name === "react") return [];
+  if (name === "search") return { previews: [], messages: [] };
   if (name === "usage") {
     const zero = { inputTokens: 0, outputTokens: 0, costUsd: 0, runs: 0 };
     return { from: "", to: "", days: [], bots: [], total: zero, costReported: false };
