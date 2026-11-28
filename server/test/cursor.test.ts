@@ -5,7 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 import {
+  type CursorLaunch,
   CursorProvider,
+  chooseModel,
   firstPrompt,
   isolatedEnv,
   outcomeOf,
@@ -203,7 +205,15 @@ function runWith(
   const events: ProviderEvent[] = [];
   const asked: string[] = [];
   const inputs: Record<string, unknown>[] = [];
-  const provider = new CursorProvider({ homeDir: HOME, connect: async () => server, stopGraceMs: 300 });
+  const launches: CursorLaunch[] = [];
+  const provider = new CursorProvider({
+    homeDir: HOME,
+    connect: async (_cwd, _signal, launch) => {
+      launches.push(launch);
+      return server;
+    },
+    stopGraceMs: 300,
+  });
   const controller = new AbortController();
   const callbacks: RunCallbacks = {
     emit: (e) => events.push(e),
@@ -225,17 +235,18 @@ function runWith(
     },
     callbacks,
   );
-  return { server, events, asked, inputs, done, controller };
+  return { server, events, asked, inputs, launches, done, controller };
 }
 
-test("cursor: a new session carries the instructions in its first prompt, and the model is set", async () => {
+test("cursor: a new session carries the instructions in its first prompt; the model comes with the bot's home", async () => {
   const r = runWith(SCRIPTS.reply, { model: "gpt-x[fast=true]" });
   const outcome = await r.done;
   assert.deepEqual(outcome, { status: "finished", sessionId: "s-new" });
-  assert.deepEqual(r.server.requests.find((q) => q.method === "session/set_model")?.params, {
-    sessionId: "s-new",
-    modelId: "gpt-x[fast=true]",
-  });
+  assert.deepEqual(r.launches, [{ home: join(HOME, "bots", "b"), model: "gpt-x[fast=true]" }]);
+  assert.ok(
+    !r.server.requests.some((q) => q.method === "session/set_model"),
+    "never set inside a session: that stops Cursor saving it",
+  );
   const prompt = r.server.requests.find((q) => q.method === "session/prompt")?.params.prompt as Json[];
   assert.match(String(prompt[0]?.text), /^<instructions>\nBe brief\.\n<\/instructions>\n\nhello$/);
   assert.equal(r.server.closed, true);
@@ -628,4 +639,72 @@ test("cursor: on macOS the sign-in is linked, and a refreshed copy is moved back
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("cursor: each bot has its own home, where the chosen model is written for Cursor to start with", () => {
+  const provider = new CursorProvider({ homeDir: HOME });
+  assert.equal(provider.homeFor("starry"), join(HOME, "bots", "starry"));
+  assert.equal(provider.homeFor(undefined), join(HOME, "models"));
+  assert.match(provider.homeFor("../x"), /[\\/]bots[\\/][0-9a-f]{32}$/, "an odd id becomes a plain name");
+
+  const home = mkdtempSync(join(tmpdir(), "cursor-choose-"));
+  try {
+    const file = join(home, ".cursor", "acp-config.json");
+    chooseModel(home, "claude-sonnet-4-5[thinking=true]");
+    assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), {
+      selectedModelVariantId: "claude-sonnet-4-5[thinking=true]",
+    });
+    writeFileSync(file, JSON.stringify({ selectedModelVariantId: "x", other: 1 }));
+    chooseModel(home, undefined);
+    assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), { other: 1 }, "Cursor's default, other settings kept");
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("cursor: a session Cursor can't load goes on in a new one that carries the conversation", async () => {
+  const first = runWith(
+    { prompt: (s, sid) => words(s, sid, ["Red."]) },
+    { prompt: "Pick a color." },
+    undefined,
+    "s-lost",
+  );
+  await first.done;
+  class CantLoad extends ScriptedAcp {
+    override send(line: string): void {
+      const msg = JSON.parse(line) as Json;
+      if (msg.method === "session/load") {
+        this.emit({ jsonrpc: "2.0", id: msg.id, error: { code: -32602, message: "Invalid params" } });
+        return;
+      }
+      super.send(line);
+    }
+  }
+  const server = new CantLoad({ prompt: (s, sid) => words(s, sid, ["Blue."]) }, "s-next");
+  const events: ProviderEvent[] = [];
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const outcome = await new CursorProvider({ homeDir: HOME, connect: async () => server }).run(
+      {
+        botId: "b",
+        botName: "B",
+        prompt: "Another?",
+        workspaceDir: tmpdir(),
+        instructions: "Be brief.",
+        signal: new AbortController().signal,
+        sessionId: "s-lost",
+      },
+      { emit: (e) => events.push(e), requestApproval: async () => ({ allow: true }) },
+    );
+    assert.deepEqual(outcome, { status: "finished", sessionId: "s-next" });
+  } finally {
+    console.warn = warn;
+  }
+  assert.match(promptText(server), /User: Pick a color\.\n\nYou: Red\.\n<\/earlier_conversation>\n\nAnother\?$/);
+  assert.deepEqual(
+    events.filter((e) => e.type === "checkpoint"),
+    [{ type: "checkpoint", at: "4" }],
+    "its log goes on from the lost one",
+  );
 });

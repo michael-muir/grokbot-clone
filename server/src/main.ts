@@ -5,7 +5,9 @@ import { LocalFolderComputers } from "./computer.ts";
 import { Gateway } from "./gateway.ts";
 import { createHttpServer } from "./http.ts";
 import { Credentials, KeychainKeyStore } from "./keys.ts";
+import { ModelLists } from "./model-lists.ts";
 import { defaultProviders } from "./providers/index.ts";
+import { endAllNow } from "./providers/stdio-rpc.ts";
 import { BotSecrets, KeychainSecretStore } from "./secrets.ts";
 import { TranscriptStore } from "./transcript.ts";
 
@@ -16,6 +18,7 @@ const bots = new BotRegistry(dataDir);
 const store = new TranscriptStore(dataDir);
 const credentials = new Credentials(new KeychainKeyStore());
 const providers = defaultProviders(dataDir, credentials);
+const modelLists = new ModelLists(providers);
 const gateway = new Gateway(
   bots,
   store,
@@ -29,6 +32,7 @@ const server = createHttpServer({
   store,
   providers,
   credentials,
+  modelLists,
   token: process.env.GATEWAY_TOKEN || undefined,
   allowedOrigins: (process.env.GATEWAY_ALLOWED_ORIGINS ?? "")
     .split(",")
@@ -45,6 +49,8 @@ if (!credentials.key("claude")) {
 // Localhost only: the agent can run commands on this machine.
 server.listen(port, "127.0.0.1", () => {
   console.log(`SmartyPrompts gateway on http://127.0.0.1:${port} (data: ${dataDir})`);
+  // The CLI providers take seconds to list their models; have the lists ready before the picker opens.
+  modelLists.warm(["codex", "cursor"]);
 });
 
 // Stop cleanly: interrupted runs are recorded as interrupted, and no transcript write is cut off. The desktop app
@@ -59,10 +65,13 @@ function shutdown(reason: string) {
   server.closeAllConnections();
   const forced = setTimeout(() => {
     console.error("Runs didn't stop in time; exiting anyway.");
+    endAllNow();
     process.exit(1);
   }, SHUTDOWN_GRACE_MS);
   void gateway.shutdown().then(() => {
     clearTimeout(forced);
+    // Agent CLIs still closing would outlive the gateway (Windows doesn't end children with their parent).
+    endAllNow();
     process.exit(0);
   });
 }

@@ -8,6 +8,7 @@ import {
   codexArgs,
   enabledMcpNames,
   findExecutable,
+  shownCommand,
 } from "../src/providers/codex.ts";
 import type { ProviderEvent, RunCallbacks, RunRequest } from "../src/types.ts";
 import { type ContractScenario, describeProviderContract } from "./contract/provider-contract.ts";
@@ -433,4 +434,16 @@ test("codex: a forked thread's events that come before Codex's answer aren't dro
   );
   assert.equal(outcome.sessionId, "thread-7-fork");
   assert.ok(events.some((e) => e.type === "text_delta" && e.text === "Early"));
+});
+
+test("codex: a command Codex wraps in PowerShell is shown as the user would type it", () => {
+  const ps = String.raw`"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -Command 'echo hi'`;
+  assert.equal(shownCommand(ps), "echo hi");
+  assert.equal(shownCommand(String.raw`pwsh.exe -NoProfile -Command 'echo ''quoted'''`), "echo 'quoted'");
+  assert.equal(shownCommand("ls -la"), "ls -la", "anything else as it is");
+  const doubled = String.raw`"C:\WINDOWS\powershell.exe" -NoProfile -Command "type C:\Windows\win.ini"`;
+  assert.equal(shownCommand(doubled), String.raw`type C:\Windows\win.ini`);
+  // Not Codex's form: something follows the quoted part, so the whole line shows.
+  const tricky = "powershell -Command 'echo a' ; Remove-Item x ; 'b'";
+  assert.equal(shownCommand(tricky), tricky);
 });

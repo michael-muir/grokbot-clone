@@ -179,8 +179,12 @@ export class GatewayClient {
     return models;
   }
 
-  testProvider(provider: ProviderId, baseUrl?: string): Promise<ProviderTest> {
-    return this.request("POST", `/providers/${enc(provider)}/test`, baseUrl ? { baseUrl } : {});
+  /** Lists the provider's models as a test. `cached` accepts a recent list (the model picker opening). */
+  testProvider(provider: ProviderId, baseUrl?: string, cached?: boolean): Promise<ProviderTest> {
+    return this.request("POST", `/providers/${enc(provider)}/test`, {
+      ...(baseUrl ? { baseUrl } : {}),
+      ...(cached ? { cached: true } : {}),
+    });
   }
 
   async setKey(provider: ProviderId, key: string): Promise<void> {

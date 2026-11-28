@@ -104,7 +104,9 @@ with its last stderr line. That line is trimmed, and keys never appear in it: th
 A bot must not inherit tools that act outside its workspace (ground rules). So every run passes:
 
 - `--disable apps plugins remote_plugin computer_use browser_use browser_use_external in_app_browser hooks
-  image_generation code_mode_host`;
+  image_generation`;
+- **Not `code_mode_host`.** That's Codex's shell host: the bot's command tool. #96 found that turning it off left
+  bots unable to run commands. Its commands still ask first.
 - `-c notify=[]`.
 
 It also switches off each MCP server Codex still lists as enabled. Those come from `codex mcp list --json`, run with

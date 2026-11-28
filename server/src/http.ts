@@ -40,6 +40,7 @@ import {
   type Gateway,
 } from "./gateway.ts";
 import { acceptsKey, type Credentials, KeyStoreUnavailableError, needsKey } from "./keys.ts";
+import { ModelLists } from "./model-lists.ts";
 import type { ProviderRegistry } from "./providers/index.ts";
 import { MAX_QUERY, searchTranscripts } from "./search.ts";
 import type { TranscriptStore } from "./transcript.ts";
@@ -91,9 +92,15 @@ export interface HttpDeps {
   heartbeatMs?: number;
   /** Extra browser origins allowed to call the API (loopback origins always are). */
   allowedOrigins?: string[];
+  /** Recent model lists; one is made from `providers` when not given. */
+  modelLists?: ModelLists;
 }
 
-export function createHttpServer(deps: HttpDeps): Server {
+/** The deps a request sees: the model lists are always there. */
+type Deps = HttpDeps & { modelLists: ModelLists };
+
+export function createHttpServer(given: HttpDeps): Server {
+  const deps: Deps = { ...given, modelLists: given.modelLists ?? new ModelLists(given.providers) };
   return createServer((req, res) => {
     const refused = refuseForeignRequest(req, deps.allowedOrigins ?? []);
     if (refused) return send(res, 403, { error: refused });
@@ -105,7 +112,7 @@ export function createHttpServer(deps: HttpDeps): Server {
   });
 }
 
-async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): Promise<void> {
+async function handle(req: IncomingMessage, res: ServerResponse, d: Deps): Promise<void> {
   if (d.token && !authorized(req, d.token)) return send(res, 401, { error: "Unauthorized" });
   const url = new URL(req.url ?? "/", "http://localhost");
   const parts = url.pathname.split("/").filter(Boolean);
@@ -360,7 +367,7 @@ async function handleProviders(
   res: ServerResponse,
   parts: string[],
   method: string,
-  d: HttpDeps,
+  d: Deps,
 ): Promise<void> {
   if (parts.length === 1 && method === "GET") {
     const list = [...d.providers.values()].map(
@@ -380,6 +387,7 @@ async function handleProviders(
   if (action === "PUT key" || action === "DELETE key") {
     if (!acceptsKey(provider.id)) return send(res, 400, { error: "This provider doesn't use an API key" });
     try {
+      d.modelLists.forget(provider.id);
       if (method === "DELETE") d.credentials.delete(provider.id);
       else {
         const body = await readJson(req);
@@ -398,15 +406,17 @@ async function handleProviders(
   if (action === "GET models" || action === "POST test") {
     if (!provider.listModels) return send(res, 404, { error: "This provider doesn't list its models" });
     let baseUrl: string | undefined;
+    let cached = false; // the picker opening takes a recent list; a test or Refresh asks the provider
     if (method === "POST") {
       const body = await readJson(req);
+      cached = body.cached === true;
       if (typeof body.baseUrl === "string" && body.baseUrl) {
         if (!isHttpUrl(body.baseUrl)) return send(res, 400, { error: "baseUrl must be an http(s) URL" });
         baseUrl = body.baseUrl;
       }
     }
     try {
-      const models = await provider.listModels(AbortSignal.timeout(15_000), baseUrl);
+      const models = await d.modelLists.get(provider.id, { ...(baseUrl ? { baseUrl } : {}), cached });
       return send(res, 200, method === "POST" ? { ok: true, models } : { models });
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
