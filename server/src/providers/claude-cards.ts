@@ -5,6 +5,7 @@
 // Claude Code's own Bash never gets secrets: its output goes to the model before the app could redact it.
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
+import { defaultShell } from "../agent/shell.ts";
 import { shellTool } from "../agent/tools.ts";
 import {
   CardRequestError,
@@ -82,6 +83,49 @@ export function runCommand(
   };
 }
 
+/** Every string in a tool's output (any shape) with the secrets cut out; the same object when nothing changed. */
+export function redactDeep(value: unknown, secrets: Readonly<Record<string, string>>): unknown {
+  if (typeof value === "string") return redact(value, secrets);
+  if (Array.isArray(value)) {
+    const out = value.map((v) => redactDeep(v, secrets));
+    return out.some((v, i) => v !== value[i]) ? out : value;
+  }
+  if (value && typeof value === "object") {
+    let changed = false;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = redactDeep(v, secrets);
+      if (out[k] !== v) changed = true;
+    }
+    return changed ? out : value;
+  }
+  return value;
+}
+
+/**
+ * A PostToolUse hook for Claude Code: every tool's output (Read, Grep, Bash, ours) has the bot's secrets cut out
+ * before the model sees it. It never fails open: output it can't check is replaced.
+ */
+export function redactingHook(secrets: () => Readonly<Record<string, string>>) {
+  return async (input: { hook_event_name: string; tool_response?: unknown }) => {
+    if (input.hook_event_name !== "PostToolUse") return {};
+    try {
+      const values = secrets();
+      if (Object.keys(values).length === 0) return {};
+      const cleaned = redactDeep(input.tool_response, values);
+      if (cleaned === input.tool_response) return {};
+      return { hookSpecificOutput: { hookEventName: "PostToolUse" as const, updatedToolOutput: cleaned } };
+    } catch {
+      return {
+        hookSpecificOutput: {
+          hookEventName: "PostToolUse" as const,
+          updatedToolOutput: "[output hidden: it couldn't be checked for secrets]",
+        },
+      };
+    }
+  };
+}
+
 const field = z.object({
   name: z.string(),
   label: z.string(),
@@ -137,12 +181,14 @@ export function appTools({ kinds, ask, signal, workspaceDir, secrets }: AppTools
     );
   }
   if (runs) {
+    const shell = defaultShell();
+    const example = shell.name === "PowerShell" ? "$env:GITHUB_TOKEN" : "$GITHUB_TOKEN";
     tools.push(
       tool(
         "run_command",
-        "Run a shell command in your workspace with the user's saved secrets as environment variables (like " +
-          "$GITHUB_TOKEN). Use it, not Bash, for any command that needs a secret. Output that contains a secret's " +
-          "value shows [secret NAME]. The user approves each command.",
+        `Run a ${shell.name} command in your workspace with the user's saved secrets as environment variables ` +
+          `(write them as ${example}). Use it, not Bash, for any command that needs a secret, and never write a ` +
+          "secret to a file. Output that contains a secret's value shows [secret NAME]. The user approves each command.",
         { command: z.string(), timeout_seconds: z.number().int().min(1).max(600).optional() },
         runCommand(workspaceDir, secrets, signal),
       ),

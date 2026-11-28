@@ -132,6 +132,13 @@ function Secret({
     onSend({ kind: "secret", value });
   };
 
+  // Whatever was typed goes too: a declined secret mustn't stay in the page.
+  const decline = () => {
+    if (field.current) field.current.value = "";
+    setFilled(false);
+    onSend({ kind: "secret", declined: true });
+  };
+
   return (
     <form className="card-form" onSubmit={save}>
       <p className="card-prompt">{card.label}</p>
@@ -154,7 +161,7 @@ function Secret({
       </div>
       {!disabled && (
         <div className="card-actions">
-          <button type="button" className="button secondary" onClick={() => onSend({ kind: "secret", declined: true })}>
+          <button type="button" className="button secondary" onClick={decline}>
             Don't share
           </button>
           <button type="submit" className="button primary" disabled={!filled}>

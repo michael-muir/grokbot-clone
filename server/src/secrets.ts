@@ -27,14 +27,42 @@ const RESERVED = new Set([
   "GATEWAY_URL",
   "DATA_DIR",
   "NODE_OPTIONS",
+  "NODE_PATH",
+  // Read by shells and loaders before a command runs: a secret here would run code nobody approved.
+  "BASH_ENV",
+  "ENV",
+  "ZDOTDIR",
+  "PROMPT_COMMAND",
+  "IFS",
+  "PS4",
+  "SHELLOPTS",
+  "BASHOPTS",
+  "PSMODULEPATH",
+  "PYTHONSTARTUP",
+  "PYTHONPATH",
+  "PERL5OPT",
+  "RUBYOPT",
+  // Windows' own.
+  "SYSTEMDRIVE",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "PROGRAMDATA",
+  "PROGRAMFILES",
+  "PROGRAMFILES(X86)",
+  "PUBLIC",
 ]);
+
+/** Prefixes of loader variables (LD_PRELOAD, DYLD_INSERT_LIBRARIES…) and the app's own. */
+const RESERVED_PREFIXES = ["LD_", "DYLD_", "CLAUDE"];
 
 /** Why a name can't be used, or undefined when it can. */
 export function secretNameProblem(name: unknown): string | undefined {
   if (typeof name !== "string" || !SECRET_NAME.test(name)) {
     return "A secret's name must be 2 to 64 upper-case letters, digits or _, starting with a letter, like GITHUB_TOKEN.";
   }
-  if (RESERVED.has(name) || name.startsWith("CLAUDE")) return `${name} is reserved; pick another name.`;
+  if (RESERVED.has(name) || RESERVED_PREFIXES.some((p) => name.startsWith(p))) {
+    return `${name} is reserved; pick another name.`;
+  }
   return undefined;
 }
 

@@ -119,9 +119,20 @@ export class FakeProvider implements AgentProvider {
         const secrets = req.secrets?.() ?? {};
         const r = await runShell(
           command,
-          { cwd: req.workspaceDir, signal: req.signal, timeoutMs: 20_000, maxOutput: 2_000, env: secrets },
+          {
+            cwd: req.workspaceDir,
+            signal: req.signal,
+            timeoutMs: 20_000,
+            maxOutput: 2_000,
+            env: secrets,
+            redact: (text) => redact(text, secrets),
+          },
           shell,
         );
+        if (r.aborted || req.signal.aborted) {
+          cb.emit({ type: "tool_end", toolUseId, ok: false });
+          return { status: "interrupted", sessionId };
+        }
         cb.emit({ type: "tool_end", toolUseId, ok: r.exitCode === 0 });
         cb.emit({
           type: "text",

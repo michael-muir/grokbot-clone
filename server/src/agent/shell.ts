@@ -12,6 +12,11 @@ export interface ShellOptions {
   maxOutput: number;
   /** Extra environment variables (the bot's secrets), over the gateway's own minus its secrets. */
   env?: Readonly<Record<string, string>>;
+  /**
+   * Cleans the output (cuts out the bot's secrets) before any of it is dropped, so no value can be split by a cut and
+   * survive in halves.
+   */
+  redact?: (text: string) => string;
 }
 
 export interface ShellResult {
@@ -68,10 +73,12 @@ export function runShell(script: string, opts: ShellOptions, shell: ShellInfo = 
     });
 
     let output = "";
-    // Hold at most twice the cap while running; truncateMiddle trims at the end.
+    const clean = opts.redact ?? ((text: string) => text);
+    // Hold at most twice the cap while running; truncateMiddle trims at the end. Cleaned first: a value still being
+    // written sits at the very end, which a trim keeps, so only whole values are ever cut away.
     const collect = (chunk: string) => {
       output += chunk;
-      if (output.length > opts.maxOutput * 2) output = truncateMiddle(output, opts.maxOutput * 2);
+      if (output.length > opts.maxOutput * 2) output = truncateMiddle(clean(output), opts.maxOutput * 2);
     };
     // Decode as a stream, so a character split across two chunks isn't garbled.
     child.stdout?.setEncoding("utf8");
@@ -93,7 +100,7 @@ export function runShell(script: string, opts: ShellOptions, shell: ShellInfo = 
       // A background process may still hold the pipes; stop listening to them.
       child.stdout?.destroy();
       child.stderr?.destroy();
-      resolve({ exitCode: code, output: truncateMiddle(output + extra, opts.maxOutput), timedOut, aborted });
+      resolve({ exitCode: code, output: truncateMiddle(clean(output + extra), opts.maxOutput), timedOut, aborted });
     };
 
     // Kills the shell and everything it started. Runs even after the shell itself has exited, because a

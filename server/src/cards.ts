@@ -47,7 +47,7 @@ export function parseCardRequest(input: unknown, kinds: readonly CardKind[]): Ca
   if (!isRecord(input)) throw new CardRequestError("The card must be an object.");
   const kind = input.kind;
   if (kind !== "widget" && kind !== "form" && kind !== "secret") {
-    throw new CardRequestError('"kind" must be "widget" or "form".');
+    throw new CardRequestError('"kind" must be "widget", "form" or "secret".');
   }
   if (!kinds.includes(kind)) {
     throw new CardRequestError(
@@ -182,7 +182,6 @@ const FORM_HELP =
   'kind "form": a short form (title, fields: each {name, label, type: text | textarea | select | checkbox, options ' +
   "for select, required?, placeholder?}, submit_label?)";
 
-/** The tool's description, naming only the kinds this user's app can show. */
 export const REQUEST_SECRET_DESCRIPTION =
   "Ask the user for a password, API key or other secret, on a card where they type it privately. name: the " +
   "environment variable it will be saved as (upper case, like GITHUB_TOKEN); label: what it is; reason: why you need " +
@@ -202,6 +201,7 @@ export const REQUEST_SECRET_SCHEMA = {
 /** The kinds show_card handles (secrets have their own tool). */
 export const showCardKinds = (kinds: readonly CardKind[]) => kinds.filter((k) => k === "widget" || k === "form");
 
+/** The tool's description, naming only the kinds this user's app can show. */
 export function showCardDescription(kinds: readonly CardKind[]): string {
   const help = [kinds.includes("widget") ? WIDGET_HELP : "", kinds.includes("form") ? FORM_HELP : ""].filter(Boolean);
   return (

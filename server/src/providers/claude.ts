@@ -18,7 +18,14 @@ import { childEnv } from "../child-env.ts";
 import { labelPath } from "../display-path.ts";
 import { NotConfiguredError } from "../errors.ts";
 import type { AgentProvider, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
-import { appTools, CARD_SERVER, REQUEST_SECRET_TOOL, RUN_COMMAND_TOOL, SHOW_CARD_TOOL } from "./claude-cards.ts";
+import {
+  appTools,
+  CARD_SERVER,
+  REQUEST_SECRET_TOOL,
+  RUN_COMMAND_TOOL,
+  redactingHook,
+  SHOW_CARD_TOOL,
+} from "./claude-cards.ts";
 import { ASK_USER_QUESTION, answerQuestions } from "./claude-questions.ts";
 
 export const DEFAULT_CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
@@ -108,6 +115,9 @@ export class ClaudeProvider implements AgentProvider {
       ...(app ? { mcpServers: { [CARD_SERVER]: app.server } } : {}),
       allowedTools: [...READ_ONLY_TOOLS, ...(app?.allowed ?? [])],
       includePartialMessages: true,
+      // Claude Code's own tools (Read, Grep, Bash…) send their output to the model directly: this hook cuts the bot's
+      // secrets out of it first, wherever they turn up.
+      hooks: { PostToolUse: [{ hooks: [redactingHook(req.secrets ?? (() => ({})))] }] },
       abortController,
       // The key is read now, so a key saved in Settings works without a restart. Never logged.
       // Claude Code needs its own key, and no other secret of the gateway's.

@@ -27,6 +27,11 @@ export class Waiters<T> {
     });
   }
 
+  /** Whether a card is still waiting for its answer. */
+  has(entryId: string): boolean {
+    return this.pending.has(entryId);
+  }
+
   /** Returns false when there's no pending card with that id. */
   answer(entryId: string, value: T): boolean {
     const settle = this.pending.get(entryId);

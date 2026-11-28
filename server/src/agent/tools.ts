@@ -13,6 +13,7 @@ import {
   showCardSchema,
 } from "../cards.ts";
 import { labelPath } from "../display-path.ts";
+import { redact } from "../secrets.ts";
 import { CARD_KINDS, type CardAnswer, type CardKind, type CardRequest, type ChoiceRequest } from "../types.ts";
 import type { ToolSpec } from "./model.ts";
 import { defaultShell, runShell, type ShellInfo } from "./shell.ts";
@@ -342,7 +343,14 @@ export function shellTool(shell: ShellInfo = defaultShell()): Tool {
       const timeoutMs = Math.min(seconds ? seconds * 1000 : SHELL_TIMEOUT_MS, 600_000);
       const r = await runShell(
         command,
-        { cwd: ctx.workspaceDir, signal: ctx.signal, timeoutMs, maxOutput: SHELL_MAX_OUTPUT, env: ctx.secrets?.() },
+        {
+          cwd: ctx.workspaceDir,
+          signal: ctx.signal,
+          timeoutMs,
+          maxOutput: SHELL_MAX_OUTPUT,
+          env: ctx.secrets?.(),
+          redact: (text) => redact(text, ctx.secrets?.() ?? {}),
+        },
         shell,
       );
       if (r.aborted) return { ok: false, output: "The command was stopped." };

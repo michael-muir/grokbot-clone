@@ -9,7 +9,7 @@ import { test } from "node:test";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import { LoopProvider } from "../src/agent/loop.ts";
 import { SessionStore } from "../src/agent/sessions.ts";
-import { defaultShell } from "../src/agent/shell.ts";
+import { defaultShell, runShell } from "../src/agent/shell.ts";
 import { BotRegistry } from "../src/bots.ts";
 import { CardRequestError, parseCardRequest } from "../src/cards.ts";
 import { LocalFolderComputers } from "../src/computer.ts";
@@ -17,7 +17,13 @@ import { Gateway } from "../src/gateway.ts";
 import { createHttpServer } from "../src/http.ts";
 import { Credentials, MemoryKeyStore } from "../src/keys.ts";
 import { ClaudeProvider, type QueryFn } from "../src/providers/claude.ts";
-import { appTools, REQUEST_SECRET_TOOL, RUN_COMMAND_TOOL, runCommand } from "../src/providers/claude-cards.ts";
+import {
+  appTools,
+  REQUEST_SECRET_TOOL,
+  RUN_COMMAND_TOOL,
+  redactingHook,
+  runCommand,
+} from "../src/providers/claude-cards.ts";
 import { FakeProvider } from "../src/providers/fake.ts";
 import type { ProviderRegistry } from "../src/providers/index.ts";
 import { BotSecrets, MemorySecretStore, redact, secretNameProblem } from "../src/secrets.ts";
@@ -95,7 +101,16 @@ test("secret rules: names are upper-case variables, and reserved ones are refuse
   assert.equal(secretNameProblem("GITHUB_TOKEN"), undefined);
   for (const bad of ["github_token", "1TOKEN", "A", "TOKEN-1", "X".repeat(65), 5])
     assert.ok(secretNameProblem(bad), String(bad));
-  for (const reserved of ["PATH", "HOME", "GATEWAY_TOKEN", "CLAUDE_CODE_X"])
+  for (const reserved of [
+    "PATH",
+    "HOME",
+    "GATEWAY_TOKEN",
+    "CLAUDE_CODE_X",
+    "BASH_ENV",
+    "LD_PRELOAD",
+    "DYLD_X",
+    "APPDATA",
+  ])
     assert.match(secretNameProblem(reserved) ?? "", /reserved/);
   assert.deepEqual(parseCardRequest({ kind: "secret", name: "API_KEY", label: "API key", reason: null }, ["secret"]), {
     kind: "secret",
@@ -312,4 +327,89 @@ test("claude: request_secret and run_command come with secret cards; run_command
   assert.ok(seen[0]?.mcpServers?.smarty);
   assert.ok(!JSON.stringify(seen[0]?.env ?? {}).includes(VALUE), "Claude Code's environment has no secret");
   assert.ok(!seen[0]?.allowedTools?.includes(RUN_COMMAND_TOOL));
+});
+
+test("secrets: a value straddling the cut in long output is redacted whole, never left in halves", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "smarty-cut-"));
+  try {
+    // The head keeps 120 characters: 'a' x 110 puts the value across that line. 300 trailing characters reach only
+    // the final trim; 1000 also the trim while collecting.
+    for (const tail of [300, 1000]) {
+      const script = `node -e "process.stdout.write('a'.repeat(110) + process.env.S + 'b'.repeat(${tail}))"`;
+      const secrets = { S: VALUE };
+      const r = await runShell(script, {
+        cwd: dir,
+        signal: new AbortController().signal,
+        timeoutMs: 20_000,
+        maxOutput: 300,
+        env: secrets,
+        redact: (text) => redact(text, secrets),
+      });
+      assert.ok(r.output.startsWith("a".repeat(110)), r.output.slice(0, 130));
+      assert.ok(
+        !r.output.includes(VALUE.slice(0, 6)),
+        `part of the value survived (${tail}): ${r.output.slice(100, 140)}`,
+      );
+      assert.match(r.output, /\[secret S\]/);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("claude: a PostToolUse hook cuts secrets out of every tool's output, and hides what it can't check", async () => {
+  const hook = redactingHook(() => ({ MY_TOKEN: VALUE }));
+  const response = { file: { path: "t.txt", content: `token=${VALUE}.` }, lines: [`x ${VALUE}`], n: 3 };
+  assert.deepEqual(await hook({ hook_event_name: "PostToolUse", tool_response: response }), {
+    hookSpecificOutput: {
+      hookEventName: "PostToolUse",
+      updatedToolOutput: {
+        file: { path: "t.txt", content: "token=[secret MY_TOKEN]." },
+        lines: ["x [secret MY_TOKEN]"],
+        n: 3,
+      },
+    },
+  });
+  assert.deepEqual(await hook({ hook_event_name: "PostToolUse", tool_response: { ok: "clean" } }), {}, "unchanged");
+  const broken = redactingHook(() => {
+    throw new Error("keychain gone");
+  });
+  const hidden = await broken({ hook_event_name: "PostToolUse", tool_response: VALUE });
+  assert.match(JSON.stringify(hidden), /couldn't be checked/);
+  assert.ok(!JSON.stringify(hidden).includes(VALUE));
+
+  const seen: Options[] = [];
+  const query: QueryFn = async function* ({ options }) {
+    seen.push(options);
+    yield { type: "system", subtype: "init", session_id: "s" } as never;
+    yield { type: "result", subtype: "success", total_cost_usd: 0 } as never;
+  };
+  await new ClaudeProvider(query, () => "k").run(
+    {
+      botId: "b",
+      botName: "B",
+      prompt: "hi",
+      workspaceDir: ".",
+      instructions: "",
+      signal: new AbortController().signal,
+    },
+    { emit: () => {}, requestApproval: async () => ({ allow: true }) },
+  );
+  assert.equal(seen[0]?.hooks?.PostToolUse?.length, 1, "the hook is on every Claude run");
+});
+
+test("secrets: an answer for a card nobody waits on saves nothing", () => {
+  const t = setup();
+  try {
+    const card = t.store.append("nova", {
+      kind: "card",
+      card: { kind: "secret", name: "LATE_TOKEN", label: "Late" },
+      state: "pending",
+    });
+    assert.equal(t.gateway.answerCard("nova", card.id, { kind: "secret", value: VALUE }).result, "not-pending");
+    assert.equal(t.keychain.values.size, 0);
+    assert.equal(t.bots.get("nova")?.secretNames, undefined);
+  } finally {
+    t.cleanup();
+  }
 });

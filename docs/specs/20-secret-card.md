@@ -166,9 +166,34 @@ keychain:
 
 ## Risks and open questions
 
-- **A deliberate leak through Claude's own tools.** Claude could still get the value through its own tools, by
+- **(Closed in review, see below.) A deliberate leak through Claude's own tools.** Claude could still get the value through its own tools, by
   having `run_command` write it to a file and then reading that file with its Read tool. That command needs the
   user's approval and the card shows it. The fix belongs with the bot's container (Phase 4), where its files can
   be kept apart.
 - **Values held in memory.** The gateway holds them while a command runs and they pass through IPC. They're never
   written anywhere but the keychain.
+
+**Code review:** it found ten issues, all fixed except one already covered. Each fix has a test, except the
+Windows syntax note and the decline field, which are UI or wording.
+
+- **Redact before cutting:** output is now redacted inside `runShell`, before any trimming (while collecting and at
+  the end). A value straddling the cut used to leave its first half visible. Tested for both trims, and the test
+  fails without the fix.
+- **Claude's own tools:** the risk above is now closed. A `PostToolUse` hook (`redactingHook`) on every Claude run
+  replaces the output of every tool, including Read, Grep and Bash, with a copy cleared of the bot's secrets, using
+  the SDK's `updatedToolOutput`.
+  - It never fails open: output it can't check becomes "[output hidden: it couldn't be checked for secrets]".
+  - Claude Code's environment still holds no secrets, and `run_command` stays the way to use them.
+- **Shell syntax:** `run_command`'s description names its shell and how to write a variable (`$env:NAME` on
+  PowerShell).
+- **Stopped runs:** a secret is saved only while its card is still waiting (`Waiters.has`). From that check to the
+  answer, nothing awaits, so a stopped run can't leave a saved secret behind.
+- **Declining:** "Don't share" clears the field too.
+- **More reserved names:** shell and loader variables (`BASH_ENV`, `ENV`, `LD_*`, `DYLD_*`, `PYTHONPATH`…) and
+  Windows' own (`APPDATA`, `SYSTEMDRIVE`…).
+- **Smaller fixes:**
+  - The error for an unknown kind names all three kinds.
+  - A misplaced comment moved back.
+  - The fake's `/secret-echo` stops promptly.
+- **Double send (already covered):** the field is disabled while a send is in flight, so `save` returns before
+  clearing anything.

@@ -539,6 +539,9 @@ export class Gateway {
         ? { result: "ok" }
         : { result: "not-pending" };
     }
+    // The run may have stopped while this answer was on its way: nothing is saved for a card nobody waits on. From
+    // here to the answer below nothing awaits, so the run can't stop in between.
+    if (!this.cards.has(entryId)) return { result: "not-pending" };
     const value = a.value;
     if (typeof value !== "string" || value.length === 0 || value.length > MAX_SECRET_LENGTH) {
       return {
