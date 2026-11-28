@@ -84,15 +84,27 @@ export class GatewayClient {
 
   /**
    * Sends a message and returns the id of the user entry it became. `clientNonce` comes back on that entry, so a
-   * pending local copy can be matched to it (the id covers gateways that don't echo nonces).
+   * pending local copy can be matched to it (the id covers gateways that don't echo nonces). With `threadId` (a
+   * main-chat message's id) it goes in that message's thread.
    */
-  async sendMessage(botId: string, text: string, clientNonce?: string): Promise<string> {
-    const res = await this.request<{ entryId?: unknown }>(
-      "POST",
-      `/bots/${enc(botId)}/messages`,
-      clientNonce ? { text, clientNonce } : { text },
-    );
+  async sendMessage(botId: string, text: string, clientNonce?: string, threadId?: string): Promise<string> {
+    const res = await this.request<{ entryId?: unknown }>("POST", `/bots/${enc(botId)}/messages`, {
+      text,
+      ...(clientNonce ? { clientNonce } : {}),
+      ...(threadId ? { threadId } : {}),
+    });
     return typeof res?.entryId === "string" ? res.entryId : "";
+  }
+
+  /** Starts the bot's conversation over. The old one stays in the transcript. Refused (409) while it's working. */
+  async startFresh(botId: string): Promise<void> {
+    await this.request("POST", `/bots/${enc(botId)}/fresh`, {});
+  }
+
+  /** Rolls the conversation back to before one of the user's messages. Returns that message's text. */
+  async rollBack(botId: string, entryId: string): Promise<string> {
+    const res = await this.request<{ text?: unknown }>("POST", `/bots/${enc(botId)}/rollback`, { entryId });
+    return typeof res?.text === "string" ? res.text : "";
   }
 
   async interrupt(botId: string): Promise<void> {

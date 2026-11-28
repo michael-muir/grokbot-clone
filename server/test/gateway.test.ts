@@ -214,7 +214,7 @@ test("a failed run records an error entry", async () => {
     // Entries are in conversation order: the run row was created first, the error after.
     assert.deepEqual(bodies(t.store.list("nova")), [
       { kind: "user_message", text: "/fail" },
-      { kind: "run", provider: "fake", state: "failed" },
+      { kind: "run", provider: "fake", state: "failed", checkpoint: { sessionId: "fake-session-nova", at: "1" } },
       { kind: "error", message: "Scripted failure." },
     ]);
   } finally {

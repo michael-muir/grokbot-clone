@@ -36,6 +36,19 @@ test("wrong argument types or counts are refused", () => {
   });
   refused("sendMessage", ["nova", "hi", ""]);
   refused("sendMessage", ["nova", "hi", "x".repeat(101)]);
+  assert.deepEqual(checkCall("sendMessage", ["nova", "hi", "n-1", "root-1"]), {
+    name: "sendMessage",
+    args: ["nova", "hi", "n-1", "root-1"],
+  });
+  refused("sendMessage", ["nova", "hi", "n-1", ""]);
+  refused("sendMessage", ["nova", "hi", "n-1", 7]);
+  refused("sendMessage", ["nova", "hi", "n-1", "root-1", "extra"]);
+  assert.deepEqual(checkCall("startFresh", ["nova"]), { name: "startFresh", args: ["nova"] });
+  refused("startFresh", []);
+  refused("startFresh", ["nova", "extra"]);
+  assert.deepEqual(checkCall("rollBack", ["nova", "e-1"]), { name: "rollBack", args: ["nova", "e-1"] });
+  refused("rollBack", ["nova"]);
+  refused("rollBack", ["nova", ""]);
   assert.deepEqual(checkCall("answerChoice", ["nova", "card-1", "red"]), {
     name: "answerChoice",
     args: ["nova", "card-1", "red"],

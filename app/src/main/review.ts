@@ -51,6 +51,7 @@ function answer(name: string, args: readonly unknown[]): unknown {
     return { ...bot, ...patch };
   }
   if (name === "sendMessage") return "review-entry";
+  if (name === "rollBack") return "";
   if (name === "createBot") {
     const [input] = args as [{ name: string; avatar?: { shape: string; color: string } }];
     return { id: "review-new", provider: "fake", avatar: { shape: "circle", color: "green" }, ...input };

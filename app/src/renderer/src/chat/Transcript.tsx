@@ -35,19 +35,29 @@ export function Transcript({
   entries,
   pending = NO_PENDING,
   context,
+  thread,
+  replies,
   label,
 }: {
+  /** The entries of this view (see rows.ts conversation()). */
   entries: readonly TranscriptEntry[];
   /** Sent messages the gateway hasn't confirmed yet, shown at the end. */
   pending?: readonly PendingMessage[];
   context: RowContext;
+  /** The open thread's root id; the main chat when undefined. */
+  thread?: string;
+  /** Messages per thread, by root id, for the main chat's "N replies" buttons. */
+  replies?: ReadonlyMap<string, number>;
   /** Accessible name of the log, e.g. "Conversation with Nova". */
   label: string;
 }) {
   const today = useToday();
   // Rebuilt when entries change (a new array per change), and at midnight so "Today" becomes "Yesterday".
   // biome-ignore lint/correctness/useExhaustiveDependencies: today is a trigger; buildRows reads the clock itself.
-  const rows = useMemo(() => buildRows(entries, new Date(), undefined, pending), [entries, pending, today]);
+  const rows = useMemo(
+    () => buildRows(entries, new Date(), undefined, pending, { thread, replies }),
+    [entries, pending, thread, replies, today],
+  );
   const scroller = useRef<HTMLDivElement>(null);
   const following = useRef(true);
   const lastSent = useRef<string>(undefined);

@@ -5,6 +5,7 @@
 //   stream_event deltas  -> text_delta   (live typing)
 //   assistant blocks     -> text / tool_start
 //   user tool_result     -> tool_end
+//   assistant/user uuid  -> checkpoint   (resumeAt forks the session there)
 //   result               -> RunOutcome (cost, success or error)
 //   canUseTool           -> approval card in the transcript
 //   AskUserQuestion      -> choice cards (claude-questions.ts)
@@ -85,6 +86,9 @@ export class ClaudeProvider implements AgentProvider {
       cwd: req.workspaceDir,
       model: req.model || DEFAULT_CLAUDE_MODEL,
       resume: req.sessionId,
+      // From a checkpoint: a new session holding the old one up to there (the SDK's truncating fork). The checkpoint
+      // is the last entry of the turn being kept, which is where the SDK asks forks to be made.
+      ...(req.sessionId && req.resumeAt ? { resumeSessionAt: req.resumeAt, forkSession: true } : {}),
       systemPrompt: { type: "preset", preset: "claude_code", append: req.instructions },
       // Don't inherit the host user's own Claude Code settings, hooks or CLAUDE.md.
       settingSources: [],
@@ -188,6 +192,7 @@ export class ClaudeProvider implements AgentProvider {
           apiError.message = `Anthropic: ${said || API_ERRORS[msg.error] || msg.error}`;
           return;
         }
+        cb.emit({ type: "checkpoint", at: msg.uuid });
         for (const block of msg.message.content) {
           if (block.type === "text") {
             cb.emit({ type: "text", blockId: text.claimFinal(msg.message.id), text: block.text });
@@ -205,6 +210,8 @@ export class ClaudeProvider implements AgentProvider {
       }
       case "user": {
         if (msg.parent_tool_use_id) return;
+        // Tool results are part of the turn: a fork that dropped them would leave their tool calls unanswered.
+        if (msg.uuid) cb.emit({ type: "checkpoint", at: msg.uuid });
         const content = msg.message.content;
         if (!Array.isArray(content)) return;
         for (const block of content) {

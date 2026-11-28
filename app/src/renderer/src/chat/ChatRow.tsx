@@ -1,4 +1,5 @@
-// One display row of the chat: a bubble, status line, card, notice or error, or a time separator.
+// One display row of the chat: a bubble, status line, card, notice or error, or a time separator. Messages have a
+// hover bar (reference/screens/36-msg-hover.png): reply in a thread, roll back.
 // Memoized: rows are rebuilt on every change, but an unchanged entry keeps its reference, so sameRow() lets
 // only the rows that changed re-render.
 import { memo } from "react";
@@ -7,7 +8,7 @@ import { Avatar } from "../shell/Avatar.tsx";
 import { ApprovalCard } from "./ApprovalCard.tsx";
 import { ChoiceCard } from "./ChoiceCard.tsx";
 import { Markdown } from "./Markdown.tsx";
-import type { Row } from "./rows.ts";
+import type { Row, RowActions } from "./rows.ts";
 
 export interface RowContext {
   botId: string;
@@ -15,6 +16,10 @@ export interface RowContext {
   botAvatar: { shape: string; color: string };
   answerApproval(entry: TranscriptEntry, allow: boolean, reason?: string): Promise<unknown>;
   answerChoice(entry: TranscriptEntry, answer: string): Promise<unknown>;
+  /** Opens the thread started from this message (an empty one if it has none yet). */
+  openThread(entry: TranscriptEntry): void;
+  /** Asks to roll the conversation back to before this message of the user's. */
+  rollBack(entry: TranscriptEntry): void;
 }
 
 function ChatRowView({ row, context }: { row: Row; context: RowContext }) {
@@ -39,7 +44,13 @@ function ChatRowView({ row, context }: { row: Row; context: RowContext }) {
     <div className="chat-row" data-side={row.side} data-gap={row.gap}>
       <div className="row-content" data-pending={row.pending || undefined}>
         {content(row.entry, row.group, context)}
+        {row.replies !== undefined && (
+          <button type="button" className="thread-replies" onClick={() => context.openThread(entry)}>
+            {row.replies === 1 ? "1 reply" : `${row.replies} replies`}
+          </button>
+        )}
       </div>
+      {row.actions && <MessageActions actions={row.actions} entry={entry} context={context} />}
       {row.side !== "center" && (
         <time className="row-time" dateTime={time}>
           {row.time}
@@ -85,6 +96,51 @@ function content(entry: TranscriptEntry, group: string, context: RowContext) {
   }
 }
 
+/** The hover bar: shown on hover, and while one of its buttons has keyboard focus. */
+function MessageActions({
+  actions,
+  entry,
+  context,
+}: {
+  actions: RowActions;
+  entry: TranscriptEntry;
+  context: RowContext;
+}) {
+  return (
+    <div className="row-actions">
+      {actions.thread && (
+        <button
+          type="button"
+          className="row-action"
+          aria-label="Reply in a thread"
+          title="Reply in a thread"
+          onClick={() => context.openThread(entry)}
+        >
+          <svg className="icon" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M6.5 4L3 7.5 6.5 11M3 7.5h6.5a3.5 3.5 0 013.5 3.5v1" />
+          </svg>
+        </button>
+      )}
+      {actions.rollBack && (
+        <button
+          type="button"
+          className="row-action"
+          aria-label="Roll back to here"
+          title="Roll back to here"
+          onClick={() => context.rollBack(entry)}
+        >
+          <svg className="icon" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M3 8a5 5 0 105-5H5.5M7.5 1L5.5 3l2 2M8 5.5V8l1.75 1.75" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
+}
+
+const sameActions = (a: RowActions | undefined, b: RowActions | undefined) =>
+  a === b || (a !== undefined && b !== undefined && a.thread === b.thread && a.rollBack === b.rollBack);
+
 function StatusLine({ context, label, state }: { context: RowContext; label: string; state: string }) {
   return (
     <div className="status-line" data-state={state}>
@@ -112,7 +168,13 @@ function sameRow(a: { row: Row; context: RowContext }, b: { row: Row; context: R
   if (x.type === "thinking" && y.type === "thinking") return true;
   if (x.type === "entry" && y.type === "entry") {
     return (
-      x.entry === y.entry && x.group === y.group && x.time === y.time && x.side === y.side && x.pending === y.pending
+      x.entry === y.entry &&
+      x.group === y.group &&
+      x.time === y.time &&
+      x.side === y.side &&
+      x.pending === y.pending &&
+      x.replies === y.replies &&
+      sameActions(x.actions, y.actions)
     );
   }
   return false;

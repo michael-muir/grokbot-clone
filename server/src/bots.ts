@@ -44,6 +44,8 @@ export class BotRegistry {
     if (patch.provider && patch.provider !== bot.provider) {
       delete next.sessionId;
       delete next.sessionProvider;
+      delete next.sessionAt;
+      delete next.threadSessions;
       if (!("model" in patch)) delete next.model;
       // A server picked for the old provider must never receive the new provider's key.
       if (!("baseUrl" in patch)) delete next.baseUrl;

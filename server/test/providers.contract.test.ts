@@ -63,6 +63,7 @@ async function* streamedReply(id: string, words: string[], delayMs: number, sign
   yield sdk({
     type: "assistant",
     parent_tool_use_id: null,
+    uuid: `${id}-uuid`,
     message: { id, role: "assistant", content: [{ type: "text", text: words.join(" ") }] },
   });
 }
@@ -70,7 +71,9 @@ async function* streamedReply(id: string, words: string[], delayMs: number, sign
 function scriptedQuery(scenario: ContractScenario): QueryFn {
   return async function* ({ options }: { prompt: string; options: Options }) {
     const signal = options.abortController?.signal;
-    yield sdk({ type: "system", subtype: "init", session_id: options.resume ?? "claude-session-1" });
+    // Resuming at a point forks: the SDK starts a new session (forkSession) holding the old one up to there.
+    const session = options.resume && options.forkSession ? "claude-fork-1" : (options.resume ?? "claude-session-1");
+    yield sdk({ type: "system", subtype: "init", session_id: session });
 
     if (scenario === "fail") {
       yield sdk({
@@ -87,6 +90,7 @@ function scriptedQuery(scenario: ContractScenario): QueryFn {
       yield sdk({
         type: "assistant",
         parent_tool_use_id: null,
+        uuid: "msg-tool-uuid",
         message: {
           id: "msg-tool",
           role: "assistant",
@@ -102,6 +106,7 @@ function scriptedQuery(scenario: ContractScenario): QueryFn {
       yield sdk({
         type: "user",
         parent_tool_use_id: null,
+        uuid: "tool-result-uuid",
         message: {
           role: "user",
           content: [
@@ -324,4 +329,60 @@ test("provider contract: a broken provider is caught", async () => {
   assert.equal(problems.filter((p) => p.includes("after run() resolved")).length, 2);
   assert.ok(problems.some((p) => p.includes("without an open tool_start")));
   assert.ok(problems.some((p) => p.includes("never got its final text")));
+});
+
+test("claude: the checkpoint is the session's last top-level message, and resuming there forks the session", async () => {
+  const seen: Options[] = [];
+  const query: QueryFn = async function* ({ options }) {
+    seen.push(options);
+    yield sdk({ type: "system", subtype: "init", session_id: options.forkSession ? "s-fork" : "s-1" });
+    yield sdk({
+      type: "assistant",
+      parent_tool_use_id: null,
+      uuid: "u-call",
+      message: { id: "m1", role: "assistant", content: [{ type: "tool_use", id: "t1", name: "Read", input: {} }] },
+    });
+    // A subagent's messages aren't the session's own chain.
+    yield sdk({ type: "assistant", parent_tool_use_id: "t1", uuid: "u-sub", message: { id: "m2", content: [] } });
+    yield sdk({
+      type: "user",
+      parent_tool_use_id: null,
+      uuid: "u-result",
+      message: { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "ok" }] },
+    });
+    yield sdk({ type: "result", subtype: "success", total_cost_usd: 0 });
+  };
+  const provider = new ClaudeProvider(query, () => "test-key");
+  const run = async (extra: Partial<RunRequest>) => {
+    const checkpoints: string[] = [];
+    const outcome = await provider.run(
+      {
+        botId: "b",
+        botName: "B",
+        prompt: "hi",
+        workspaceDir: ".",
+        instructions: "",
+        signal: new AbortController().signal,
+        ...extra,
+      },
+      {
+        emit: (e) => {
+          if (e.type === "checkpoint") checkpoints.push(e.at);
+        },
+        requestApproval: async () => ({ allow: true }),
+      },
+    );
+    return { outcome, checkpoints };
+  };
+
+  const first = await run({});
+  assert.deepEqual(first.checkpoints, ["u-call", "u-result"]);
+  assert.equal(seen[0]?.forkSession, undefined, "a plain run doesn't fork");
+  assert.equal(seen[0]?.resumeSessionAt, undefined);
+
+  const fork = await run({ sessionId: "s-1", resumeAt: "u-call" });
+  assert.equal(fork.outcome.sessionId, "s-fork");
+  assert.equal(seen[1]?.resume, "s-1");
+  assert.equal(seen[1]?.resumeSessionAt, "u-call");
+  assert.equal(seen[1]?.forkSession, true);
 });

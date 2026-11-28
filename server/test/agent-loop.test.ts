@@ -74,7 +74,12 @@ function setup(model: ScriptedModel, tools: Tool[], maxSteps?: number) {
   const provider = new LoopProvider({ id: "fake", adapter: model, sessions, tools, maxSteps });
   const run = async (
     prompt: string,
-    opts: { sessionId?: string; decide?: (r: unknown) => ApprovalDecision; signal?: AbortSignal } = {},
+    opts: {
+      sessionId?: string;
+      resumeAt?: string;
+      decide?: (r: unknown) => ApprovalDecision;
+      signal?: AbortSignal;
+    } = {},
   ) => {
     const rec = new Recorder(opts.decide ?? (() => ({ allow: true })));
     const req: RunRequest = {
@@ -82,6 +87,7 @@ function setup(model: ScriptedModel, tools: Tool[], maxSteps?: number) {
       botName: "B",
       prompt,
       sessionId: opts.sessionId,
+      ...(opts.resumeAt !== undefined ? { resumeAt: opts.resumeAt } : {}),
       workspaceDir: dataDir,
       instructions: "Be brief.",
       signal: opts.signal ?? new AbortController().signal,
@@ -91,6 +97,40 @@ function setup(model: ScriptedModel, tools: Tool[], maxSteps?: number) {
   };
   return { sessions, run };
 }
+
+test("resuming at a checkpoint copies that much history into a new session, and leaves the old one alone", async () => {
+  const model = new ScriptedModel([says("One."), says("Two."), says("Back to one.")]);
+  const { sessions, run } = setup(model, []);
+  const first = await run("first");
+  const session = first.outcome.sessionId ?? "";
+  const afterFirst = first.rec.ofType("checkpoint").at(-1)?.at;
+  assert.equal(afterFirst, "2", "the checkpoint counts the saved messages: the prompt and the reply");
+  await run("second", { sessionId: session });
+  const whole = sessions.load(session);
+  assert.equal(whole.length, 4);
+
+  const fork = await run("again", { sessionId: session, resumeAt: afterFirst });
+  assert.equal(fork.outcome.status, "finished");
+  const forked = fork.outcome.sessionId ?? "";
+  assert.notEqual(forked, session);
+  assert.deepEqual(
+    model.requests[2]?.messages.map((m) => (m.role === "tool" ? m.output : m.text)),
+    ["first", "One.", "again"],
+    "the model sees the first exchange only",
+  );
+  assert.deepEqual(sessions.load(session), whole, "the original session is unchanged");
+  assert.equal(sessions.load(forked).length, 4);
+});
+
+test("a checkpoint past the end of the session fails the run instead of guessing", async () => {
+  const model = new ScriptedModel([says("One.")]);
+  const { run } = setup(model, []);
+  const first = await run("first");
+  const { outcome } = await run("again", { sessionId: first.outcome.sessionId, resumeAt: "9" });
+  assert.equal(outcome.status, "failed");
+  assert.match(outcome.error ?? "", /starting fresh/);
+  assert.equal(model.requests.length, 1, "the model wasn't called");
+});
 
 const lastToolResult = (messages: ChatMessage[]) =>
   messages.filter((m): m is Extract<ChatMessage, { role: "tool" }> => m.role === "tool").at(-1);

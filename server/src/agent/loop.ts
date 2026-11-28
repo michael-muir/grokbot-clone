@@ -61,8 +61,19 @@ export class LoopProvider implements AgentProvider {
     let sessionId: string;
     let messages: ChatMessage[];
     try {
-      sessionId = req.sessionId ?? this.sessions.newId();
-      messages = this.sessions.load(sessionId);
+      if (req.sessionId && req.resumeAt !== undefined) {
+        // From a checkpoint (a message count): a new session with that much of the old one, which stays as it was.
+        const from = this.sessions.load(req.sessionId);
+        const at = Number(req.resumeAt);
+        if (!Number.isInteger(at) || at < 0 || at > from.length) {
+          return { status: "failed", error: "Couldn't go back to that point in the conversation. Try starting fresh." };
+        }
+        sessionId = this.sessions.newId();
+        messages = from.slice(0, at);
+      } else {
+        sessionId = req.sessionId ?? this.sessions.newId();
+        messages = this.sessions.load(sessionId);
+      }
     } catch (err) {
       return { status: "failed", error: `Couldn't load the conversation: ${message(err)}` };
     }
@@ -72,7 +83,12 @@ export class LoopProvider implements AgentProvider {
     messages.push({ role: "user", text: req.prompt });
     // Tool call ids must be unique across the whole session, not just one step: APIs match results by id.
     const usedIds = new Set(messages.flatMap((m) => (m.role === "assistant" ? m.toolCalls.map((c) => c.id) : [])));
-    const save = () => this.sessions.save(sessionId, closeUnansweredCalls(messages));
+    // Every save is a checkpoint: the saved history only grows, so its length names this point in it.
+    const save = () => {
+      const saved = closeUnansweredCalls(messages);
+      this.sessions.save(sessionId, saved);
+      cb.emit({ type: "checkpoint", at: String(saved.length) });
+    };
     const system = systemPrompt(req.instructions, [...this.tools.values()]);
     const specs = [...this.tools.values()].map((t) => t.spec);
     // The model turn in progress, kept so an interrupt mid-stream still saves what the model said.

@@ -122,7 +122,7 @@ test("choice card: stopping the run marks a pending card expired", async () => {
   }
 });
 
-test("run id: every entry written during a run carries the run's id; the user's message has none", async () => {
+test("run id: every entry written during a run carries the run's id, as does the message that started it", async () => {
   const t = await setup();
   try {
     const { done } = await t.gateway.sendMessage("nova", "/choice");
@@ -131,9 +131,9 @@ test("run id: every entry written during a run carries the run's id; the user's 
     await done;
     const [user, ...rest] = t.store.list("nova");
     assert.equal(user?.body.kind, "user_message");
-    assert.equal(user?.runId, undefined);
     const run = rest.find((e) => e.body.kind === "run");
     assert.ok(run);
+    assert.equal(user?.runId, run.id, "the message knows its run (a thread from it forks there)");
     assert.equal(run.runId, run.id, "the run entry carries its own id");
     assert.ok(
       rest.every((e) => e.runId === run.id),

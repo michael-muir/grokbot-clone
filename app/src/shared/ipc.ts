@@ -42,9 +42,13 @@ export interface Calls {
   /** Deletes the bot, its transcript and its computer. */
   deleteBot: { args: [botId: string]; result: undefined };
   transcript: { args: [botId: string, since: number]; result: TranscriptEntry[] };
-  /** Returns the id of the user entry the message became. */
-  sendMessage: { args: [botId: string, text: string, clientNonce?: string]; result: string };
+  /** Returns the id of the user entry the message became. With `threadId`, the message goes in that thread. */
+  sendMessage: { args: [botId: string, text: string, clientNonce?: string, threadId?: string]; result: string };
   interrupt: { args: [botId: string]; result: undefined };
+  /** Starts the bot's conversation over; the old one stays readable. */
+  startFresh: { args: [botId: string]; result: undefined };
+  /** Rolls back to before one of the user's messages; returns its text. */
+  rollBack: { args: [botId: string, entryId: string]; result: string };
   answerApproval: { args: [botId: string, entryId: string, decision: ApprovalDecision]; result: undefined };
   answerChoice: { args: [botId: string, entryId: string, answer: string]; result: undefined };
   listProviders: { args: []; result: ProviderSummary[] };
@@ -157,9 +161,17 @@ const ARGS: { [K in CallName]: (a: unknown[]) => a is Calls[K]["args"] } = {
   updateBot: (a): a is [string, BotPatch] => a.length === 2 && isId(a[0]) && isPatch(a[1]),
   deleteBot: (a): a is [string] => a.length === 1 && isId(a[0]),
   transcript: (a): a is [string, number] => a.length === 2 && isId(a[0]) && isCursor(a[1]),
-  sendMessage: (a): a is [string, string, string?] =>
-    (a.length === 2 || a.length === 3) && isId(a[0]) && isString(a[1]) && a[1].trim() !== "" && optional(isNonce)(a[2]),
+  sendMessage: (a): a is [string, string, string?, string?] =>
+    a.length >= 2 &&
+    a.length <= 4 &&
+    isId(a[0]) &&
+    isString(a[1]) &&
+    a[1].trim() !== "" &&
+    optional(isNonce)(a[2]) &&
+    optional(isId)(a[3]),
   interrupt: (a): a is [string] => a.length === 1 && isId(a[0]),
+  startFresh: (a): a is [string] => a.length === 1 && isId(a[0]),
+  rollBack: (a): a is [string, string] => a.length === 2 && isId(a[0]) && isId(a[1]),
   answerApproval: (a): a is [string, string, ApprovalDecision] =>
     a.length === 3 && isId(a[0]) && isId(a[1]) && isDecision(a[2]),
   answerChoice: (a): a is [string, string, string] =>

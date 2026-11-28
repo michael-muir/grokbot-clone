@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { EntryBody, TranscriptEntry } from "../../server/src/types.ts";
-import { buildRows, type Row, separatorLabel } from "../src/renderer/src/chat/rows.ts";
+import { buildRows, conversation, type Row, replyCounts, separatorLabel } from "../src/renderer/src/chat/rows.ts";
 
 const T0 = new Date(2026, 10, 26, 15, 19).getTime(); // local time, so labels don't depend on the time zone
 const NOW = new Date(2026, 10, 26, 18, 0);
@@ -237,4 +237,58 @@ test("rows: no Thinking row under a choice card waiting for the user", () => {
   const choice: EntryBody = { kind: "choice", prompt: "Pick", options: [], allowCustom: true, state: "pending" };
   const rows = buildRows([user("go"), run("running"), e(choice)], NOW, "en-US");
   assert.ok(!shape(rows).some((s) => s.startsWith("thinking")));
+});
+
+test("rows: the main view leaves out hidden and thread entries, and counts replies", () => {
+  seq = 0;
+  const root = user("apples");
+  const reply = bot("Nice.");
+  const inThread = { ...user("side note"), threadId: root.id };
+  const threadReply = { ...bot("Sure."), threadId: root.id };
+  const rolledBack = { ...user("pears"), hidden: true as const };
+  const hiddenInThread = { ...user("gone"), threadId: root.id, hidden: true as const };
+  const all = [root, reply, inThread, threadReply, rolledBack, hiddenInThread];
+
+  assert.deepEqual(
+    conversation(all).map((x) => x.id),
+    [root.id, reply.id],
+  );
+  assert.deepEqual(
+    conversation(all, root.id).map((x) => x.id),
+    [root.id, inThread.id, threadReply.id],
+    "a thread shows its root, then its own visible entries",
+  );
+  assert.deepEqual(conversation(all, rolledBack.id), [], "a hidden root has no thread to show");
+  assert.deepEqual([...replyCounts(all)], [[root.id, 2]]);
+
+  const rows = buildRows(conversation(all), NOW, "en-US", [], { replies: replyCounts(all) });
+  const entryRows = rows.filter((r) => r.type === "entry");
+  assert.equal(entryRows[0]?.type === "entry" && entryRows[0].replies, 2);
+  assert.equal(entryRows[1]?.type === "entry" && entryRows[1].replies, undefined);
+});
+
+test("rows: hover actions are a thread for any message in the main chat, and roll back for your own", () => {
+  seq = 0;
+  const root = user("apples");
+  const reply = bot("Nice.");
+  const note = { ...e({ kind: "notice", text: "Switched" }) };
+  const inThread = { ...user("side note"), threadId: root.id };
+  const actions = (rows: Row[]) =>
+    rows.flatMap((r) => (r.type === "entry" ? [[r.entry.id, r.actions ?? null] as const] : []));
+
+  assert.deepEqual(actions(buildRows([root, reply, note], NOW, "en-US")), [
+    [root.id, { thread: true, rollBack: true }],
+    [reply.id, { thread: true, rollBack: false }],
+    [note.id, null],
+  ]);
+  assert.deepEqual(
+    actions(buildRows([root, inThread], NOW, "en-US", [], { thread: root.id })),
+    [
+      [root.id, null],
+      [inThread.id, { thread: false, rollBack: true }],
+    ],
+    "in a thread: no actions on its root (it belongs to the main chat), no threads inside threads",
+  );
+  const pending = buildRows([], NOW, "en-US", [{ nonce: "n1", text: "hi", at: T0 }]);
+  assert.deepEqual(actions(pending), [["pending-n1", null]], "a message not yet sent has none");
 });

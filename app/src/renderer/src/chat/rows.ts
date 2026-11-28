@@ -20,8 +20,47 @@ export type Row =
       time: string;
       /** A message the user sent that the gateway hasn't confirmed yet. */
       pending?: boolean;
+      /** How many messages the thread started from this one holds (main view only). */
+      replies?: number;
+      /** The hover actions this row offers. */
+      actions?: RowActions;
     }
   | { type: "thinking"; key: string; side: "bot"; group: GroupPos; gap: Gap };
+
+/** What a message's hover bar offers: reply in a thread (main view), roll back to it (your own messages). */
+export interface RowActions {
+  thread: boolean;
+  rollBack: boolean;
+}
+
+/** What one view shows: the main chat (`thread` undefined), or one thread, by its root's id. */
+export interface ViewOptions {
+  thread?: string;
+  /** Messages per thread, by root id (see replyCounts). */
+  replies?: ReadonlyMap<string, number>;
+}
+
+/**
+ * The entries a view shows, in order. The main chat: everything not hidden (rolled back) and not in a thread. A
+ * thread: its root, then its own visible entries. Empty when the root is gone (rolled back).
+ */
+export function conversation(entries: readonly TranscriptEntry[], thread?: string): TranscriptEntry[] {
+  if (thread === undefined) return entries.filter((e) => !e.hidden && e.threadId === undefined);
+  const root = entries.find((e) => e.id === thread);
+  if (!root || root.hidden) return [];
+  return [root, ...entries.filter((e) => !e.hidden && e.threadId === thread)];
+}
+
+/** How many messages (yours and the bot's) each thread holds, by root id. Threads with none aren't listed. */
+export function replyCounts(entries: readonly TranscriptEntry[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const e of entries) {
+    if (e.hidden || e.threadId === undefined) continue;
+    if (e.body.kind !== "user_message" && e.body.kind !== "assistant_text") continue;
+    counts.set(e.threadId, (counts.get(e.threadId) ?? 0) + 1);
+  }
+  return counts;
+}
 
 /** A pause this long between entries starts a new time separator. */
 export const SEPARATOR_GAP_MS = 60 * 60 * 1000;
@@ -92,6 +131,8 @@ export interface PendingMessage {
   nonce: string;
   text: string;
   at: number;
+  /** The thread it was sent in. */
+  threadId?: string;
   /** The user entry's id, once the gateway has accepted the send. Matches even if the nonce isn't echoed. */
   entryId?: string;
 }
@@ -107,11 +148,23 @@ export function isConfirmed(p: PendingMessage, entries: readonly TranscriptEntry
 
 const PENDING_PREFIX = "pending-";
 
+/**
+ * A message's hover actions. In the main chat: reply in a thread (yours and the bot's), roll back (yours). In a
+ * thread: roll back its own messages; its root belongs to the main chat and has none here.
+ */
+function actionsFor(entry: TranscriptEntry, thread: string | undefined): RowActions | undefined {
+  const kind = entry.body.kind;
+  if (kind !== "user_message" && kind !== "assistant_text") return undefined;
+  if (thread !== undefined && entry.id === thread) return undefined;
+  return { thread: thread === undefined, rollBack: kind === "user_message" };
+}
+
 export function buildRows(
   entries: readonly TranscriptEntry[],
   now: Date,
   locale?: string,
   pending: readonly PendingMessage[] = [],
+  view: ViewOptions = {},
 ): Row[] {
   type Item = { entry: TranscriptEntry | "thinking"; side: Side };
   const items: Item[] = [];
@@ -189,6 +242,9 @@ export function buildRows(
 
     if (item.entry === "thinking") rows.push({ type: "thinking", key: "thinking", side: "bot", group, gap });
     else {
+      const pendingRow = item.entry.id.startsWith(PENDING_PREFIX) && item.entry.seq === -1;
+      const replies = view.thread === undefined ? view.replies?.get(item.entry.id) : undefined;
+      const actions = pendingRow ? undefined : actionsFor(item.entry, view.thread);
       rows.push({
         type: "entry",
         key: item.entry.id,
@@ -197,7 +253,9 @@ export function buildRows(
         group,
         gap,
         time: time(new Date(item.entry.createdAt), locale),
-        ...(item.entry.id.startsWith(PENDING_PREFIX) && item.entry.seq === -1 ? { pending: true } : {}),
+        ...(pendingRow ? { pending: true } : {}),
+        ...(replies ? { replies } : {}),
+        ...(actions ? { actions } : {}),
       });
     }
     prev = item;
