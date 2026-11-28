@@ -16,6 +16,7 @@ import { childEnv } from "../child-env.ts";
 import { labelPath } from "../display-path.ts";
 import { NotConfiguredError } from "../errors.ts";
 import type { AgentProvider, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
+import { CARD_SERVER, cardServer, SHOW_CARD_TOOL } from "./claude-cards.ts";
 import { ASK_USER_QUESTION, answerQuestions } from "./claude-questions.ts";
 
 export const DEFAULT_CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
@@ -82,6 +83,8 @@ export class ClaudeProvider implements AgentProvider {
     const onAbort = () => abortController.abort();
     req.signal.addEventListener("abort", onAbort, { once: true });
 
+    const kinds = req.cardKinds ?? [];
+    const cards = kinds.length && cb.requestCard ? cardServer(kinds, cb.requestCard, req.signal) : undefined;
     const options: Options = {
       cwd: req.workspaceDir,
       model: req.model || DEFAULT_CLAUDE_MODEL,
@@ -93,7 +96,9 @@ export class ClaudeProvider implements AgentProvider {
       // Don't inherit the host user's own Claude Code settings, hooks or CLAUDE.md.
       settingSources: [],
       permissionMode: "default",
-      allowedTools: READ_ONLY_TOOLS,
+      // Cards only when the user's app can show them; otherwise Claude has no card tool and asks in text.
+      ...(cards ? { mcpServers: { [CARD_SERVER]: cards } } : {}),
+      allowedTools: cards ? [...READ_ONLY_TOOLS, SHOW_CARD_TOOL] : READ_ONLY_TOOLS,
       includePartialMessages: true,
       abortController,
       // The key is read now, so a key saved in Settings works without a restart. Never logged.
@@ -330,6 +335,8 @@ export function summarizeTool(tool: string, input: Record<string, unknown>, work
   const s = (v: unknown) => short(v);
   const file = (v: unknown) => labelPath(workspaceDir, v);
   switch (tool) {
+    case SHOW_CARD_TOOL:
+      return `Asking: ${s(input.prompt ?? input.title)}`;
     case "Bash":
       return `Running ${s(input.command)}`;
     case "Read":

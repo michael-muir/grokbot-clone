@@ -45,6 +45,8 @@ export type EntryBody =
       state: "pending" | "answered" | "expired";
       answer?: string;
     }
+  /** An interactive card (#19): a widget or a form. `card.kind` is its kind, the rest of `card` its payload. */
+  | { kind: "card"; card: CardRequest; state: "pending" | "answered" | "expired"; answer?: CardAnswer }
   | { kind: "error"; message: string }
   /**
    * A note from the app itself, such as "Switched to Ollama". `reset`: the conversation started over here (start
@@ -66,6 +68,42 @@ export interface ChoiceOption {
   label: string;
   value: string;
 }
+
+/** Card kinds a client can show. It names the ones it can with each message; agents fall back to text otherwise. */
+export const CARD_KINDS = ["widget", "form"] as const;
+export type CardKind = (typeof CARD_KINDS)[number];
+
+export const isCardKind = (v: unknown): v is CardKind => (CARD_KINDS as readonly unknown[]).includes(v);
+
+/** Pick one option. */
+export interface WidgetCard {
+  kind: "widget";
+  prompt: string;
+  options: ChoiceOption[];
+}
+
+export interface FormField {
+  /** The key in the answer. */
+  name: string;
+  label: string;
+  type: "text" | "textarea" | "select" | "checkbox";
+  /** Select only. */
+  options?: string[];
+  required?: boolean;
+  placeholder?: string;
+}
+
+/** Fill in a few fields. */
+export interface FormCard {
+  kind: "form";
+  title: string;
+  fields: FormField[];
+  submitLabel?: string;
+}
+
+export type CardRequest = WidgetCard | FormCard;
+
+export type CardAnswer = { kind: "widget"; value: string } | { kind: "form"; values: Record<string, string | boolean> };
 
 export interface ChoiceRequest {
   prompt: string;
@@ -233,6 +271,8 @@ export interface RunRequest {
   resumeAt?: string;
   model?: string;
   baseUrl?: string;
+  /** The card kinds the user's app can show; none means ask in plain text. */
+  cardKinds?: CardKind[];
   /** The bot's computer: the directory the agent works in. */
   workspaceDir: string;
   /** Persona and product instructions appended to the provider's own system prompt. */
@@ -265,6 +305,8 @@ export interface RunCallbacks {
   requestApproval(request: ApprovalRequest, signal: AbortSignal): Promise<ApprovalDecision>;
   /** Ask the user a question with choices. Resolves with the answer, or undefined if the run is stopped. */
   requestChoice?(request: ChoiceRequest, signal: AbortSignal): Promise<string | undefined>;
+  /** Shows a card (of a kind in `RunRequest.cardKinds`) and waits for its answer; undefined if the run is stopped. */
+  requestCard?(card: CardRequest, signal: AbortSignal): Promise<CardAnswer | undefined>;
 }
 
 export interface RunOutcome {

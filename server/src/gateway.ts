@@ -2,6 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { Waiters } from "./approvals.ts";
 import type { BotRegistry } from "./bots.ts";
+import { checkCardAnswer } from "./cards.ts";
 import type { ComputerManager } from "./computer.ts";
 import type { ProviderRegistry } from "./providers/index.ts";
 import type { TranscriptStore } from "./transcript.ts";
@@ -10,6 +11,8 @@ import {
   type ApprovalDecision,
   type Bot,
   type BotActivity,
+  type CardAnswer,
+  type CardKind,
   type ConversationSession,
   type EntryBody,
   type Feedback,
@@ -72,6 +75,8 @@ export class Gateway {
   private readonly approvals = new Waiters<ApprovalDecision>({ allow: false, reason: "The run was stopped." });
   /** A stopped run settles a pending choice with undefined (no answer). */
   private readonly choices = new Waiters<string | undefined>(undefined);
+  /** A stopped run settles a pending card with undefined (no answer). */
+  private readonly cards = new Waiters<CardAnswer | undefined>(undefined);
   private readonly active = new Map<string, ActiveRun>();
   /** Bots being deleted: no run may start while their files go. */
   private readonly deleting = new Set<string>();
@@ -101,7 +106,7 @@ export class Gateway {
         const closed: EntryBody | undefined =
           b.kind === "run" && b.state === "running"
             ? { ...b, state: "interrupted" }
-            : (b.kind === "approval" || b.kind === "choice") && b.state === "pending"
+            : (b.kind === "approval" || b.kind === "choice" || b.kind === "card") && b.state === "pending"
               ? { ...b, state: "expired" }
               : b.kind === "assistant_text" && b.streaming
                 ? { ...b, streaming: false }
@@ -151,6 +156,7 @@ export class Gateway {
     text: string,
     clientNonce?: string,
     threadId?: string,
+    cardKinds: readonly CardKind[] = [],
   ): Promise<{ entry: TranscriptEntry; done: Promise<void> }> {
     const bot = this.bots.get(botId);
     if (!bot) throw new BotNotFoundError(`Unknown bot ${botId}`);
@@ -186,11 +192,14 @@ export class Gateway {
     // This run's outcome replaces the last one's; if it throws before saying, it failed.
     this.lastRuns.delete(botId);
     this.activityChanged();
-    run.done = this.execute(bot, provider, prompt, controller, { runId, threadId, session }).finally(() => {
-      if (!this.lastRuns.has(botId)) this.lastRuns.set(botId, "failed");
-      this.active.delete(botId);
-      this.activityChanged();
-    });
+    const kinds = [...cardKinds];
+    run.done = this.execute(bot, provider, prompt, controller, { runId, threadId, session, cardKinds: kinds }).finally(
+      () => {
+        if (!this.lastRuns.has(botId)) this.lastRuns.set(botId, "failed");
+        this.active.delete(botId);
+        this.activityChanged();
+      },
+    );
     return { entry, done: run.done };
   }
 
@@ -467,12 +476,33 @@ export class Gateway {
     return this.choices.answer(entryId, listed ? answer : text) ? "ok" : "not-pending";
   }
 
+  /**
+   * Answers a card (#19). The answer must fit the card (checkCardAnswer); it then reaches the run waiting on it, and
+   * the card locks with it. "not-pending" when the card isn't waiting.
+   */
+  answerCard(
+    botId: string,
+    entryId: string,
+    answer: unknown,
+  ): { result: "ok" } | { result: "not-pending" } | { result: "invalid"; error: string } {
+    const entry = this.store.get(botId, entryId);
+    if (entry?.body.kind !== "card" || entry.body.state !== "pending") return { result: "not-pending" };
+    const checked = checkCardAnswer(entry.body.card, answer);
+    if (!checked.ok) return { result: "invalid", error: checked.error };
+    return this.cards.answer(entryId, checked.answer) ? { result: "ok" } : { result: "not-pending" };
+  }
+
   private async execute(
     bot: Bot,
     provider: AgentProvider,
     text: string,
     controller: AbortController,
-    { runId, threadId, session }: { runId: string; threadId: string | undefined; session: ConversationSession },
+    {
+      runId,
+      threadId,
+      session,
+      cardKinds,
+    }: { runId: string; threadId: string | undefined; session: ConversationSession; cardKinds: CardKind[] },
   ): Promise<void> {
     // Everything written during this run carries its id (the run entry included) and its thread.
     const append = (body: EntryBody, id?: string) => this.store.append(bot.id, body, { id, runId, threadId });
@@ -554,6 +584,7 @@ export class Gateway {
           prompt: text,
           sessionId: resumable,
           ...(resumable && session.sessionAt !== undefined ? { resumeAt: session.sessionAt } : {}),
+          cardKinds,
           model: bot.model,
           baseUrl: bot.baseUrl,
           workspaceDir: computer.workspaceDir,
@@ -613,6 +644,28 @@ export class Gateway {
                 : b,
             );
             return chosen;
+          },
+          requestCard: async (card, signal) => {
+            // Behind the tools' own check: a card the user's app can't show would wait forever.
+            if (!cardKinds.includes(card.kind)) throw new Error(`This app can't show ${card.kind} cards.`);
+            const cardId = randomUUID();
+            const cancelled = anySignal(signal, controller.signal);
+            const answer = this.cards.wait(cardId, cancelled);
+            try {
+              append({ kind: "card", card, state: "pending" }, cardId);
+            } catch (err) {
+              this.cards.answer(cardId, undefined); // drop the waiter
+              throw err;
+            }
+            const got = await answer;
+            set(cardId, (b) =>
+              b.kind === "card"
+                ? got === undefined
+                  ? { ...b, state: "expired" }
+                  : { ...b, state: "answered", answer: got }
+                : b,
+            );
+            return got;
           },
         },
       );

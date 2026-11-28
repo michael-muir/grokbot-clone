@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { platform } from "node:os";
 import type {
   AgentProvider,
+  CardRequest,
   ChoiceRequest,
   ProviderId,
   ProviderInfo,
@@ -92,8 +93,9 @@ export class LoopProvider implements AgentProvider {
       this.sessions.save(sessionId, saved);
       cb.emit({ type: "checkpoint", at: String(saved.length) });
     };
-    const system = systemPrompt(req.instructions, [...this.tools.values()]);
-    const specs = [...this.tools.values()].map((t) => t.spec);
+    const offered = this.offered(req);
+    const system = systemPrompt(req.instructions, offered);
+    const specs = offered.map((t) => t.spec);
     // The model turn in progress, kept so an interrupt mid-stream still saves what the model said.
     let partial: { blockId: string; text: string; calls: ToolCall[]; meta?: Record<string, unknown> } | undefined;
     /** Ends the turn in progress: closes its streamed text and keeps it in the history. */
@@ -165,8 +167,14 @@ export class LoopProvider implements AgentProvider {
     }
   }
 
+  /** The tools this run offers: some depend on the user's app (show_card needs card kinds). */
+  private offered(req: RunRequest): Tool[] {
+    return [...this.tools.values()].filter((t) => t.available?.({ cardKinds: req.cardKinds }) ?? true);
+  }
+
   private async runTool(call: ToolCall, req: RunRequest, cb: RunCallbacks): Promise<ChatMessage> {
-    const tool = this.tools.get(call.name);
+    const found = this.tools.get(call.name);
+    const tool = found && (found.available?.({ cardKinds: req.cardKinds }) ?? true) ? found : undefined;
     const result = (output: string, isError: boolean): ChatMessage => ({
       role: "tool",
       toolCallId: call.id,
@@ -180,7 +188,9 @@ export class LoopProvider implements AgentProvider {
     if (!tool) {
       cb.emit({ type: "tool_end", toolUseId: call.id, ok: false });
       return result(
-        `There is no tool named ${call.name}. Available tools: ${[...this.tools.keys()].join(", ")}.`,
+        `There is no tool named ${call.name}. Available tools: ${this.offered(req)
+          .map((t) => t.spec.name)
+          .join(", ")}.`,
         true,
       );
     }
@@ -205,10 +215,13 @@ export class LoopProvider implements AgentProvider {
 
     try {
       const ask = cb.requestChoice;
+      const card = cb.requestCard;
       const r = await tool.run(call.input, {
         workspaceDir: req.workspaceDir,
         signal: req.signal,
         ...(ask ? { ask: (q: ChoiceRequest) => ask(q, req.signal) } : {}),
+        cardKinds: req.cardKinds ?? [],
+        ...(card ? { card: (c: CardRequest) => card(c, req.signal) } : {}),
       });
       cb.emit({ type: "tool_end", toolUseId: call.id, ok: r.ok });
       return result(r.output, !r.ok);

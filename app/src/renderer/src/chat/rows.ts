@@ -81,7 +81,8 @@ export function waitingThreads(entries: readonly TranscriptEntry[]): Set<string>
   for (const e of entries) {
     if (e.hidden || e.threadId === undefined) continue;
     const b = e.body;
-    if ((b.kind === "approval" || b.kind === "choice") && b.state === "pending") out.add(e.threadId);
+    if ((b.kind === "approval" || b.kind === "choice" || b.kind === "card") && b.state === "pending")
+      out.add(e.threadId);
   }
   return out;
 }
@@ -119,6 +120,7 @@ function sideOf(entry: TranscriptEntry): Side | null {
     case "status":
     case "approval":
     case "choice":
+    case "card":
       return "bot";
     case "notice":
     case "error":
@@ -146,6 +148,7 @@ function isThinking(entries: readonly TranscriptEntry[]): boolean {
     if (b.kind === "status" && b.state === "running") return false;
     if (b.kind === "approval" && b.state === "pending") return false;
     if (b.kind === "choice" && b.state === "pending") return false;
+    if (b.kind === "card" && b.state === "pending") return false;
   }
   return false;
 }

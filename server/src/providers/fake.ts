@@ -6,11 +6,12 @@
 //   "/fail"   -> the run fails
 //   "/choice" -> asks the user to pick a color (Red or Blue, or their own)
 //   "/history" -> lists the session's earlier prompts, so tests can see what a session remembers
+//   "/widget" -> a widget card (Small, Medium, Large); "/form" -> a form card (name, subscribe). Text without cards.
 // Anything else gets an echo reply, streamed word by word.
 //
 // Sessions live in memory: each remembers its prompts, a checkpoint is how many, and resumeAt copies that many into
 // a new session.
-import type { AgentProvider, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
+import type { AgentProvider, CardRequest, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
 
 const sleep = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
@@ -77,6 +78,43 @@ export class FakeProvider implements AgentProvider {
       }
 
       if (prompt === "/fail") return { status: "failed", sessionId, error: "Scripted failure." };
+
+      if (prompt === "/widget" || prompt === "/form") {
+        const card: CardRequest =
+          prompt === "/widget"
+            ? {
+                kind: "widget",
+                prompt: "Which size?",
+                options: ["Small", "Medium", "Large"].map((label) => ({ label, value: label })),
+              }
+            : {
+                kind: "form",
+                title: "Sign up",
+                fields: [
+                  { name: "name", label: "Name", type: "text", required: true },
+                  { name: "subscribe", label: "Send me news", type: "checkbox" },
+                ],
+                submitLabel: "Sign up",
+              };
+        const blockId = `msg-${turn}:0`;
+        // The fallback: an app that can't show this card gets the question in text.
+        if (!cb.requestCard || !req.cardKinds?.includes(card.kind)) {
+          const text = card.kind === "widget" ? "Which size: Small, Medium or Large?" : "What's your name?";
+          cb.emit({ type: "text", blockId, text });
+          return { status: "finished", sessionId, costUsd: 0 };
+        }
+        const toolUseId = `tool-${turn}`;
+        cb.emit({ type: "tool_start", toolUseId, tool: "show_card", summary: "Asking: a card" });
+        const answer = await cb.requestCard(card, req.signal);
+        cb.emit({ type: "tool_end", toolUseId, ok: answer !== undefined });
+        if (req.signal.aborted || answer === undefined) return { status: "interrupted", sessionId };
+        cb.emit({
+          type: "text",
+          blockId,
+          text: `Got it: ${JSON.stringify(answer.kind === "widget" ? answer.value : answer.values)}`,
+        });
+        return { status: "finished", sessionId, costUsd: 0 };
+      }
 
       if (prompt === "/choice") {
         const toolUseId = `tool-${turn}`;

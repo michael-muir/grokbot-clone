@@ -319,3 +319,26 @@ test("rows: a thread with a card waiting for the user is marked on its root in t
   const first = rows.find((r) => r.type === "entry");
   assert.equal(first?.type === "entry" && first.waiting, true);
 });
+
+test("rows: a card stands alone on the bot's side, and a pending card stops Thinking and marks its thread", () => {
+  seq = 0;
+  const card = (state: "pending" | "answered") =>
+    e({
+      kind: "card",
+      card: { kind: "widget", prompt: "Size?", options: [{ label: "S", value: "S" }] },
+      state,
+    });
+  const rows = buildRows([user("hi"), run("running"), bot("Let me ask."), card("pending")], NOW, "en-US");
+  assert.deepEqual(shape(rows), [
+    "sep",
+    "user_message:single:none",
+    "assistant_text:single:switch",
+    "card:single:group",
+  ]);
+  assert.ok(!rows.some((r) => r.type === "thinking"), "the bot is waiting on the user, not thinking");
+
+  const root = user("apples");
+  const waiting = [root, { ...card("pending"), threadId: root.id }];
+  assert.deepEqual([...waitingThreads(waiting)], [root.id]);
+  assert.deepEqual([...waitingThreads([root, { ...card("answered"), threadId: root.id }])], []);
+});

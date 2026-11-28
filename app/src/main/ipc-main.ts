@@ -26,7 +26,9 @@ const HANDLERS: Handlers = {
   updateBot: (c, [botId, patch]) => c.updateBot(botId, patch),
   deleteBot: (c, [botId]) => done(c.deleteBot(botId)),
   transcript: (c, [botId, since]) => c.transcript(botId, since),
-  sendMessage: (c, [botId, text, clientNonce, threadId]) => c.sendMessage(botId, text, clientNonce, threadId),
+  sendMessage: (c, [botId, text, clientNonce, threadId, cardKinds]) =>
+    c.sendMessage(botId, text, clientNonce, threadId, cardKinds),
+  answerCard: (c, [botId, entryId, answer]) => done(c.answerCard(botId, entryId, answer)),
   interrupt: (c, [botId]) => done(c.interrupt(botId)),
   startFresh: (c, [botId]) => done(c.startFresh(botId)),
   rollBack: (c, [botId, entryId]) => c.rollBack(botId, entryId),
