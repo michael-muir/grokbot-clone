@@ -3,11 +3,12 @@ import { SessionStore } from "../agent/sessions.ts";
 import type { Credentials } from "../keys.ts";
 import type { AgentProvider, ProviderId, ProviderInfo, RunOutcome } from "../types.ts";
 import { ClaudeProvider } from "./claude.ts";
+import { CodexProvider } from "./codex.ts";
 import { FakeProvider } from "./fake.ts";
 import { geminiProvider } from "./gemini.ts";
 import { OPENAI_PRESETS, openAICompatibleProvider } from "./openai-compatible.ts";
 
-/** Placeholder until the Codex and Cursor adapters are written. */
+/** Placeholder until the Cursor adapter is written. */
 class NotYetAvailable implements AgentProvider {
   readonly id: ProviderId;
   private readonly label: string;
@@ -36,7 +37,7 @@ export function defaultProviders(dataDir: string, credentials: Credentials): Pro
     new ClaudeProvider(undefined, () => credentials.key("claude")),
     ...OPENAI_PRESETS.map((preset) => openAICompatibleProvider(preset, sessions, process.env, credentials)),
     geminiProvider(sessions, process.env, credentials),
-    new NotYetAvailable("codex", "Codex", "Planned: Codex SDK or `codex app-server`."),
+    new CodexProvider(),
     new NotYetAvailable("cursor", "Cursor", "Planned: Cursor CLI in print mode with JSON streaming."),
     new FakeProvider(40),
   ];
