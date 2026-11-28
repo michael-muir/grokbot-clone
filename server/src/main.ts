@@ -6,6 +6,7 @@ import { Gateway } from "./gateway.ts";
 import { createHttpServer } from "./http.ts";
 import { Credentials, KeychainKeyStore } from "./keys.ts";
 import { defaultProviders } from "./providers/index.ts";
+import { BotSecrets, KeychainSecretStore } from "./secrets.ts";
 import { TranscriptStore } from "./transcript.ts";
 
 const dataDir = resolve(process.env.DATA_DIR || "../data");
@@ -15,7 +16,13 @@ const bots = new BotRegistry(dataDir);
 const store = new TranscriptStore(dataDir);
 const credentials = new Credentials(new KeychainKeyStore());
 const providers = defaultProviders(dataDir, credentials);
-const gateway = new Gateway(bots, store, providers, new LocalFolderComputers(dataDir));
+const gateway = new Gateway(
+  bots,
+  store,
+  providers,
+  new LocalFolderComputers(dataDir),
+  new BotSecrets(new KeychainSecretStore()),
+);
 const server = createHttpServer({
   gateway,
   bots,

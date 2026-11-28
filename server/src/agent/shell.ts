@@ -10,6 +10,8 @@ export interface ShellOptions {
   timeoutMs: number;
   /** Characters of combined stdout and stderr to keep; the middle is dropped when it's longer. */
   maxOutput: number;
+  /** Extra environment variables (the bot's secrets), over the gateway's own minus its secrets. */
+  env?: Readonly<Record<string, string>>;
 }
 
 export interface ShellResult {
@@ -58,7 +60,7 @@ export function runShell(script: string, opts: ShellOptions, shell: ShellInfo = 
     const windows = platform() === "win32";
     const child = spawn(shell.command, shell.args(script), {
       cwd: opts.cwd,
-      env: childEnv(),
+      env: { ...childEnv(), ...opts.env },
       // Own process group on POSIX, so the whole tree can be killed at once.
       detached: !windows,
       windowsHide: true,

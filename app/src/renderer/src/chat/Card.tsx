@@ -1,12 +1,12 @@
 // Cards the bot posts and waits on (#19): a widget (pick one option, like the reference's onboarding question) and a
 // form. Answered cards lock and show the answer; a card whose run stopped says it's no longer waiting.
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
-import type { CardAnswer, EntryBody, FormCard, WidgetCard } from "../../../../../server/src/types.ts";
+import type { CardAnswerIn, EntryBody, FormCard, SecretCard, WidgetCard } from "../../../../../server/src/types.ts";
 
 type CardBody = Extract<EntryBody, { kind: "card" }>;
 
 /** The card kinds this app can show: sent with every message, so bots know what they may post. */
-export const RENDERED_CARD_KINDS = ["widget", "form"] as const;
+export const RENDERED_CARD_KINDS = ["widget", "form", "secret"] as const;
 
 const letter = (i: number) => String.fromCharCode(65 + i);
 
@@ -16,7 +16,7 @@ export function Card({
 }: {
   body: CardBody;
   /** Sends the answer; rejects with the gateway's reason when it's refused. */
-  answer(answer: CardAnswer): Promise<unknown>;
+  answer(answer: CardAnswerIn): Promise<unknown>;
 }) {
   const [sending, setSending] = useState(false);
   /** Answered, and waiting for the gateway's copy to say so: a second answer would only be refused. */
@@ -39,7 +39,7 @@ export function Card({
     }
   }, [pending]);
 
-  const send = async (value: CardAnswer) => {
+  const send = async (value: CardAnswerIn) => {
     if (sending || sent || !pending) return;
     setSending(true);
     setError(undefined);
@@ -54,7 +54,12 @@ export function Card({
     }
   };
 
-  const label = body.card.kind === "widget" ? `Question: ${body.card.prompt}` : `Form: ${body.card.title}`;
+  const label =
+    body.card.kind === "widget"
+      ? `Question: ${body.card.prompt}`
+      : body.card.kind === "form"
+        ? `Form: ${body.card.title}`
+        : `Secret: ${body.card.label}`;
   return (
     <section ref={card} className="card" aria-label={label}>
       {body.card.kind === "widget" ? (
@@ -64,6 +69,8 @@ export function Card({
           disabled={!pending || sending || sent}
           onPick={(value) => void send({ kind: "widget", value })}
         />
+      ) : body.card.kind === "secret" ? (
+        <Secret card={body.card} disabled={!pending || sending || sent} onSend={(a) => void send(a)} />
       ) : (
         <Form
           card={body.card}
@@ -86,13 +93,77 @@ export function Card({
   );
 }
 
-/** "Answered: Medium", or "Sent" for a form (its fields show the values). */
+/** "Answered: Medium", "Sent" for a form (its fields show the values), or what became of a secret. */
 function answered(body: CardBody): string {
   const a = body.answer;
+  if (a?.kind === "secret" && body.card.kind === "secret") {
+    return a.saved ? `Saved as ${body.card.name}` : "Not shared";
+  }
   if (a?.kind === "widget" && body.card.kind === "widget") {
     return `Answered: ${body.card.options.find((o) => o.value === a.value)?.label ?? a.value}`;
   }
   return "Sent";
+}
+
+/**
+ * Asks for a secret (#20). The value lives in the password field only, never in React state, a draft or a log, and
+ * the field is cleared the moment it's sent. The bot gets the name; commands it runs get the value.
+ */
+function Secret({
+  card,
+  disabled,
+  onSend,
+}: {
+  card: SecretCard;
+  disabled: boolean;
+  onSend(answer: CardAnswerIn): void;
+}) {
+  const id = useId();
+  const field = useRef<HTMLInputElement>(null);
+  const [filled, setFilled] = useState(false);
+
+  const save = (e: FormEvent) => {
+    e.preventDefault();
+    const input = field.current;
+    if (!input?.value || disabled) return;
+    const value = input.value;
+    input.value = "";
+    setFilled(false);
+    onSend({ kind: "secret", value });
+  };
+
+  return (
+    <form className="card-form" onSubmit={save}>
+      <p className="card-prompt">{card.label}</p>
+      {card.reason && <p className="card-detail">{card.reason}</p>}
+      <div className="card-field">
+        <label className="card-label" htmlFor={`${id}-value`}>
+          Saved as {card.name}, only for this bot. The bot never sees the value.
+        </label>
+        <input
+          ref={field}
+          id={`${id}-value`}
+          className="card-input"
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={10_000}
+          disabled={disabled}
+          onChange={(e) => setFilled(e.target.value !== "")}
+        />
+      </div>
+      {!disabled && (
+        <div className="card-actions">
+          <button type="button" className="button secondary" onClick={() => onSend({ kind: "secret", declined: true })}>
+            Don't share
+          </button>
+          <button type="submit" className="button primary" disabled={!filled}>
+            Save
+          </button>
+        </div>
+      )}
+    </form>
+  );
 }
 
 function Widget({

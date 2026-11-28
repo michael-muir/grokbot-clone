@@ -285,6 +285,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, d: HttpDeps): P
         const body = await readJson(req);
         const r = d.gateway.answerCard(bot.id, parts[3], body.answer);
         if (r.result === "invalid") return send(res, 400, { error: r.error });
+        if (r.result === "unavailable") return send(res, 503, { error: r.error });
         return r.result === "ok"
           ? send(res, 200, { ok: true })
           : send(res, 404, { error: "No waiting card with that id" });
@@ -439,7 +440,7 @@ function readAvatar(v: unknown): { shape: AvatarShape; color: AvatarColor } | nu
 }
 
 function publicBot(bot: Bot): PublicBot {
-  const { sessionId: _s, sessionProvider: _p, sessionAt: _a, threadSessions: _t, ...rest } = bot;
+  const { sessionId: _s, sessionProvider: _p, sessionAt: _a, threadSessions: _t, secretNames: _n, ...rest } = bot;
   return rest;
 }
 

@@ -1,5 +1,6 @@
 // Card rules in one place: what a tool may ask for (parseCardRequest), what an answer must look like
 // (checkCardAnswer), and what the model reads back (describeAnswer). Pure, so every agent and the gateway agree.
+import { secretNameProblem } from "./secrets.ts";
 import type { CardAnswer, CardKind, CardRequest, FormField } from "./types.ts";
 
 export const CARD_LIMITS = {
@@ -45,9 +46,26 @@ function list(v: unknown, what: string, [min, max]: readonly [number, number]): 
 export function parseCardRequest(input: unknown, kinds: readonly CardKind[]): CardRequest {
   if (!isRecord(input)) throw new CardRequestError("The card must be an object.");
   const kind = input.kind;
-  if (kind !== "widget" && kind !== "form") throw new CardRequestError('"kind" must be "widget" or "form".');
+  if (kind !== "widget" && kind !== "form" && kind !== "secret") {
+    throw new CardRequestError('"kind" must be "widget" or "form".');
+  }
   if (!kinds.includes(kind)) {
-    throw new CardRequestError(`This app can't show ${kind} cards. Ask in plain text instead.`);
+    throw new CardRequestError(
+      kind === "secret"
+        ? "This app can't ask for secrets. Tell the user what you need instead, and never ask them to paste a secret into the chat."
+        : `This app can't show ${kind} cards. Ask in plain text instead.`,
+    );
+  }
+  if (kind === "secret") {
+    const problem = secretNameProblem(input.name);
+    if (problem) throw new CardRequestError(problem);
+    const reason = text(input.reason, "reason", CARD_LIMITS.prompt, false);
+    return {
+      kind,
+      name: input.name as string,
+      label: text(input.label, "label", CARD_LIMITS.label),
+      ...(reason ? { reason } : {}),
+    };
   }
   if (kind === "widget") {
     const prompt = text(input.prompt, "prompt", CARD_LIMITS.prompt);
@@ -103,6 +121,8 @@ export function checkCardAnswer(
 ): { ok: true; answer: CardAnswer } | { ok: false; error: string } {
   const no = (error: string) => ({ ok: false as const, error });
   if (!isRecord(answer) || answer.kind !== card.kind) return no("That answer doesn't fit this card.");
+  // A secret's answer carries its value: the gateway takes it apart itself (Gateway.answerCard), never through here.
+  if (card.kind === "secret") return no("That answer doesn't fit this card.");
   if (card.kind === "widget") {
     const value = answer.value;
     if (!card.options.some((o) => o.value === value)) return no("Pick one of the options.");
@@ -133,8 +153,19 @@ export function checkCardAnswer(
   return { ok: true, answer: { kind: "form", values } };
 }
 
-/** What the model reads back: the pick, or one line per field. */
-export function describeAnswer(card: CardRequest, answer: CardAnswer): string {
+/**
+ * What the model reads back: the pick, one line per field, or that a secret was saved (never its value).
+ * `commands` names the tool whose commands get the secret.
+ */
+export function describeAnswer(card: CardRequest, answer: CardAnswer, commands = "the shell tool"): string {
+  if (card.kind === "secret" || answer.kind === "secret") {
+    const name = card.kind === "secret" ? card.name : "the secret";
+    if (answer.kind !== "secret" || !answer.saved) return `The user chose not to share ${name}.`;
+    return (
+      `The user saved ${name}. Commands you run with ${commands} get it as the environment variable ${name}. ` +
+      `Its value is hidden from you: don't try to print it. Output that contains it shows [secret ${name}].`
+    );
+  }
   if (card.kind === "widget" || answer.kind === "widget") {
     return `The user picked: ${answer.kind === "widget" ? answer.value : ""}`;
   }
@@ -152,6 +183,25 @@ const FORM_HELP =
   "for select, required?, placeholder?}, submit_label?)";
 
 /** The tool's description, naming only the kinds this user's app can show. */
+export const REQUEST_SECRET_DESCRIPTION =
+  "Ask the user for a password, API key or other secret, on a card where they type it privately. name: the " +
+  "environment variable it will be saved as (upper case, like GITHUB_TOKEN); label: what it is; reason: why you need " +
+  "it. You never see the value: you get its name, and commands you run get it as that environment variable. Never " +
+  "ask for secrets in the chat or in a form.";
+
+export const REQUEST_SECRET_SCHEMA = {
+  type: "object",
+  properties: {
+    name: { type: "string", description: "The environment variable, like GITHUB_TOKEN." },
+    label: { type: "string", description: 'What it is, like "GitHub token".' },
+    reason: { type: "string", description: "Why you need it, one short sentence." },
+  },
+  required: ["name", "label"],
+};
+
+/** The kinds show_card handles (secrets have their own tool). */
+export const showCardKinds = (kinds: readonly CardKind[]) => kinds.filter((k) => k === "widget" || k === "form");
+
 export function showCardDescription(kinds: readonly CardKind[]): string {
   const help = [kinds.includes("widget") ? WIDGET_HELP : "", kinds.includes("form") ? FORM_HELP : ""].filter(Boolean);
   return (

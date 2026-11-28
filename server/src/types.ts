@@ -70,7 +70,7 @@ export interface ChoiceOption {
 }
 
 /** Card kinds a client can show. It names the ones it can with each message; agents fall back to text otherwise. */
-export const CARD_KINDS = ["widget", "form"] as const;
+export const CARD_KINDS = ["widget", "form", "secret"] as const;
 export type CardKind = (typeof CARD_KINDS)[number];
 
 export const isCardKind = (v: unknown): v is CardKind => (CARD_KINDS as readonly unknown[]).includes(v);
@@ -101,9 +101,28 @@ export interface FormCard {
   submitLabel?: string;
 }
 
-export type CardRequest = WidgetCard | FormCard;
+/**
+ * Ask for a password or key (#20). The value goes to the OS keychain and to the bot's commands as the environment
+ * variable `name`; the transcript and the model only ever see that it was saved.
+ */
+export interface SecretCard {
+  kind: "secret";
+  /** Also the environment variable: upper case, like GITHUB_TOKEN. */
+  name: string;
+  label: string;
+  reason?: string;
+}
 
-export type CardAnswer = { kind: "widget"; value: string } | { kind: "form"; values: Record<string, string | boolean> };
+export type CardRequest = WidgetCard | FormCard | SecretCard;
+
+/** A card's answer as stored and given to the run. A secret's never holds the value. */
+export type CardAnswer =
+  | { kind: "widget"; value: string }
+  | { kind: "form"; values: Record<string, string | boolean> }
+  | { kind: "secret"; saved: boolean };
+
+/** What a client sends to answer a card: a secret card's carries the value, which the gateway keeps out of storage. */
+export type CardAnswerIn = CardAnswer | { kind: "secret"; value: string } | { kind: "secret"; declined: true };
 
 export interface ChoiceRequest {
   prompt: string;
@@ -226,6 +245,8 @@ export interface Bot {
   sessionAt?: string;
   /** Each thread's own session, by the thread's root entry id. */
   threadSessions?: Record<string, ConversationSession>;
+  /** Names of the secrets the user gave this bot (#20); the values are in the OS keychain, never here. */
+  secretNames?: string[];
 }
 
 /** Where one conversation (the main one, or a thread) stands with its provider. */
@@ -237,7 +258,7 @@ export interface ConversationSession {
 }
 
 /** A bot as the API shows it: the provider sessions are the gateway's business. */
-export type PublicBot = Omit<Bot, "sessionId" | "sessionProvider" | "sessionAt" | "threadSessions">;
+export type PublicBot = Omit<Bot, "sessionId" | "sessionProvider" | "sessionAt" | "threadSessions" | "secretNames">;
 
 /** What a bot is doing right now, for the sidebar. Sent as a snapshot of every bot whenever one changes. */
 export interface BotActivity {
@@ -273,6 +294,11 @@ export interface RunRequest {
   baseUrl?: string;
   /** The card kinds the user's app can show; none means ask in plain text. */
   cardKinds?: CardKind[];
+  /**
+   * The bot's secrets by name, read when a command runs (so one saved earlier in the run works). Only for the
+   * environment of commands the provider runs itself and for redacting their output: never logged, never sent.
+   */
+  secrets?: () => Readonly<Record<string, string>>;
   /** The bot's computer: the directory the agent works in. */
   workspaceDir: string;
   /** Persona and product instructions appended to the provider's own system prompt. */

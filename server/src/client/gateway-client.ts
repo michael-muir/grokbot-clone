@@ -4,7 +4,7 @@ import type {
   ApprovalDecision,
   AvatarColor,
   AvatarShape,
-  CardAnswer,
+  CardAnswerIn,
   CardKind,
   Feedback,
   NewBot,
@@ -141,7 +141,7 @@ export class GatewayClient {
   }
 
   /** Answers a card; refused (400) with the reason when the answer doesn't fit it. */
-  async answerCard(botId: string, entryId: string, answer: CardAnswer): Promise<void> {
+  async answerCard(botId: string, entryId: string, answer: CardAnswerIn): Promise<void> {
     await this.request("POST", `/bots/${enc(botId)}/cards/${enc(entryId)}`, { answer });
   }
 

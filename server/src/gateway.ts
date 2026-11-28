@@ -5,6 +5,7 @@ import type { BotRegistry } from "./bots.ts";
 import { checkCardAnswer } from "./cards.ts";
 import type { ComputerManager } from "./computer.ts";
 import type { ProviderRegistry } from "./providers/index.ts";
+import { BotSecrets, MAX_SECRET_LENGTH, MemorySecretStore, SecretStoreUnavailableError } from "./secrets.ts";
 import type { TranscriptStore } from "./transcript.ts";
 import {
   type AgentProvider,
@@ -86,7 +87,17 @@ export class Gateway {
   /** How each bot's last run ended, for activity snapshots. */
   private readonly lastRuns = new Map<string, RunOutcome["status"]>();
 
-  constructor(bots: BotRegistry, store: TranscriptStore, providers: ProviderRegistry, computers: ComputerManager) {
+  /** The bots' secrets (#20). The OS keychain in the app; memory unless one is given (tests). */
+  private readonly secrets: BotSecrets;
+
+  constructor(
+    bots: BotRegistry,
+    store: TranscriptStore,
+    providers: ProviderRegistry,
+    computers: ComputerManager,
+    secrets: BotSecrets = new BotSecrets(new MemorySecretStore()),
+  ) {
+    this.secrets = secrets;
     this.bots = bots;
     this.store = store;
     this.providers = providers;
@@ -284,6 +295,15 @@ export class Gateway {
           `Couldn't delete ${bot.name}'s files: ${err instanceof Error ? err.message : String(err)}. ` +
             "Close any program using them, then try again.",
         );
+      }
+      // Its secrets go too. One that can't be removed is logged by name (never value) and doesn't stop the delete:
+      // nothing can read it without the bot.
+      for (const name of bot.secretNames ?? []) {
+        try {
+          this.secrets.delete(botId, name);
+        } catch (err) {
+          console.warn(`Couldn't remove ${bot.name}'s secret ${name}:`, err instanceof Error ? err.message : err);
+        }
       }
       this.bots.remove(botId);
       this.retiredIds.add(botId);
@@ -484,12 +504,60 @@ export class Gateway {
     botId: string,
     entryId: string,
     answer: unknown,
-  ): { result: "ok" } | { result: "not-pending" } | { result: "invalid"; error: string } {
+  ):
+    | { result: "ok" }
+    | { result: "not-pending" }
+    | { result: "invalid"; error: string }
+    | { result: "unavailable"; error: string } {
     const entry = this.store.get(botId, entryId);
     if (entry?.body.kind !== "card" || entry.body.state !== "pending") return { result: "not-pending" };
-    const checked = checkCardAnswer(entry.body.card, answer);
+    const card = entry.body.card;
+    if (card.kind === "secret") return this.answerSecret(botId, entryId, card.name, answer);
+    const checked = checkCardAnswer(card, answer);
     if (!checked.ok) return { result: "invalid", error: checked.error };
     return this.cards.answer(entryId, checked.answer) ? { result: "ok" } : { result: "not-pending" };
+  }
+
+  /**
+   * A secret card's answer: the value goes to the keychain and nowhere else. The card and the run only learn whether
+   * it was saved. Nothing here (result, error, log) ever holds the value.
+   */
+  private answerSecret(
+    botId: string,
+    entryId: string,
+    name: string,
+    answer: unknown,
+  ):
+    | { result: "ok" }
+    | { result: "not-pending" }
+    | { result: "invalid"; error: string }
+    | { result: "unavailable"; error: string } {
+    const a = typeof answer === "object" && answer !== null ? (answer as Record<string, unknown>) : {};
+    if (a.kind !== "secret") return { result: "invalid", error: "That answer doesn't fit this card." };
+    if (a.declined === true) {
+      return this.cards.answer(entryId, { kind: "secret", saved: false })
+        ? { result: "ok" }
+        : { result: "not-pending" };
+    }
+    const value = a.value;
+    if (typeof value !== "string" || value.length === 0 || value.length > MAX_SECRET_LENGTH) {
+      return {
+        result: "invalid",
+        error: `The secret must be 1 to ${MAX_SECRET_LENGTH.toLocaleString("en-US")} characters.`,
+      };
+    }
+    try {
+      this.secrets.set(botId, name, value);
+    } catch (err) {
+      // The card stays waiting, so the user can try again once the keychain is back.
+      if (err instanceof SecretStoreUnavailableError) return { result: "unavailable", error: err.message };
+      throw err;
+    }
+    const bot = this.bots.get(botId);
+    if (bot && !bot.secretNames?.includes(name)) {
+      this.bots.update(botId, { secretNames: [...(bot.secretNames ?? []), name] });
+    }
+    return this.cards.answer(entryId, { kind: "secret", saved: true }) ? { result: "ok" } : { result: "not-pending" };
   }
 
   private async execute(
@@ -585,6 +653,7 @@ export class Gateway {
           sessionId: resumable,
           ...(resumable && session.sessionAt !== undefined ? { resumeAt: session.sessionAt } : {}),
           cardKinds,
+          secrets: () => this.secrets.all(bot.id, this.bots.get(bot.id)?.secretNames ?? []),
           model: bot.model,
           baseUrl: bot.baseUrl,
           workspaceDir: computer.workspaceDir,

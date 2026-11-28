@@ -5,7 +5,7 @@ import type { StreamState } from "../../../server/src/client/subscribe.ts";
 import {
   type ApprovalDecision,
   type BotActivity,
-  type CardAnswer,
+  type CardAnswerIn,
   type CardKind,
   type Feedback,
   isAvatarColor,
@@ -52,7 +52,7 @@ export interface Calls {
     result: string;
   };
   /** Answers a widget or form card. */
-  answerCard: { args: [botId: string, entryId: string, answer: CardAnswer]; result: undefined };
+  answerCard: { args: [botId: string, entryId: string, answer: CardAnswerIn]; result: undefined };
   interrupt: { args: [botId: string]; result: undefined };
   /** Starts the bot's conversation over; the old one stays readable. */
   startFresh: { args: [botId: string]; result: undefined };
@@ -164,9 +164,11 @@ function isPatch(v: unknown): v is BotPatch {
 
 const isCardKinds = (v: unknown): v is CardKind[] => Array.isArray(v) && v.length <= 10 && v.every(isCardKind);
 
-function isCardAnswer(v: unknown): v is CardAnswer {
+/** A card answer's shape and size; the gateway checks it against its card. A secret's value passes through unlogged. */
+function isCardAnswer(v: unknown): v is CardAnswerIn {
   if (!isRecord(v)) return false;
   if (v.kind === "widget") return isString(v.value) && v.value.length <= 200;
+  if (v.kind === "secret") return v.declined === true || (isString(v.value) && v.value.length <= 10_000);
   if (v.kind !== "form" || !isRecord(v.values)) return false;
   const entries = Object.entries(v.values);
   return (
@@ -197,7 +199,7 @@ const ARGS: { [K in CallName]: (a: unknown[]) => a is Calls[K]["args"] } = {
     optional(isId)(a[3]) &&
     optional(isCardKinds)(a[4]),
   // The gateway checks the answer against its card; here only its shape and size.
-  answerCard: (a): a is [string, string, CardAnswer] =>
+  answerCard: (a): a is [string, string, CardAnswerIn] =>
     a.length === 3 && isId(a[0]) && isId(a[1]) && isCardAnswer(a[2]),
   interrupt: (a): a is [string] => a.length === 1 && isId(a[0]),
   startFresh: (a): a is [string] => a.length === 1 && isId(a[0]),

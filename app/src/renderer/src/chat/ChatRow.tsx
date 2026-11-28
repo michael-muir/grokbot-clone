@@ -3,7 +3,7 @@
 // Memoized: rows are rebuilt on every change, but an unchanged entry keeps its reference, so sameRow() lets
 // only the rows that changed re-render.
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { type CardAnswer, type Feedback, REACTIONS, type TranscriptEntry } from "../../../../../server/src/types.ts";
+import { type CardAnswerIn, type Feedback, REACTIONS, type TranscriptEntry } from "../../../../../server/src/types.ts";
 import { Avatar } from "../shell/Avatar.tsx";
 import { type MenuItem, PopupMenu, ReactionPicker } from "../shell/PopupMenu.tsx";
 import { ApprovalCard } from "./ApprovalCard.tsx";
@@ -19,7 +19,7 @@ export interface RowContext {
   answerApproval(entry: TranscriptEntry, allow: boolean, reason?: string): Promise<unknown>;
   answerChoice(entry: TranscriptEntry, answer: string): Promise<unknown>;
   /** Answers a widget or form card; rejects with the gateway's reason when it doesn't fit. */
-  answerCard(entry: TranscriptEntry, answer: CardAnswer): Promise<unknown>;
+  answerCard(entry: TranscriptEntry, answer: CardAnswerIn): Promise<unknown>;
   /** Opens the thread started from this message (an empty one if it has none yet). */
   openThread(entry: TranscriptEntry): void;
   /** Asks to roll the conversation back to before this message of the user's. */

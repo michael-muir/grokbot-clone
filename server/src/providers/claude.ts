@@ -10,6 +10,7 @@
 //   canUseTool           -> approval card in the transcript
 //   AskUserQuestion      -> choice cards (claude-questions.ts)
 //   show_card (MCP)      -> widget and form cards, when the app can show them (claude-cards.ts)
+//   request_secret, run_command (MCP) -> secret cards, and commands that use secrets with their output redacted
 import { type Options, query, type SDKAssistantMessage, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { apiErrorMessage } from "../agent/openai-compatible.ts";
 import { short } from "../agent/tools.ts";
@@ -17,7 +18,7 @@ import { childEnv } from "../child-env.ts";
 import { labelPath } from "../display-path.ts";
 import { NotConfiguredError } from "../errors.ts";
 import type { AgentProvider, ProviderInfo, RunCallbacks, RunOutcome, RunRequest } from "../types.ts";
-import { CARD_SERVER, cardServer, SHOW_CARD_TOOL } from "./claude-cards.ts";
+import { appTools, CARD_SERVER, REQUEST_SECRET_TOOL, RUN_COMMAND_TOOL, SHOW_CARD_TOOL } from "./claude-cards.ts";
 import { ASK_USER_QUESTION, answerQuestions } from "./claude-questions.ts";
 
 export const DEFAULT_CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
@@ -84,8 +85,13 @@ export class ClaudeProvider implements AgentProvider {
     const onAbort = () => abortController.abort();
     req.signal.addEventListener("abort", onAbort, { once: true });
 
-    const kinds = req.cardKinds ?? [];
-    const cards = kinds.length && cb.requestCard ? cardServer(kinds, cb.requestCard, req.signal) : undefined;
+    const app = appTools({
+      kinds: req.cardKinds ?? [],
+      ask: cb.requestCard,
+      signal: req.signal,
+      workspaceDir: req.workspaceDir,
+      secrets: req.secrets ?? (() => ({})),
+    });
     const options: Options = {
       cwd: req.workspaceDir,
       model: req.model || DEFAULT_CLAUDE_MODEL,
@@ -98,8 +104,9 @@ export class ClaudeProvider implements AgentProvider {
       settingSources: [],
       permissionMode: "default",
       // Cards only when the user's app can show them; otherwise Claude has no card tool and asks in text.
-      ...(cards ? { mcpServers: { [CARD_SERVER]: cards } } : {}),
-      allowedTools: cards ? [...READ_ONLY_TOOLS, SHOW_CARD_TOOL] : READ_ONLY_TOOLS,
+      // The app's tools (cards, secrets) when this run has any; otherwise Claude asks in text.
+      ...(app ? { mcpServers: { [CARD_SERVER]: app.server } } : {}),
+      allowedTools: [...READ_ONLY_TOOLS, ...(app?.allowed ?? [])],
       includePartialMessages: true,
       abortController,
       // The key is read now, so a key saved in Settings works without a restart. Never logged.
@@ -338,6 +345,10 @@ export function summarizeTool(tool: string, input: Record<string, unknown>, work
   switch (tool) {
     case SHOW_CARD_TOOL:
       return `Asking: ${s(input.prompt ?? input.title)}`;
+    case REQUEST_SECRET_TOOL:
+      return `Asking for ${s(input.label ?? input.name)}`;
+    case RUN_COMMAND_TOOL:
+      return `Running ${s(input.command)}`;
     case "Bash":
       return `Running ${s(input.command)}`;
     case "Read":
