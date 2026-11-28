@@ -150,13 +150,19 @@ Other tests:
 - `secrets: deleting a bot deletes its secrets`.
 - `secrets: an unavailable keychain refuses the save, and the card can be tried again`.
 
-**Manual check** (fake provider):
+**Manual check, 2026-11-27.** In the app, on the fake provider, with an isolated data folder and the real Windows
+keychain:
 
-- `/secret` asks for `DEMO_TOKEN`, and the input is masked.
-- Save `hunter2-demo`. The card shows "Saved as DEMO_TOKEN", and the bot's reply holds no value.
-- `/secret-echo` runs `echo $DEMO_TOKEN` (on Windows, `$env:DEMO_TOKEN`) through the shell path and shows the
-  redacted output.
-- Search the data folder for the value: no matches.
+- **Asking:** `/secret` showed a "Demo token" card: the reason, "Saved as DEMO_TOKEN, only for this bot. The bot
+  never sees the value.", a masked password field, and "Don't share" and Save. Save stayed disabled until something
+  was typed.
+- **Saving:** after typing a test value and saving, the card said "Saved as DEMO_TOKEN" and the field was empty.
+- **Using it:** `/secret-echo` asked to approve `Write-Output $env:DEMO_TOKEN`. After Allow, the reply was "The
+  command printed: [secret DEMO_TOKEN]": the command had the value, and the reply only its name.
+- **Searching for leaks:** a search of the whole data folder (transcript, bots file, sessions) and the app's log
+  for the value found nothing.
+- **Cleanup:** the test value was found in Credential Manager under `smarty-prompts-bot-secrets` and deleted after
+  the check.
 
 ## Risks and open questions
 
