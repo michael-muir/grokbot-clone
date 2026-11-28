@@ -65,13 +65,9 @@ textarea {
   stroke-linejoin: round;
 }
 
-/* The eyes as a pair: they look at the pointer (--gaze-*, set by face-director.ts) and blink, closing just above
-   their middle. */
+/* The eyes as a pair: they move when the bot turns to face you, and follow the pointer while it's over the bot. */
 .avatar-eyes {
-  translate: var(--gaze-x, 0) var(--gaze-y, 0);
-  transform-box: fill-box;
-  transform-origin: 50% 40%;
-  transition: translate var(--duration-face-gaze) var(--ease-out);
+  transition: translate var(--duration-face-morph) var(--ease-face);
 }
 
 /* Each eye grows around its own middle for the surprised look. */
@@ -100,11 +96,10 @@ textarea {
   transform: rotate(0deg);
 }
 
-/* …and its eyes come to the middle: it looks at you rather than up and away. */
+/* …and its eyes come to the middle and watch the pointer (--face-front-*, --gaze-*: set by face-director.ts). */
 .avatar[data-live]:hover .avatar-eyes,
 :hover > .avatar[data-live] .avatar-eyes {
-  translate: var(--face-front-x, 0) var(--face-front-y, 0);
-  transition-duration: var(--duration-face-morph);
+  translate: calc(var(--face-front-x) + var(--gaze-x)) calc(var(--face-front-y) + var(--gaze-y));
 }
 
 /* A gentle sway while idle, a livelier one while working; each bot on its own phase (--face-phase). Reactions
@@ -148,9 +143,11 @@ textarea {
   }
 }
 
+/* As specific as the rules above (and later), so it wins over the live and working ones. */
 @media (prefers-reduced-motion: reduce) {
-  .avatar .avatar-face,
-  .avatar .avatar-tilt,
+  .avatar[data-live][data-motion] .avatar-face,
+  .avatar[data-live] .avatar-face,
+  .avatar[data-live] .avatar-tilt,
   .avatar .avatar-eyes,
   .avatar .avatar-eye {
     animation: none;

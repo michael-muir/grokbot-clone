@@ -150,8 +150,11 @@ export class Gateway {
       this.active.delete(botId);
       throw err;
     }
+    // This run's outcome replaces the last one's; if it throws before saying, it failed.
+    this.lastRuns.delete(botId);
     this.activityChanged();
     run.done = this.execute(bot, provider, text, controller).finally(() => {
+      if (!this.lastRuns.has(botId)) this.lastRuns.set(botId, "failed");
       this.active.delete(botId);
       this.activityChanged();
     });

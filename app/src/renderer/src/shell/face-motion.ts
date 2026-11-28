@@ -1,4 +1,4 @@
-// Bot face motion as numbers: when and how a bot blinks, where its eyes look, and its reactions to finished runs.
+// Bot face motion as numbers: where a bot's eyes look while the pointer is over it, and its reactions to runs.
 import type { BotActivity } from "../../../../../server/src/types.ts";
 
 /** One keyframe for the Web Animations API, kept free of DOM types so tests can read it. */
@@ -9,42 +9,31 @@ export interface Frame {
 }
 
 /**
- * Blinks come every 2.8–6.5 s and take 0.26 s, the rhythm captured from the reference (#43). The lids close fast,
- * stay shut a moment, then open with a small overshoot, which keeps it from looking mechanical.
+ * While the pointer is over a bot, its eyes follow it: up to `maxUnits` (face units) from the middle, reached at the
+ * edge of the bot's control. Within `deadPx` of the middle they stay put. The reference's icons do the same and don't
+ * blink (the owner checked); its blinking, window-wide watching mark is the one beside the composer.
  */
-export const BLINK = { minDelayMs: 2800, spreadMs: 3700, durationMs: 260 } as const;
-
-export const blinkDelay = (random: number): number => BLINK.minDelayMs + random * BLINK.spreadMs;
-
-export const BLINK_FRAMES: readonly Frame[] = [
-  { transform: "scaleY(1)", offset: 0, easing: "cubic-bezier(0.4, 0, 0.6, 1)" },
-  { transform: "scaleY(0.1)", offset: 0.31 },
-  { transform: "scaleY(0.1)", offset: 0.58, easing: "cubic-bezier(0.2, 0.8, 0.4, 1)" },
-  { transform: "scaleY(1.06)", offset: 0.86, easing: "ease-in-out" },
-  { transform: "scaleY(1)", offset: 1 },
-];
-
-/** The eyes look toward the pointer, from where they rest: furthest (in face units) from `reachPx` away. */
-export const GAZE = { maxUnits: 1, reachPx: 240, deadPx: 4, holdMs: 2500 } as const;
+export const GAZE = { maxUnits: 1, deadPx: 2 } as const;
 
 /** How much the eyes grow when the pointer is over the bot: a surprised, attentive look. */
 export const SURPRISED_SCALE = 1.25;
 
 /**
- * Where the eyes look, in face units, for a pointer at `pointer` and a face centered at `center` (screen pixels).
- * Eased so they move a lot for nearby pointers and settle at the limit; turned back by the face's tilt, since the
- * eyes sit inside the tilted drawing.
+ * Where the eyes look, in face units, for a pointer at `pointer` and a face centered at `center` (screen pixels),
+ * reaching the limit `reachPx` away. Eased so they move a lot at first and settle at the limit; turned back by the
+ * face's tilt, since the eyes sit inside the drawing.
  */
 export function gaze(
   center: { x: number; y: number },
   pointer: { x: number; y: number },
   tiltDeg: number,
+  reachPx: number,
 ): [number, number] {
   const dx = pointer.x - center.x;
   const dy = pointer.y - center.y;
   const distance = Math.hypot(dx, dy);
   if (distance <= GAZE.deadPx) return [0, 0];
-  const e = Math.min(1, distance / GAZE.reachPx);
+  const e = Math.min(1, distance / Math.max(reachPx, 1));
   const reach = GAZE.maxUnits * e * (2 - e);
   const sx = (dx / distance) * reach;
   const sy = (dy / distance) * reach;

@@ -136,42 +136,23 @@ test("faces: both eyes sit wholly on the body, side by side", () => {
   }
 });
 
-test("faces: the eyes stay on the body while they look around, also wide open", () => {
-  // From rest, the furthest they look (GAZE.maxUnits) in eight directions, at normal size and grown
-  // (SURPRISED_SCALE).
+test("faces: a hovered bot turns to face you; its eyes, wide open, stay on it as they watch the pointer", () => {
+  // From the middle (where hovering brings them), the furthest they look (GAZE.maxUnits) in eight directions.
   const directions = Array.from({ length: 8 }, (_, i) => (i * Math.PI) / 4);
   for (const shape of AVATAR_SHAPES) {
     const face = FACES[shape];
-    for (const scale of [1, SURPRISED_SCALE]) {
-      for (const a of directions) {
-        const dx = Math.cos(a) * GAZE.maxUnits;
-        const dy = Math.sin(a) * GAZE.maxUnits;
-        for (const e of eyeRects(face)) {
-          for (const [x, y] of eyePoints(e, scale, dx, dy)) {
-            // At least one unit of the bot's color stays around a moving eye.
-            assert.ok(
-              onDrawnBody([x, y], face, STROKE / 2 - 1),
-              `${shape}: at scale ${scale}, looking ${a.toFixed(2)}, ${x},${y} is off`,
-            );
-          }
+    const front: Point = [face.pivot[0] - face.eyes[0], face.pivot[1] - face.eyes[1]];
+    for (const a of [null, ...directions]) {
+      const [dx, dy] = a === null ? [0, 0] : [Math.cos(a) * GAZE.maxUnits, Math.sin(a) * GAZE.maxUnits];
+      for (const e of eyeRects(face, front)) {
+        for (const [x, y] of eyePoints(e, SURPRISED_SCALE, dx, dy)) {
+          // At least one unit of the bot's color stays around the eye.
+          assert.ok(onDrawnBody([x, y], face, STROKE / 2 - 1), `${shape}: looking ${a?.toFixed(2)}, ${x},${y} is off`);
         }
       }
     }
   }
 });
-
-test("faces: a hovered bot's eyes fit in the middle of its body, wide open (it turns to look at you)", () => {
-  for (const shape of AVATAR_SHAPES) {
-    const face = FACES[shape];
-    const front: Point = [face.pivot[0] - face.eyes[0], face.pivot[1] - face.eyes[1]];
-    for (const e of eyeRects(face, front)) {
-      for (const [x, y] of eyePoints(e, SURPRISED_SCALE)) {
-        assert.ok(onDrawnBody([x, y], face, STROKE / 2 - 1), `${shape}: facing you, ${x},${y} is off the body`);
-      }
-    }
-  }
-});
-
 test("faces: at rest every bot faces up and to the right on screen, as in the reference", () => {
   for (const shape of AVATAR_SHAPES) {
     const face = FACES[shape];

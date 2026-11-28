@@ -39,6 +39,7 @@ async function setup() {
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   return {
     gateway,
+    store,
     server,
     url,
     cleanup() {
@@ -171,7 +172,26 @@ test("activity says how each bot's last run ended, so the app can react", async 
   }
 });
 
-test("subscribeActivity keeps a known lastRun and drops an unknown one", async () => {
+test("a run that breaks before it ends counts as failed, not as the last run's outcome", async () => {
+  const t = await setup();
+  try {
+    await (await t.gateway.sendMessage("rex", "hello")).done;
+    assert.equal(t.gateway.activity().find((a) => a.botId === "rex")?.lastRun, "finished");
+    // The store refuses the next run's entry, so the run throws before it can say how it ended.
+    const append = t.store.append.bind(t.store);
+    t.store.append = (botId, body, ...rest) => {
+      if (body.kind === "run") throw new Error("disk full");
+      return append(botId, body, ...rest);
+    };
+    const { done } = await t.gateway.sendMessage("rex", "again");
+    await done.catch(() => {});
+    assert.equal(t.gateway.activity().find((a) => a.botId === "rex")?.lastRun, "failed");
+  } finally {
+    t.cleanup();
+  }
+});
+
+test("subscribeActivity keeps a known lastRun, and an item with an unknown one without it", async () => {
   const body = new ReadableStream<Uint8Array>({
     start(c) {
       c.enqueue(
@@ -195,5 +215,10 @@ test("subscribeActivity keeps a known lastRun and drops an unknown one", async (
     },
   });
   await following;
-  assert.deepEqual(got, [[{ botId: "nova", running: false, lastRun: "finished" }]]);
+  assert.deepEqual(got, [
+    [
+      { botId: "nova", running: false, lastRun: "finished" },
+      { botId: "rex", running: false },
+    ],
+  ]);
 });

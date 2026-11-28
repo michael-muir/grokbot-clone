@@ -1,13 +1,10 @@
-// Bot face motion: the blink's rhythm and shape, where the eyes look, and which runs earn a reaction.
+// Bot face motion: where the eyes look while the pointer is over a bot, and which runs earn a reaction.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
-  BLINK,
-  BLINK_FRAMES,
-  blinkDelay,
   type Frame,
   GAZE,
   gaze,
@@ -17,50 +14,23 @@ import {
   SURPRISED_SCALE,
 } from "../src/renderer/src/shell/face-motion.ts";
 
-test("motion: blinks come every 2.8 to 6.5 s and take about a quarter second", () => {
-  assert.equal(blinkDelay(0), 2800);
-  assert.equal(blinkDelay(1), 6500);
-  assert.equal(BLINK.durationMs, 260);
-});
-
-function scaleY(f: Frame): number {
-  const m = f.transform.match(/^scaleY\(([\d.]+)\)$/);
-  assert.ok(m, f.transform);
-  return Number(m[1]);
-}
-
-test("motion: a blink closes, holds, opens past fully and settles", () => {
-  const offsets = BLINK_FRAMES.map((f) => f.offset);
-  assert.deepEqual(
-    offsets,
-    [...offsets].sort((a, b) => a - b),
-  );
-  assert.equal(offsets[0], 0);
-  assert.equal(offsets.at(-1), 1);
-  const ys = BLINK_FRAMES.map(scaleY);
-  assert.equal(ys[0], 1);
-  assert.equal(ys.at(-1), 1);
-  assert.ok(Math.min(...ys) <= 0.15, "the lids close");
-  assert.ok(Math.max(...ys) > 1, "the eyes overshoot as they open");
-});
-
-test("motion: the eyes look toward the pointer, eased, within their limit", () => {
+test("motion: over a bot, the eyes follow the pointer, eased, up to their limit at the control's edge", () => {
   const center = { x: 100, y: 100 };
-  assert.deepEqual(gaze(center, { x: 102, y: 101 }, 0), [0, 0], "a pointer on the face doesn't move them");
-  const [farX, farY] = gaze(center, { x: 1000, y: 100 }, 0);
-  assert.equal(farX, GAZE.maxUnits);
-  assert.equal(farY, 0);
-  const [, down] = gaze(center, { x: 100, y: 400 }, 0);
-  assert.equal(down, GAZE.maxUnits, "down the screen is down in the face");
-  const near = gaze(center, { x: 160, y: 100 }, 0)[0];
-  const mid = gaze(center, { x: 220, y: 100 }, 0)[0];
-  assert.ok(near > 0 && near < mid && mid < GAZE.maxUnits, "further pointers move them further, up to the limit");
-  assert.ok(near > (GAZE.maxUnits * 60) / GAZE.reachPx, "eased: quick at first");
+  const reach = 30; // half the control
+  assert.deepEqual(gaze(center, { x: 101, y: 101 }, 0, reach), [0, 0], "a pointer on the middle doesn't move them");
+  const [edgeX, edgeY] = gaze(center, { x: 130, y: 100 }, 0, reach);
+  assert.equal(edgeX, GAZE.maxUnits);
+  assert.equal(edgeY, 0);
+  const [, down] = gaze(center, { x: 100, y: 140 }, 0, reach);
+  assert.equal(down, GAZE.maxUnits, "down the screen is down in the face, and it stops at the limit");
+  const near = gaze(center, { x: 108, y: 100 }, 0, reach)[0];
+  const mid = gaze(center, { x: 118, y: 100 }, 0, reach)[0];
+  assert.ok(near > 0 && near < mid && mid < GAZE.maxUnits, "further moves them further, up to the limit");
+  assert.ok(near > (GAZE.maxUnits * 8) / reach, "eased: quick at first");
   // A face drawn tilted 90° clockwise: a pointer to the right is "up" in its own coordinates.
-  const [tx, ty] = gaze(center, { x: 1000, y: 100 }, 90);
+  const [tx, ty] = gaze(center, { x: 200, y: 100 }, 90, reach);
   assert.ok(Math.abs(tx) < 0.01 && Math.abs(ty + GAZE.maxUnits) < 0.01, `${tx},${ty}`);
 });
-
 test("motion: a run that finishes celebrates, one that fails droops, others don't react", () => {
   const before = [
     { botId: "a", running: true },
@@ -129,7 +99,12 @@ test("motion: reduced motion stops the sway and the eye transitions", () => {
     "utf8",
   );
   const block = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
-  for (const sel of [".avatar .avatar-face", ".avatar .avatar-tilt", ".avatar .avatar-eyes", ".avatar .avatar-eye"]) {
+  for (const sel of [
+    ".avatar[data-live][data-motion] .avatar-face",
+    ".avatar[data-live] .avatar-tilt",
+    ".avatar .avatar-eyes",
+    ".avatar .avatar-eye",
+  ]) {
     assert.ok(block.includes(sel), `${sel} is stilled`);
   }
   assert.match(block, /animation: none;\s*transition: none;/);

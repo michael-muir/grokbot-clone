@@ -1,5 +1,5 @@
 // A bot's avatar (its shape in its color, with a face) and the picker for shape and color.
-import { type ReactNode, useEffect, useId, useRef } from "react";
+import { type ReactNode, useId, useLayoutEffect, useRef } from "react";
 import { AVATAR_COLORS, AVATAR_SHAPES, type AvatarColor, type AvatarShape } from "../../../../../server/src/types.ts";
 import { botColor, botShape } from "../bot-colors.ts";
 import { EYE, eyeRects, FACES, type Part, STROKE, VIEW } from "./avatar-faces.ts";
@@ -34,8 +34,8 @@ function drawPart(part: Part, key: number): ReactNode {
 
 /**
  * Decorative: wherever it appears, the bot's name is next to it or on the control around it. With `botId` the face
- * is alive (it blinks, looks at the pointer and reacts to runs; see face-director.ts); without it, it's still, as
- * in the shape picker.
+ * is alive (it faces you and watches the pointer over it, sways and reacts to runs; see face-director.ts); without it,
+ * it's still, as in the shape picker.
  */
 export function Avatar({
   avatar,
@@ -49,7 +49,8 @@ export function Avatar({
   const shape = botShape(avatar.shape);
   const face = FACES[shape];
   const ref = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
+  // Before paint: the tilt it's drawn with comes from CSS variables `liven` sets, so it mustn't first show upright.
+  useLayoutEffect(() => {
     const el = ref.current;
     return el && botId !== undefined ? liven(el, botId, face) : undefined;
   }, [botId, face]);
