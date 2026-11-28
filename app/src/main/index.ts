@@ -11,6 +11,7 @@ import { ownPageCheck } from "./own-page.ts";
 import { platformFor } from "./platform/index.ts";
 import { adoptOldSettings, SettingsStore } from "./settings.ts";
 import { bringToFront, takesLock } from "./single-instance.ts";
+import { windowBackground } from "./window-theme.ts";
 
 // One app at a time: a second launch hands over to the running one and exits before it reads settings or starts
 // a gateway. process.exit, not app.quit: app.quit returns, and the rest of this module would still run.
@@ -27,6 +28,12 @@ const rendererFile = fileURLToPath(new URL("../renderer/index.html", import.meta
 const preloadFile = fileURLToPath(new URL("../preload/index.cjs", import.meta.url));
 
 // Read before the app is ready: hardware acceleration can only be turned off this early.
+// The system theme can change under "Follow System": the windows' backgrounds follow it.
+nativeTheme.on("updated", () => {
+  for (const win of BrowserWindow.getAllWindows())
+    win.setBackgroundColor(windowBackground(nativeTheme.shouldUseDarkColors));
+});
+
 const settingsFile = join(app.getPath("userData"), "settings.json");
 // The app was called "grokbot-clone-app" before; bring its settings along once.
 adoptOldSettings(join(app.getPath("appData"), "grokbot-clone-app", "settings.json"), settingsFile);
@@ -37,6 +44,8 @@ if (!settings.get().hardwareAcceleration) app.disableHardwareAcceleration();
 function applySettings(): void {
   const s = settings.get();
   nativeTheme.themeSource = s.theme;
+  for (const win of BrowserWindow.getAllWindows())
+    win.setBackgroundColor(windowBackground(nativeTheme.shouldUseDarkColors));
   session.defaultSession.setSpellCheckerEnabled(s.spellcheck);
 }
 
@@ -90,6 +99,8 @@ function createWindow(): BrowserWindow {
     minHeight: 600,
     show: false,
     title: "SmartyPrompts",
+    // The theme's own background before the page paints, so opening (or resizing) never flashes the other theme.
+    backgroundColor: windowBackground(nativeTheme.shouldUseDarkColors),
     webPreferences: { preload: preloadFile, sandbox: true, contextIsolation: true, nodeIntegration: false },
   });
   win.once("ready-to-show", () => {

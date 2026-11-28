@@ -19,12 +19,15 @@ import {
   type ReviewStep,
   SCENES,
 } from "./review-fixtures.ts";
+import { windowBackground } from "./window-theme.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const rendererFile = join(here, "../renderer/index.html");
 const preloadFile = join(here, "../preload/index.cjs");
 const repoRoot = join(here, "../../..");
-const outDir = join(repoRoot, "review", "out");
+/** REVIEW_THEME=light captures the light theme, into review/out/light (#24). Dark is the reference's theme. */
+const theme = process.env.REVIEW_THEME === "light" ? "light" : "dark";
+const outDir = theme === "light" ? join(repoRoot, "review", "out", "light") : join(repoRoot, "review", "out");
 const captureDir = join(outDir, "captures");
 
 // A retina display would capture at 2× and no longer match the 1040×760 reference shots.
@@ -35,7 +38,7 @@ let scene: ReviewScene = SCENES[0];
 let settings: AppSettings = freshSettings();
 
 function freshSettings(): AppSettings {
-  return { ...DEFAULT_SETTINGS, theme: "dark", onboarded: scene.onboarded };
+  return { ...DEFAULT_SETTINGS, theme, onboarded: scene.onboarded };
 }
 
 function answer(name: string, args: readonly unknown[]): unknown {
@@ -257,7 +260,7 @@ ${cards}
 }
 
 async function main(): Promise<number> {
-  nativeTheme.themeSource = "dark";
+  nativeTheme.themeSource = theme;
   Menu.setApplicationMenu(null);
   registerFixtures();
   const win = new BrowserWindow({
@@ -265,7 +268,7 @@ async function main(): Promise<number> {
     height: CAPTURE_HEIGHT,
     useContentSize: true,
     show: false,
-    backgroundColor: "#121212",
+    backgroundColor: windowBackground(theme === "dark"),
     autoHideMenuBar: true,
     webPreferences: { preload: preloadFile, sandbox: true, contextIsolation: true, nodeIntegration: false },
   });
